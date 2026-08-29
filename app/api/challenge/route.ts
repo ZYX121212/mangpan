@@ -1,20 +1,16 @@
 import {
   advanceSession,
   revealSession,
+  resumeLatestSession,
   resumeSession,
   startDailySession,
   startPracticeSession,
 } from "../../challenge-sessions";
 import { chinaDate, type MarketKind } from "../../game-config";
 import type { ScenarioDifficulty, ScenarioKind } from "../../market-data";
+import { requestPlayerId } from "../../request-identity";
 
 const headers = { "cache-control": "no-store" };
-
-function playerIdFrom(value: unknown) {
-  return typeof value === "string" && /^[a-zA-Z0-9_-]{10,80}$/.test(value)
-    ? value
-    : undefined;
-}
 
 function marketFrom(value: string | null): MarketKind {
   return value === "us" ? "us" : "cn";
@@ -43,7 +39,21 @@ function errorResponse(error: unknown) {
 export async function GET(request: Request) {
   try {
     const params = new URL(request.url).searchParams;
-    const playerId = playerIdFrom(params.get("playerId"));
+    const playerId = await requestPlayerId(request, params.get("playerId"));
+    if (params.get("resume") === "latest") {
+      if (!playerId)
+        return Response.json(
+          { error: "恢复会话无效" },
+          { status: 400, headers },
+        );
+      const latest = await resumeLatestSession(
+        playerId,
+        marketFrom(params.get("market")),
+      );
+      return latest
+        ? Response.json(latest, { headers })
+        : new Response(null, { status: 204, headers });
+    }
     const resumeId = params.get("sessionId");
     if (resumeId) {
       if (!/^[a-f0-9-]{30,40}$/i.test(resumeId) || !playerId)
@@ -90,7 +100,7 @@ export async function POST(request: Request) {
       await advanceSession(
         payload.sessionId,
         payload.action,
-        playerIdFrom(payload.playerId),
+        await requestPlayerId(request, payload.playerId),
       ),
       { headers },
     );
@@ -112,7 +122,10 @@ export async function PATCH(request: Request) {
       return Response.json({ error: "挑战会话无效" }, { status: 400, headers });
     }
     return Response.json(
-      await revealSession(payload.sessionId, playerIdFrom(payload.playerId)),
+      await revealSession(
+        payload.sessionId,
+        await requestPlayerId(request, payload.playerId),
+      ),
       { headers },
     );
   } catch (error) {

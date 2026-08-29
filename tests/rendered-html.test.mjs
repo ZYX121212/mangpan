@@ -50,6 +50,9 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /系统推荐下一局/);
   assert.match(page, /已恢复云端进度/);
   assert.match(page, /云端训练档案/);
+  assert.match(page, /PATTERN QUIZ · 形态识别盲测/);
+  assert.match(page, /真实成本模型/);
+  assert.match(page, /交易税费/);
   assert.match(page, /mangpan-active-session-/);
   assert.match(page, /mangpan-scenario-progress/);
   assert.match(page, /四维诊断/);
@@ -65,6 +68,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     pageRoute,
     scoreRoute,
     challengeRoute,
+    quizRoute,
+    identity,
     sessions,
     schema,
     hosting,
@@ -76,11 +81,15 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     marketData,
     analysis,
     migration,
+    quizMigration,
+    sessionIndexMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/challenge/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/quiz/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/request-identity.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/challenge-sessions.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
@@ -93,6 +102,14 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     readFile(new URL("../app/trade-analysis.ts", import.meta.url), "utf8"),
     readFile(
       new URL("../drizzle/0004_little_puff_adder.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0005_square_dust.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0006_red_bloodaxe.sql", import.meta.url),
       "utf8",
     ),
   ]);
@@ -119,13 +136,19 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(challengeRoute, /advanceSession/);
   assert.match(challengeRoute, /revealSession/);
   assert.match(challengeRoute, /resumeSession/);
-  assert.match(challengeRoute, /playerIdFrom/);
+  assert.match(challengeRoute, /requestPlayerId/);
+  assert.match(challengeRoute, /resumeLatestSession/);
   assert.match(challengeRoute, /difficultyFrom/);
+  assert.match(quizRoute, /answerPatternQuiz/);
+  assert.match(quizRoute, /getTrainingProfile/);
+  assert.match(identity, /oai-authenticated-user-id/);
+  assert.match(identity, /crypto\.subtle\.digest/);
   assert.match(sessions, /maskCandle/);
   assert.match(sessions, /请完整记录方向、依据和信心/);
   assert.match(schema, /game_sessions/);
   assert.match(schema, /trainingResults/);
   assert.match(schema, /trainingProgress/);
+  assert.match(schema, /patternQuizzes/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
@@ -134,7 +157,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /deliberate-practice-v6/);
+  assert.match(config, /realistic-execution-v7/);
+  assert.match(config, /transactionQuote/);
+  assert.match(config, /gross \* 0\.0005/);
+  assert.match(config, /gross \* 0\.0000206/);
   assert.doesNotMatch(config, /DAILY_SPRINT_DECISIONS/);
   assert.doesNotMatch(sessions, /今日短局已经完成/);
   assert.match(config, /initialBarsFor/);
@@ -159,11 +185,17 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(core, /riskScore \* 0\.3/);
   assert.match(core, /executionScore \* 0\.2/);
   assert.match(core, /performanceScore \* 0\.1/);
+  assert.match(core, /feesPaid/);
   assert.match(sessions, /recordTrainingResult/);
   assert.match(sessions, /getTrainingProfile/);
   assert.match(sessions, /该挑战属于另一位玩家/);
   assert.match(migration, /CREATE TABLE `training_results`/);
   assert.match(migration, /ALTER TABLE `game_sessions` ADD `scenario`/);
+  assert.match(quizMigration, /CREATE TABLE `pattern_quizzes`/);
+  assert.match(
+    sessionIndexMigration,
+    /game_sessions_player_active_idx/,
+  );
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);

@@ -92,6 +92,12 @@ export const gameSessions = sqliteTable(
   (table) => [
     index("game_sessions_challenge_idx").on(table.challengeId),
     index("game_sessions_created_idx").on(table.createdAt),
+    index("game_sessions_player_active_idx").on(
+      table.playerId,
+      table.market,
+      table.finished,
+      table.updatedAt,
+    ),
   ],
 );
 
@@ -152,6 +158,32 @@ export const trainingProgress = sqliteTable(
       table.market,
       table.scenario,
       table.difficulty,
+    ),
+  ],
+);
+
+export const patternQuizzes = sqliteTable(
+  "pattern_quizzes",
+  {
+    id: text("id").primaryKey(),
+    challengeId: text("challenge_id").notNull(),
+    playerId: text("player_id").notNull(),
+    market: text("market").notNull(),
+    difficulty: text("difficulty").notNull(),
+    correctScenario: text("correct_scenario").notNull(),
+    answerScenario: text("answer_scenario"),
+    confidence: integer("confidence"),
+    correct: integer("correct", { mode: "boolean" }),
+    answeredAt: text("answered_at"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    index("pattern_quizzes_player_market_created_idx").on(
+      table.playerId,
+      table.market,
+      table.createdAt,
     ),
   ],
 );

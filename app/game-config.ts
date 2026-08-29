@@ -1,5 +1,5 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "deliberate-practice-v6";
+export const GAME_VERSION = "realistic-execution-v7";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;
@@ -34,6 +34,99 @@ export function lotSizeFor(market: MarketKind) {
   return market === "cn" ? 100 : 1;
 }
 
+const roundMoney = (value: number) => Math.round(value * 100) / 100;
+
+export type TransactionQuote = {
+  referencePrice: number;
+  executionPrice: number;
+  quantity: number;
+  gross: number;
+  commission: number;
+  stampDuty: number;
+  transferFee: number;
+  regulatoryFee: number;
+  slippageCost: number;
+  totalFees: number;
+  cashDelta: number;
+};
+
+/**
+ * Deterministic training execution model. Statutory/regulatory charges follow
+ * the current market side on which they are normally collected. Brokerage
+ * commission and spread assumptions are intentionally explicit game settings.
+ */
+export function transactionQuote({
+  market,
+  kind,
+  referencePrice,
+  quantity,
+}: {
+  market: MarketKind;
+  kind: "buy" | "sell";
+  referencePrice: number;
+  quantity: number;
+}): TransactionQuote {
+  const validQuantity = Math.max(0, Math.floor(quantity));
+  const slippageRate = market === "cn" ? 0.0002 : 0.00015;
+  const executionPrice =
+    referencePrice * (1 + (kind === "buy" ? slippageRate : -slippageRate));
+  const gross = roundMoney(executionPrice * validQuantity);
+  const commission =
+    market === "cn" && validQuantity > 0
+      ? roundMoney(Math.max(5, gross * 0.00025))
+      : 0;
+  const stampDuty =
+    market === "cn" && kind === "sell" ? roundMoney(gross * 0.0005) : 0;
+  const transferFee =
+    market === "cn" ? roundMoney(gross * 0.00001) : 0;
+  const regulatoryFee =
+    market === "us" && kind === "sell"
+      ? roundMoney(gross * 0.0000206 + Math.min(9.79, validQuantity * 0.000195))
+      : 0;
+  const totalFees = roundMoney(
+    commission + stampDuty + transferFee + regulatoryFee,
+  );
+  const slippageCost = roundMoney(
+    Math.abs(executionPrice - referencePrice) * validQuantity,
+  );
+  return {
+    referencePrice,
+    executionPrice,
+    quantity: validQuantity,
+    gross,
+    commission,
+    stampDuty,
+    transferFee,
+    regulatoryFee,
+    slippageCost,
+    totalFees,
+    cashDelta: kind === "buy" ? -(gross + totalFees) : gross - totalFees,
+  };
+}
+
+function affordableBuyQuantity(
+  market: MarketKind,
+  price: number,
+  budget: number,
+  lot: number,
+) {
+  let low = 0;
+  let high = Math.max(0, Math.floor(budget / price / lot));
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2);
+    const quantity = middle * lot;
+    const quote = transactionQuote({
+      market,
+      kind: "buy",
+      referencePrice: price,
+      quantity,
+    });
+    if (-quote.cashDelta <= budget + 1e-9) low = middle + 1;
+    else high = middle - 1;
+  }
+  return high * lot;
+}
+
 export function orderQuantity({
   market,
   kind,
@@ -54,7 +147,7 @@ export function orderQuantity({
   const lot = lotSizeFor(market);
   const available =
     kind === "buy"
-      ? Math.floor(cash / price / lot) * lot
+      ? affordableBuyQuantity(market, price, cash, lot)
       : Math.floor(shares + 1e-9);
   if (available <= 0) return 0;
   if (quantity !== undefined) {
@@ -62,8 +155,12 @@ export function orderQuantity({
     return Math.max(0, Math.min(available, requested));
   }
   if (allocation >= 1) return available;
-  const target =
-    kind === "buy" ? (cash * allocation) / price : shares * allocation;
+  if (kind === "buy")
+    return Math.min(
+      available,
+      affordableBuyQuantity(market, price, cash * allocation, lot),
+    );
+  const target = shares * allocation;
   return Math.max(0, Math.min(available, Math.floor(target / lot) * lot));
 }
 

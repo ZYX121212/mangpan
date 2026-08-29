@@ -12,6 +12,7 @@ import {
   initialBarsFor,
   lotSizeFor,
   orderQuantity,
+  transactionQuote,
   type ConfidenceLevel,
   type DecisionThesis,
   type MarketKind,
@@ -117,6 +118,36 @@ type TrainingProfile = {
     discipline: number;
     performance: number;
   };
+  recognition: {
+    attempts: number;
+    correct: number;
+    accuracy: number;
+    highConfidenceMisses: number;
+  };
+};
+type QuizScenario = Exclude<ScenarioKind, "random">;
+type PatternQuiz = {
+  quizId: string;
+  market: MarketKind;
+  difficulty: ScenarioDifficulty;
+  stock: StockSample;
+  universeSize: number;
+};
+type PatternQuizResult = {
+  correct: boolean;
+  market: MarketKind;
+  answer: QuizScenario;
+  actual: QuizScenario;
+  confidence: ConfidenceLevel;
+  explanation: string;
+  identity: {
+    name: string;
+    code: string;
+    market: string;
+    from: string;
+    to: string;
+  };
+  trainingProfile: TrainingProfile;
 };
 type ChallengeSession = {
   sessionId: string;
@@ -215,6 +246,8 @@ function restoreGameState(session: ChallengeSession) {
   let shares = 0;
   let offset = 0;
   let trades = 0;
+  let feesPaid = 0;
+  let slippagePaid = 0;
   const markers: TradeMarker[] = [];
   const equityHistory = [INITIAL_CASH];
   const exposureHistory = [0];
@@ -235,20 +268,39 @@ function restoreGameState(session: ChallengeSession) {
         allocation: action.allocation,
         quantity: action.quantity,
       });
+      let markerPrice = execution;
       if (action.kind === "buy" && amount > 0) {
-        cash -= amount * execution;
+        const quote = transactionQuote({
+          market: session.market,
+          kind: "buy",
+          referencePrice: execution,
+          quantity: amount,
+        });
+        cash += quote.cashDelta;
         shares += amount;
+        feesPaid += quote.totalFees;
+        slippagePaid += quote.slippageCost;
+        markerPrice = quote.executionPrice;
       }
       if (action.kind === "sell" && amount > 0) {
+        const quote = transactionQuote({
+          market: session.market,
+          kind: "sell",
+          referencePrice: execution,
+          quantity: amount,
+        });
         shares -= amount;
-        cash += amount * execution;
+        cash += quote.cashDelta;
+        feesPaid += quote.totalFees;
+        slippagePaid += quote.slippageCost;
+        markerPrice = quote.executionPrice;
       }
       if (amount > 0) {
         trades++;
         markers.push({
           index: executionIndex,
           type: action.kind === "buy" ? "B" : "S",
-          price: execution,
+          price: markerPrice,
           quantity: amount,
           round: actionIndex,
         });
@@ -274,6 +326,8 @@ function restoreGameState(session: ChallengeSession) {
     equityHistory,
     exposureHistory,
     feedbackHistory,
+    feesPaid,
+    slippagePaid,
     round: session.actions.length,
     visibleCount: stock.candles.length,
   };
@@ -912,8 +966,10 @@ function CandleChart({
 
 export default function GameClient({
   initialChallenges,
+  initialIdentity,
 }: {
   initialChallenges: InitialChallenges;
+  initialIdentity: { playerId: string; cloud: true } | null;
 }) {
   const today = initialChallenges.cn.date;
   const [market, setMarket] = useState<MarketKind>("cn");
@@ -937,6 +993,8 @@ export default function GameClient({
   const [confidence, setConfidence] = useState<ConfidenceLevel>(2);
   const [trades, setTrades] = useState(0),
     [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([]);
+  const [feesPaid, setFeesPaid] = useState(0);
+  const [slippagePaid, setSlippagePaid] = useState(0);
   const [equityHistory, setEquityHistory] = useState([INITIAL_CASH]);
   const [exposureHistory, setExposureHistory] = useState([0]);
   const [finished, setFinished] = useState(false),
@@ -950,6 +1008,13 @@ export default function GameClient({
     [],
   );
   const [trainingOpen, setTrainingOpen] = useState(false);
+  const [quizOpen, setQuizOpen] = useState(false);
+  const [patternQuiz, setPatternQuiz] = useState<PatternQuiz | null>(null);
+  const [quizAnswer, setQuizAnswer] = useState<QuizScenario | null>(null);
+  const [quizConfidence, setQuizConfidence] =
+    useState<ConfidenceLevel>(2);
+  const [quizResult, setQuizResult] = useState<PatternQuizResult | null>(null);
+  const [quizLoading, setQuizLoading] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<ScenarioDifficulty>("standard");
   const [scenarioProgress, setScenarioProgress] = useState<
@@ -1037,7 +1102,12 @@ export default function GameClient({
         allocation,
         quantity: orderInputMode === "quantity" ? enteredQuantity : undefined,
       });
-  const estimatedOrderValue = estimatedQuantity * current.close;
+  const estimatedQuote = transactionQuote({
+    market,
+    kind: mode,
+    referencePrice: current.close,
+    quantity: estimatedQuantity,
+  });
   const advancedDays = visibleCount - initialVisibleCount;
   const remainingDays = Math.max(0, session.remainingBars);
   const ma5 = average(data, data.length - 1, 5),
@@ -1087,7 +1157,14 @@ export default function GameClient({
           weightedHits += actionWeight;
         } else if (action.confidence === 3) confidentMisses++;
         if (action.kind === "buy" || action.kind === "sell") {
-          tradeEdgeTotal += action.kind === "buy" ? move : -move;
+          const fill = transactionQuote({
+            market,
+            kind: action.kind,
+            referencePrice: execution,
+            quantity: 1,
+          }).executionPrice;
+          const fillMove = (outcome / fill - 1) * 100;
+          tradeEdgeTotal += action.kind === "buy" ? fillMove : -fillMove;
           tradeEdgeSamples++;
         }
       }
@@ -1106,7 +1183,7 @@ export default function GameClient({
       tradeEdge: tradeEdgeSamples ? tradeEdgeTotal / tradeEdgeSamples : 0,
       tradeEdgeSamples,
     };
-  }, [actions, initialVisibleCount, normalized]);
+  }, [actions, initialVisibleCount, market, normalized]);
   const scenarioEvaluation = useMemo(() => {
     if (!activeScenario) return null;
     const durationCheck = {
@@ -1240,11 +1317,12 @@ export default function GameClient({
   useEffect(() => {
     if (initialUrlHandledRef.current) return;
     initialUrlHandledRef.current = true;
-    let id = localStorage.getItem("mangpan-player-id");
+    let id = initialIdentity?.playerId || localStorage.getItem("mangpan-player-id");
     if (!id) {
       id = crypto.randomUUID();
       localStorage.setItem("mangpan-player-id", id);
     }
+    if (initialIdentity) localStorage.setItem("mangpan-player-id", id);
     const storedNickname =
       localStorage.getItem("mangpan-player-name") ||
       `盲盘客${id.slice(-4).toUpperCase()}`;
@@ -1279,7 +1357,7 @@ export default function GameClient({
       setNickname(storedNickname);
       setScenarioProgress(storedProgress);
     });
-  }, [initialChallenges, today]);
+  }, [initialChallenges, initialIdentity, today]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -1382,6 +1460,8 @@ export default function GameClient({
     setThesis("trend");
     setConfidence(2);
     setTrades(restored.trades);
+    setFeesPaid(restored.feesPaid);
+    setSlippagePaid(restored.slippagePaid);
     setTradeMarkers(restored.markers);
     setEquityHistory(restored.equityHistory);
     setExposureHistory(restored.exposureHistory);
@@ -1406,18 +1486,22 @@ export default function GameClient({
     resumeAttemptRef.current.add(market);
     const storageKey = `mangpan-active-session-${market}`;
     const savedSession = localStorage.getItem(storageKey);
-    if (!savedSession || savedSession === session.sessionId) return;
-    const query = new URLSearchParams({
-      sessionId: savedSession,
-      playerId,
-    });
+    if (savedSession === session.sessionId) return;
+    if (!savedSession && !initialIdentity) return;
+    const query = savedSession
+      ? new URLSearchParams({ sessionId: savedSession, playerId })
+      : new URLSearchParams({ resume: "latest", market, playerId });
     fetch(`/api/challenge?${query}`)
       .then(async (response) => {
+        if (response.status === 204) return null;
         if (!response.ok) throw new Error("resume failed");
-        resetSession((await response.json()) as ChallengeSession);
+        return (await response.json()) as ChallengeSession;
+      })
+      .then((restored) => {
+        if (restored) resetSession(restored);
       })
       .catch(() => localStorage.removeItem(storageKey));
-  }, [market, playerId, resetSession, session.sessionId]);
+  }, [initialIdentity, market, playerId, resetSession, session.sessionId]);
 
   useEffect(() => {
     if (!playerId || !actions.length || finished) return;
@@ -1453,6 +1537,60 @@ export default function GameClient({
     setDuelId("");
     void resetGame(gameMode, nextMarket, session.scenario, session.difficulty);
     history.replaceState(null, "", location.pathname);
+  };
+
+  const startQuiz = async () => {
+    if (!playerId || quizLoading) return;
+    setQuizLoading(true);
+    try {
+      const query = new URLSearchParams({
+        market,
+        difficulty: selectedDifficulty,
+        seed: crypto.randomUUID(),
+        playerId,
+      });
+      const response = await fetch(`/api/quiz?${query}`);
+      if (!response.ok) throw new Error("quiz load failed");
+      setPatternQuiz((await response.json()) as PatternQuiz);
+      setQuizAnswer(null);
+      setQuizConfidence(2);
+      setQuizResult(null);
+      setTrainingOpen(false);
+      setQuizOpen(true);
+    } finally {
+      setQuizLoading(false);
+    }
+  };
+
+  const submitQuiz = async () => {
+    if (!patternQuiz || !quizAnswer || quizResult || quizLoading) return;
+    setQuizLoading(true);
+    try {
+      const response = await fetch("/api/quiz", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          quizId: patternQuiz.quizId,
+          answer: quizAnswer,
+          confidence: quizConfidence,
+          playerId,
+        }),
+      });
+      if (!response.ok) throw new Error("quiz submit failed");
+      const result = (await response.json()) as PatternQuizResult;
+      setQuizResult(result);
+      setScenarioProgress(result.trainingProfile.progress);
+      setScoreboard((value) =>
+        value?.stats
+          ? {
+              ...value,
+              stats: { ...value.stats, training: result.trainingProfile },
+            }
+          : value,
+      );
+    } finally {
+      setQuizLoading(false);
+    }
   };
 
   const finishGame = async () => {
@@ -1576,7 +1714,10 @@ export default function GameClient({
     let nextCash = cash,
       nextShares = shares,
       didTrade = false,
-      amount = 0;
+      amount = 0,
+      executedFees = 0,
+      executedSlippage = 0,
+      fillPrice = execution;
     if (action === "trade") {
       amount = orderQuantity({
         market,
@@ -1588,14 +1729,31 @@ export default function GameClient({
         quantity: requestedQuantity,
       });
       if (mode === "buy" && amount > 0) {
-        const spend = amount * execution;
-        nextCash -= spend;
+        const quote = transactionQuote({
+          market,
+          kind: "buy",
+          referencePrice: execution,
+          quantity: amount,
+        });
+        nextCash += quote.cashDelta;
         nextShares += amount;
+        executedFees = quote.totalFees;
+        executedSlippage = quote.slippageCost;
+        fillPrice = quote.executionPrice;
         didTrade = true;
       }
       if (mode === "sell" && amount > 0) {
+        const quote = transactionQuote({
+          market,
+          kind: "sell",
+          referencePrice: execution,
+          quantity: amount,
+        });
         nextShares -= amount;
-        nextCash += amount * execution;
+        nextCash += quote.cashDelta;
+        executedFees = quote.totalFees;
+        executedSlippage = quote.slippageCost;
+        fillPrice = quote.executionPrice;
         didTrade = true;
       }
       setOrderInputMode("allocation");
@@ -1607,7 +1765,7 @@ export default function GameClient({
         {
           index: executionIndex,
           type: mode === "buy" ? "B" : "S",
-          price: execution,
+          price: fillPrice,
           quantity: amount,
           round,
         },
@@ -1630,6 +1788,8 @@ export default function GameClient({
       nextRound = round + 1;
     setRound(nextRound);
     setTrades((value) => value + (didTrade ? 1 : 0));
+    setFeesPaid((value) => value + executedFees);
+    setSlippagePaid((value) => value + executedSlippage);
     setEquityHistory((value) => [...value, ...pathEquities]);
     setExposureHistory((value) => [...value, ...pathExposures]);
     setRevealPulse((value) => value + 1);
@@ -1723,11 +1883,14 @@ export default function GameClient({
           <button
             className="player-chip"
             onClick={() => setScoreboardOpen(true)}
+            title={initialIdentity ? "已连接站点账号，训练进度云端同步" : "当前设备训练档案"}
           >
             <i>{nickname.slice(0, 1)}</i>
             <span>{nickname}</span>
             {scoreboard?.stats?.streak ? (
               <b>🔥 {scoreboard.stats.streak}</b>
+            ) : initialIdentity ? (
+              <b className="identity-cloud">云端</b>
             ) : null}
           </button>
           <button
@@ -2069,11 +2232,36 @@ export default function GameClient({
                     预计委托 <b>{shareNf.format(estimatedQuantity)} 股</b>
                   </span>
                   <small>
-                    按当前价约 {currencySymbol}
-                    {nf.format(estimatedOrderValue)} · 实际以次日开盘价为准
+                    预计占用 {currencySymbol}
+                    {nf.format(
+                      mode === "buy"
+                        ? -estimatedQuote.cashDelta
+                        : Math.max(0, estimatedQuote.cashDelta),
+                    )} · 含费 {currencySymbol}
+                    {nf.format(estimatedQuote.totalFees)}
                   </small>
                 </div>
               )}
+              <details className="fee-preview">
+                <summary>真实成本模型 · 2026-04 监管口径</summary>
+                <div>
+                  {market === "cn" ? (
+                    <>
+                      <span>模拟佣金 0.025%，最低 ¥5</span>
+                      <span>过户费 0.001%，买卖双向</span>
+                      <span>印花税 0.05%，仅卖出</span>
+                      <span>模拟滑点 0.02%</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>模拟券商佣金 $0</span>
+                      <span>卖出监管费 $20.60 / 百万美元</span>
+                      <span>卖出 TAF $0.000195 / 股，上限 $9.79</span>
+                      <span>模拟滑点 0.015%</span>
+                    </>
+                  )}
+                </div>
+              </details>
               <div className="decision-journal">
                 <div className="field-label">
                   <span>本次判断</span>
@@ -2215,6 +2403,17 @@ export default function GameClient({
             <p>
               系统从真实历史中筛选典型片段。你会提前看到训练目标，但股票身份、日期和后续走势仍然隐藏。
             </p>
+            <button
+              className="quiz-entry"
+              disabled={quizLoading || !playerId}
+              onClick={() => void startQuiz()}
+            >
+              <span>
+                <small>PATTERN QUIZ · 形态识别盲测</small>
+                <b>不告诉你行情类型，只凭 120 根真实 K 线作答</b>
+              </span>
+              <i>{quizLoading ? "正在抽题…" : "开始盲测 →"}</i>
+            </button>
             <div className="difficulty-picker">
               <span>训练难度</span>
               <div>
@@ -2291,6 +2490,106 @@ export default function GameClient({
         </dialog>
       )}
 
+      {quizOpen && patternQuiz && (
+        <dialog open className="modal-backdrop quiz-backdrop">
+          <section className="quiz-modal">
+            <button
+              className="modal-close"
+              onClick={() => setQuizOpen(false)}
+            >
+              ×
+            </button>
+            <small className="eyebrow">PATTERN QUIZ · 真实行情盲测</small>
+            <div className="quiz-heading">
+              <div>
+                <h2>这段行情最接近哪一种？</h2>
+                <p>
+                  股票与日期隐藏。先识别市场状态，再决定下一局该采用什么策略。
+                </p>
+              </div>
+              <span>{DIFFICULTY_CONFIG[patternQuiz.difficulty].label}</span>
+            </div>
+            <div className="quiz-chart">
+              <CandleChart
+                data={patternQuiz.stock.candles}
+                markers={[]}
+                market={patternQuiz.market}
+              />
+            </div>
+            <div
+              className="quiz-options"
+              role="group"
+              aria-label="选择行情形态"
+            >
+              {(Object.keys(SCENARIO_CONFIG) as QuizScenario[]).map((value) => (
+                <button
+                  key={value}
+                  disabled={Boolean(quizResult)}
+                  className={`${quizAnswer === value ? "selected" : ""} ${quizResult?.actual === value ? "correct" : ""} ${quizResult && quizAnswer === value && !quizResult.correct ? "wrong" : ""}`}
+                  onClick={() => setQuizAnswer(value)}
+                >
+                  <b>{SCENARIO_CONFIG[value].title}</b>
+                  <small>{SCENARIO_CONFIG[value].description}</small>
+                </button>
+              ))}
+            </div>
+            {!quizResult ? (
+              <>
+                <div className="quiz-confidence">
+                  <span>你的信心</span>
+                  <div>
+                    {([1, 2, 3] as const).map((value) => (
+                      <button
+                        key={value}
+                        className={quizConfidence === value ? "selected" : ""}
+                        onClick={() => setQuizConfidence(value)}
+                      >
+                        {value === 1 ? "低" : value === 2 ? "中" : "高"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <button
+                  className="primary-action"
+                  disabled={!quizAnswer || quizLoading}
+                  onClick={() => void submitQuiz()}
+                >
+                  {quizLoading ? "正在核对真实样本…" : "提交判断并查看证据"}
+                </button>
+              </>
+            ) : (
+              <div className={`quiz-result ${quizResult.correct ? "hit" : "miss"}`}>
+                <div>
+                  <span>{quizResult.correct ? "识别正确" : "识别偏差"}</span>
+                  <b>系统标签：{SCENARIO_CONFIG[quizResult.actual].title}</b>
+                </div>
+                <p>{quizResult.explanation}</p>
+                <small>
+                  样本揭晓：{quizResult.identity.name} · {quizResult.identity.code}
+                  · {quizResult.identity.from}—{quizResult.identity.to}
+                </small>
+                <div>
+                  <button onClick={() => void startQuiz()}>再来一道</button>
+                  <button
+                    onClick={() => {
+                      setQuizOpen(false);
+                      void resetGame(
+                        "practice",
+                        patternQuiz.market,
+                        quizResult.actual,
+                        patternQuiz.difficulty,
+                      );
+                    }}
+                  >
+                    进入同类实战
+                  </button>
+                </div>
+              </div>
+            )}
+          </section>
+        </dialog>
+      )}
+
       {rulesOpen && (
         <dialog
           open
@@ -2336,6 +2635,12 @@ export default function GameClient({
                 </span>
               </li>
               <li>
+                <b>成交成本</b>
+                <span>
+                  交易按次日开盘价加入透明滑点，并从现金中扣除对应市场的税费与监管费；券商佣金属于游戏模拟参数，可在委托区展开查看。
+                </span>
+              </li>
+              <li>
                 <b>持有</b>
                 <span>
                   每次选择向前推进 1、3 或 5
@@ -2352,6 +2657,12 @@ export default function GameClient({
                 <b>判断</b>
                 <span>
                   每次推进前记录看涨、震荡或看跌，并选择判断依据与信心；行情揭示后立即反馈方向、最大有利与最大不利波动。
+                </span>
+              </li>
+              <li>
+                <b>形态盲测</b>
+                <span>
+                  系统从真实历史筛选题目，但不提前告知情景；作答后揭晓系统标签、股票身份、日期与识别证据，高信心误判会进入长期画像。
                 </span>
               </li>
               <li>
@@ -2487,6 +2798,23 @@ export default function GameClient({
                       <small>训练交易日</small>
                     </div>
                   </div>
+                  <div className="recognition-summary">
+                    <span>形态识别</span>
+                    <b>
+                      {scoreboard.stats.training.recognition.attempts
+                        ? `${scoreboard.stats.training.recognition.accuracy}%`
+                        : "等待首题"}
+                    </b>
+                    <small>
+                      {scoreboard.stats.training.recognition.correct}/
+                      {scoreboard.stats.training.recognition.attempts} 命中 · 高信心误判{" "}
+                      {
+                        scoreboard.stats.training.recognition
+                          .highConfidenceMisses
+                      }{" "}
+                      次
+                    </small>
+                  </div>
                   <div className="cloud-ability-list">
                     {(
                       [
@@ -2599,6 +2927,23 @@ export default function GameClient({
                 <small>最大回撤</small>
                 <b>{maxDrawdown.toFixed(2)}%</b>
               </div>
+            </div>
+            <div className="execution-cost-result">
+              <div>
+                <small>交易税费</small>
+                <b>
+                  {currencySymbol}
+                  {nf.format(feesPaid)}
+                </b>
+              </div>
+              <div>
+                <small>模拟滑点损耗</small>
+                <b>
+                  {currencySymbol}
+                  {nf.format(slippagePaid)}
+                </b>
+              </div>
+              <p>已计入现金与最终收益；佣金和滑点属于透明的训练假设。</p>
             </div>
             <section className="process-score-card">
               <div className="process-score-head">
@@ -2786,7 +3131,8 @@ export default function GameClient({
               {stock.candles[visibleCount - 1].date} · 完整数据：
               {stock.candles[0].date} — {stock.candles.at(-1)?.date}（
               {stock.candles.length.toLocaleString("zh-CN")} 根）· 共 {trades}{" "}
-              次交易
+              次交易 · 成本 {currencySymbol}
+              {nf.format(feesPaid + slippagePaid)}
             </div>
             <div className="result-actions three">
               <button className="primary-action" onClick={shareResult}>

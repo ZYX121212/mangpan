@@ -1,6 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { ensureDatabase, getD1Database, getDb } from "../db";
-import { gameSessions, trainingProgress } from "../db/schema";
+import { gameSessions, patternQuizzes, trainingProgress } from "../db/schema";
 import {
   createPracticeChallenge,
   getDailyChallengeBundle,
@@ -9,6 +9,7 @@ import {
 } from "./challenge-service";
 import {
   MAX_ACTIONS,
+  hashText,
   initialBarsFor,
   isOrderAllocation,
   type ConfidenceLevel,
@@ -42,6 +43,17 @@ export type PublicChallengeSession = {
   difficulty: ScenarioDifficulty;
   actions: ReplayAction[];
   resumed?: boolean;
+};
+
+const QUIZ_SCENARIOS = ["trend", "reversal", "crash", "volatile"] as const;
+type QuizScenario = (typeof QUIZ_SCENARIOS)[number];
+
+export type PublicPatternQuiz = {
+  quizId: string;
+  market: MarketKind;
+  difficulty: ScenarioDifficulty;
+  stock: StockSample;
+  universeSize: number;
 };
 
 type SessionRow = typeof gameSessions.$inferSelect;
@@ -207,6 +219,97 @@ export async function startPracticeSession(
   );
 }
 
+export async function startPatternQuiz(
+  seed: string,
+  market: MarketKind,
+  difficulty: ScenarioDifficulty,
+  playerId: string,
+) {
+  const scenario =
+    QUIZ_SCENARIOS[
+      hashText(`${playerId}:${market}:${difficulty}:${seed}`) %
+        QUIZ_SCENARIOS.length
+    ];
+  const challenge = await createPracticeChallenge(
+    `quiz-${seed}`,
+    market,
+    scenario,
+    difficulty,
+  );
+  await ensureDatabase();
+  const id = crypto.randomUUID();
+  await getDb().insert(patternQuizzes).values({
+    id,
+    challengeId: challenge.id,
+    playerId,
+    market,
+    difficulty,
+    correctScenario: scenario,
+  });
+  const visibleCount = initialBarsFor(challenge.bundle.stock);
+  return {
+    quizId: id,
+    market,
+    difficulty,
+    stock: publicStock(challenge.bundle, visibleCount),
+    universeSize: challenge.bundle.universeSize,
+  } satisfies PublicPatternQuiz;
+}
+
+const quizExplanation: Record<QuizScenario, string> = {
+  trend:
+    "系统在中期涨跌幅与短期延续性同时突出的真实片段中抽取此题。重点观察高低点是否持续同向移动。",
+  reversal:
+    "系统检测到前期方向与随后一段走势明显反向。拐点通常先出现动能衰减，再由价格结构确认。",
+  crash:
+    "系统在短期跌幅与波动率同时显著的真实片段中抽取此题。先识别风险扩张，再考虑收益机会。",
+  volatile:
+    "系统检测到显著振幅，但方向延续性相对较弱。高波动并不等于明确趋势，仓位控制更重要。",
+};
+
+export async function answerPatternQuiz(
+  id: string,
+  playerId: string,
+  answer: QuizScenario,
+  confidence: ConfidenceLevel,
+) {
+  await ensureDatabase();
+  const [quiz] = await getDb()
+    .select()
+    .from(patternQuizzes)
+    .where(eq(patternQuizzes.id, id))
+    .limit(1);
+  if (!quiz || quiz.playerId !== playerId) throw new Error("识别题不存在");
+  if (quiz.answerScenario) throw new Error("这道识别题已经作答");
+  const actual = quiz.correctScenario as QuizScenario;
+  if (!QUIZ_SCENARIOS.includes(answer)) throw new Error("识别答案无效");
+  const correct = answer === actual;
+  const updated = await getD1Database()
+    .prepare(
+      "UPDATE pattern_quizzes SET answer_scenario = ?, confidence = ?, correct = ?, answered_at = ? WHERE id = ? AND answer_scenario IS NULL",
+    )
+    .bind(answer, confidence, correct ? 1 : 0, new Date().toISOString(), id)
+    .run();
+  if (updated.meta.changes !== 1) throw new Error("请勿重复提交识别答案");
+  const bundle = await getStoredChallengeBundle(quiz.challengeId);
+  const initialVisibleCount = initialBarsFor(bundle.stock);
+  return {
+    correct,
+    market: quiz.market as MarketKind,
+    answer,
+    actual,
+    confidence,
+    explanation: quizExplanation[actual],
+    identity: {
+      name: bundle.stock.name,
+      code: bundle.stock.code,
+      market: bundle.stock.market,
+      from: bundle.stock.candles[0]?.date,
+      to: bundle.stock.candles[initialVisibleCount - 1]?.date,
+    },
+  };
+}
+
 async function loadSession(id: string) {
   await ensureDatabase();
   const [session] = await getDb()
@@ -272,6 +375,20 @@ export async function resumeSession(id: string, playerId: string) {
     actions,
     resumed: true,
   } satisfies PublicChallengeSession;
+}
+
+export async function resumeLatestSession(
+  playerId: string,
+  market: MarketKind,
+) {
+  await ensureDatabase();
+  const latest = await getD1Database()
+    .prepare(
+      "SELECT id FROM game_sessions WHERE player_id = ? AND market = ? AND finished = 0 AND actions != '[]' ORDER BY updated_at DESC LIMIT 1",
+    )
+    .bind(playerId, market)
+    .first<{ id: string }>();
+  return latest?.id ? resumeSession(latest.id, playerId) : null;
 }
 
 export async function advanceSession(
@@ -429,6 +546,21 @@ export async function getTrainingProfile(
     .bind(playerId, market)
     .all<AbilityRow>();
   const recentRows = recent.results as AbilityRow[];
+  type QuizProfileRow = {
+    attempts: number;
+    correct_count: number;
+    high_confidence_misses: number;
+  };
+  const quizProfile = await getD1Database()
+    .prepare(`SELECT COUNT(*) AS attempts,
+      COALESCE(SUM(CASE WHEN correct = 1 THEN 1 ELSE 0 END), 0) AS correct_count,
+      COALESCE(SUM(CASE WHEN correct = 0 AND confidence = 3 THEN 1 ELSE 0 END), 0) AS high_confidence_misses
+      FROM pattern_quizzes
+      WHERE player_id = ? AND market = ? AND answer_scenario IS NOT NULL`)
+    .bind(playerId, market)
+    .first<QuizProfileRow>();
+  const quizAttempts = Number(quizProfile?.attempts || 0);
+  const quizCorrect = Number(quizProfile?.correct_count || 0);
   const average = (key: keyof AbilityRow) =>
     recentRows.length
       ? Math.round(
@@ -458,6 +590,12 @@ export async function getTrainingProfile(
       execution: average("execution_score"),
       discipline: average("discipline_score"),
       performance: average("performance_score"),
+    },
+    recognition: {
+      attempts: quizAttempts,
+      correct: quizCorrect,
+      accuracy: quizAttempts ? Math.round((quizCorrect / quizAttempts) * 100) : 0,
+      highConfidenceMisses: Number(quizProfile?.high_confidence_misses || 0),
     },
   };
 }

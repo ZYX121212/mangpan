@@ -6,6 +6,7 @@ import {
   initialBarsFor,
   isOrderAllocation,
   orderQuantity,
+  transactionQuote,
   type MarketKind,
   type ReplayAction,
 } from "./game-config";
@@ -52,6 +53,8 @@ export function replayChallenge(
   let tradeEdgeTotal = 0;
   let tradeEdgeSamples = 0;
   let peakExposure = 0;
+  let feesPaid = 0;
+  let slippagePaid = 0;
 
   for (const action of actions.slice(0, MAX_ACTIONS)) {
     if (advancedDays >= availableDays) break;
@@ -87,12 +90,22 @@ export function replayChallenge(
         allocation,
         quantity: action.quantity,
       });
-      const spend = amount * execution;
-      cash -= spend;
+      const quote = transactionQuote({
+        market,
+        kind: "buy",
+        referencePrice: execution,
+        quantity: amount,
+      });
+      cash += quote.cashDelta;
       shares += amount;
       if (amount > 0) {
+        feesPaid += quote.totalFees;
+        slippagePaid += quote.slippageCost;
         trades++;
-        tradeEdgeTotal += outcomeReturn;
+        tradeEdgeTotal +=
+          outcomeClose != null
+            ? (outcomeClose / quote.executionPrice - 1) * 100
+            : 0;
         tradeEdgeSamples++;
       }
     } else if (action.kind === "sell" && shares > 0.000001) {
@@ -105,11 +118,22 @@ export function replayChallenge(
         allocation,
         quantity: action.quantity,
       });
+      const quote = transactionQuote({
+        market,
+        kind: "sell",
+        referencePrice: execution,
+        quantity: amount,
+      });
       shares -= amount;
-      cash += amount * execution;
+      cash += quote.cashDelta;
       if (amount > 0) {
+        feesPaid += quote.totalFees;
+        slippagePaid += quote.slippageCost;
         trades++;
-        tradeEdgeTotal -= outcomeReturn;
+        tradeEdgeTotal -=
+          outcomeClose != null
+            ? (outcomeClose / quote.executionPrice - 1) * 100
+            : 0;
         tradeEdgeSamples++;
       }
     }
@@ -180,6 +204,8 @@ export function replayChallenge(
     trades,
     rounds,
     advancedDays,
+    feesPaid,
+    slippagePaid,
     directionAccuracy,
     calibrationScore,
     confidentMisses,

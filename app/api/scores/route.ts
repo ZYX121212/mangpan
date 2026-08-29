@@ -11,6 +11,11 @@ import {
   replayChallenge,
   type MarketKind,
 } from "../../game-core";
+import {
+  requestDisplayName,
+  requestPlayerId,
+  validPlayerId,
+} from "../../request-identity";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
 
@@ -24,10 +29,6 @@ function validMarket(value: unknown): value is MarketKind {
 
 function validDate(value: string | null): value is string {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
-}
-
-function validPlayerId(value: unknown): value is string {
-  return typeof value === "string" && /^[a-zA-Z0-9_-]{10,80}$/.test(value);
 }
 
 function cleanNickname(value: unknown, playerId: string) {
@@ -251,7 +252,10 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const date = url.searchParams.get("date");
     const market = url.searchParams.get("market");
-    const playerId = url.searchParams.get("playerId") ?? undefined;
+    const playerId = await requestPlayerId(
+      request,
+      url.searchParams.get("playerId"),
+    );
     const opponentId = url.searchParams.get("opponentId") ?? undefined;
     if (!validDate(date))
       return Response.json({ error: "日期格式无效" }, { status: 400 });
@@ -290,7 +294,8 @@ export async function POST(request: Request) {
     }
     if (!validMarket(payload.market))
       return Response.json({ error: "市场无效" }, { status: 400 });
-    if (!validPlayerId(payload.playerId))
+    const resolvedPlayerId = await requestPlayerId(request, payload.playerId);
+    if (!resolvedPlayerId)
       return Response.json({ error: "玩家标识无效" }, { status: 400 });
     if (
       typeof payload.sessionId !== "string" ||
@@ -299,8 +304,11 @@ export async function POST(request: Request) {
       return Response.json({ error: "挑战会话无效" }, { status: 400 });
 
     const date = payload.date;
-    const playerId = payload.playerId;
-    const nickname = cleanNickname(payload.nickname, playerId);
+    const playerId = resolvedPlayerId;
+    const nickname = cleanNickname(
+      payload.nickname ?? requestDisplayName(request),
+      playerId,
+    );
     const market = payload.market;
     const challenge = await getSessionForScore(payload.sessionId, playerId);
     if (

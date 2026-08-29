@@ -1,0 +1,1 @@
+CREATE INDEX `game_sessions_player_active_idx` ON `game_sessions` (`player_id`,`market`,`finished`,`updated_at`);

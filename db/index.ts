@@ -83,6 +83,9 @@ export function ensureDatabase() {
       database.prepare(
         "CREATE INDEX IF NOT EXISTS game_sessions_created_idx ON game_sessions (created_at)",
       ),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS game_sessions_player_active_idx ON game_sessions (player_id, market, finished, updated_at)",
+      ),
       database.prepare(`CREATE TABLE IF NOT EXISTS training_results (
       id TEXT PRIMARY KEY NOT NULL,
       player_id TEXT NOT NULL,
@@ -122,6 +125,22 @@ export function ensureDatabase() {
     )`),
       database.prepare(
         "CREATE UNIQUE INDEX IF NOT EXISTS training_progress_player_market_scenario_difficulty_unique ON training_progress (player_id, market, scenario, difficulty)",
+      ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS pattern_quizzes (
+        id TEXT PRIMARY KEY NOT NULL,
+        challenge_id TEXT NOT NULL,
+        player_id TEXT NOT NULL,
+        market TEXT NOT NULL,
+        difficulty TEXT NOT NULL,
+        correct_scenario TEXT NOT NULL,
+        answer_scenario TEXT,
+        confidence INTEGER,
+        correct INTEGER,
+        answered_at TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS pattern_quizzes_player_market_created_idx ON pattern_quizzes (player_id, market, created_at)",
       ),
       database.prepare(
         "DROP INDEX IF EXISTS daily_challenges_date_market_unique",
