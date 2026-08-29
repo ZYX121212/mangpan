@@ -28,9 +28,15 @@ function average(data: Candle[], at: number, period: number) {
   return total / period;
 }
 
+function formatVolume(value: number) {
+  if (value >= 100_000_000) return `${(value / 100_000_000).toFixed(2)}亿手`;
+  if (value >= 10_000) return `${(value / 10_000).toFixed(2)}万手`;
+  return `${Math.round(value).toLocaleString("zh-CN")}手`;
+}
+
 function CandleChart({ data, markers }: { data: Candle[]; markers: TradeMarker[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [hover, setHover] = useState<number | null>(null);
+  const [hover, setHover] = useState<{ index: number; x: number; width: number } | null>(null);
   const [viewSize, setViewSize] = useState(INITIAL_BARS);
   const maxView = Math.min(120, data.length), effectiveView = Math.min(viewSize, data.length);
   const changeZoom = (delta: number) => { setHover(null); setViewSize((value) => Math.max(24, Math.min(maxView, value + delta))); };
@@ -82,19 +88,32 @@ function CandleChart({ data, markers }: { data: Candle[]; markers: TradeMarker[]
         const x = slot * localIndex + slot / 2, buy = marker.type === "B", color = buy ? "#df4a56" : "#129a76", wickY = priceY(buy ? candle.low : candle.high), markerY = buy ? Math.min(priceBottom - 11, wickY + 18) : Math.max(top + 13, wickY - 18);
         ctx.strokeStyle = color; ctx.globalAlpha = .72; ctx.beginPath(); ctx.moveTo(x, wickY); ctx.lineTo(x, markerY); ctx.stroke(); ctx.globalAlpha = 1; ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, markerY, 9, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = "#fff"; ctx.font = "700 10px Arial"; ctx.textAlign = "center"; ctx.fillText(marker.type, x, markerY + 3.5); ctx.textAlign = "left";
       });
-      if (hover != null && hover >= 0 && hover < shown.length) {
-        const d = shown[hover], x = slot * hover + slot / 2, y = priceY(d.close), trade = markers.find((marker) => marker.index === start + hover);
+      if (hover != null && hover.index >= 0 && hover.index < shown.length) {
+        const d = shown[hover.index], x = slot * hover.index + slot / 2, y = priceY(d.close);
         ctx.save(); ctx.setLineDash([3, 4]); ctx.strokeStyle = "#77766f"; ctx.globalAlpha = .55; ctx.beginPath(); ctx.moveTo(x, top); ctx.lineTo(x, h - 22); ctx.moveTo(0, y); ctx.lineTo(w - right, y); ctx.stroke(); ctx.restore();
-        const label = `第 ${start + hover + 1} 日  开 ${d.open.toFixed(2)}  高 ${d.high.toFixed(2)}  低 ${d.low.toFixed(2)}  收 ${d.close.toFixed(2)}${trade ? ` · ${trade.type} ${trade.type === "B" ? "买入" : "卖出"}` : ""}`;
-        ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace"; const tw = Math.min(w - right - 16, ctx.measureText(label).width + 18), tx = Math.min(Math.max(7, x - tw / 2), w - right - tw - 7); ctx.fillStyle = "rgba(32,33,29,.92)"; ctx.fillRect(tx, top + 4, tw, 25); ctx.fillStyle = "white"; ctx.fillText(label, tx + 9, top + 20);
+        ctx.font = "10px ui-monospace, SFMono-Regular, Menlo, monospace"; ctx.fillStyle = "rgba(38,39,34,.94)"; ctx.fillRect(w - right, y - 9, right, 18); ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.fillText(d.close.toFixed(2), w - right / 2, y + 3.5); ctx.textAlign = "left";
+        const dayLabel = `第 ${start + hover.index + 1} 日`; const labelW = 58, labelX = Math.max(0, Math.min(w - right - labelW, x - labelW / 2)); ctx.fillStyle = "rgba(38,39,34,.94)"; ctx.fillRect(labelX, h - 21, labelW, 18); ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.fillText(dayLabel, labelX + labelW / 2, h - 8); ctx.textAlign = "left";
       }
     };
     draw(); const observer = new ResizeObserver(draw); observer.observe(canvas); return () => observer.disconnect();
   }, [data, effectiveView, hover, markers]);
 
+  const viewStart = Math.max(0, data.length - effectiveView);
+  const hoverIndex = hover ? viewStart + hover.index : -1;
+  const hoverCandle = hoverIndex >= 0 ? data[hoverIndex] : null;
+  const hoverPrevious = hoverIndex > 0 ? data[hoverIndex - 1] : hoverCandle;
+  const hoverChange = hoverCandle && hoverPrevious ? hoverCandle.close - hoverPrevious.close : 0;
+  const hoverChangeRate = hoverCandle && hoverPrevious ? (hoverCandle.close / hoverPrevious.close - 1) * 100 : 0;
+  const hoverAmplitude = hoverCandle && hoverPrevious ? ((hoverCandle.high - hoverCandle.low) / hoverPrevious.close) * 100 : 0;
+  const volumeWindow = hoverIndex > 0 ? data.slice(Math.max(0, hoverIndex - 5), hoverIndex) : [];
+  const averageVolume = volumeWindow.length ? volumeWindow.reduce((sum, candle) => sum + candle.volume, 0) / volumeWindow.length : hoverCandle?.volume || 1;
+  const hoverTrade = markers.find((marker) => marker.index === hoverIndex);
+  const priceClass = (value: number) => !hoverPrevious ? "flat" : value > hoverPrevious.close ? "quote-up" : value < hoverPrevious.close ? "quote-down" : "flat";
+
   return <div className="chart-area">
     <div className="chart-tools"><div className="trade-legend"><span className="buy-dot">B</span>买入点<span className="sell-dot">S</span>卖出点</div><div className="zoom-tools"><small>显示 {effectiveView} 根</small><button onClick={() => changeZoom(12)} disabled={effectiveView >= maxView} aria-label="缩小K线图">−</button><button onClick={() => changeZoom(-12)} disabled={effectiveView <= 24} aria-label="放大K线图">＋</button><button className="reset-zoom" onClick={() => changeZoom(INITIAL_BARS - viewSize)}>重置</button></div></div>
-    <canvas ref={canvasRef} className="chart-canvas" aria-label="可缩放的真实历史日K线图" onWheel={(event) => { event.preventDefault(); changeZoom(event.deltaY > 0 ? 8 : -8); }} onMouseLeave={() => setHover(null)} onMouseMove={(event) => { const slot = (event.currentTarget.getBoundingClientRect().width - 62) / effectiveView; setHover(Math.max(0, Math.min(effectiveView - 1, Math.floor(event.nativeEvent.offsetX / slot)))); }} />
+    <canvas ref={canvasRef} className="chart-canvas" aria-label="可缩放的真实历史日K线图" onWheel={(event) => { event.preventDefault(); changeZoom(event.deltaY > 0 ? 8 : -8); }} onMouseLeave={() => setHover(null)} onMouseMove={(event) => { const rect = event.currentTarget.getBoundingClientRect(); const slot = (rect.width - 62) / effectiveView; setHover({ index: Math.max(0, Math.min(effectiveView - 1, Math.floor(event.nativeEvent.offsetX / slot))), x: event.nativeEvent.offsetX, width: rect.width }); }} />
+    {hover && hoverCandle && hoverPrevious && <div className="market-tooltip" style={hover.x < hover.width / 2 ? { left: Math.max(8, hover.x + 14) } : { right: Math.max(70, hover.width - hover.x + 14) }}><div className="tooltip-head"><b>第 {hoverIndex + 1} 日</b><span>{hoverTrade ? `${hoverTrade.type} · ${hoverTrade.type === "B" ? "买入成交" : "卖出成交"}` : "日期隐藏"}</span></div><dl><div><dt>开盘</dt><dd className={priceClass(hoverCandle.open)}>{hoverCandle.open.toFixed(2)}</dd></div><div><dt>收盘</dt><dd className={priceClass(hoverCandle.close)}>{hoverCandle.close.toFixed(2)}</dd></div><div><dt>最高</dt><dd className={priceClass(hoverCandle.high)}>{hoverCandle.high.toFixed(2)}</dd></div><div><dt>最低</dt><dd className={priceClass(hoverCandle.low)}>{hoverCandle.low.toFixed(2)}</dd></div><div><dt>涨跌</dt><dd className={hoverChange >= 0 ? "quote-up" : "quote-down"}>{hoverChange >= 0 ? "+" : ""}{hoverChange.toFixed(2)}</dd></div><div><dt>涨幅</dt><dd className={hoverChangeRate >= 0 ? "quote-up" : "quote-down"}>{hoverChangeRate >= 0 ? "+" : ""}{hoverChangeRate.toFixed(2)}%</dd></div><div><dt>振幅</dt><dd>{hoverAmplitude.toFixed(2)}%</dd></div><div><dt>成交量</dt><dd>{formatVolume(hoverCandle.volume)}</dd></div><div><dt>量比</dt><dd>{(hoverCandle.volume / averageVolume).toFixed(2)}</dd></div></dl><div className="tooltip-ma"><span>MA5 <b>{average(data, hoverIndex, 5)?.toFixed(2) || "—"}</b></span><span>MA10 <b>{average(data, hoverIndex, 10)?.toFixed(2) || "—"}</b></span><span>MA20 <b>{average(data, hoverIndex, 20)?.toFixed(2) || "—"}</b></span></div></div>}
   </div>;
 }
 

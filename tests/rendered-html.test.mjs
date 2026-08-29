@@ -37,6 +37,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   ]);
 
   assert.match(page, /ticker-mask/);
+  assert.match(page, /market-tooltip/);
+  assert.match(page, /成交量/);
+  assert.match(page, /hoverAmplitude/);
   assert.match(page, /发起好友同图挑战/);
   assert.match(page, /localStorage\.getItem\("mangpan-player-id"\)/);
   assert.match(route, /replayChallenge\(date, payload\.actions\)/);
