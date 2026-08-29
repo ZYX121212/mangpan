@@ -24,13 +24,15 @@ test("server-renders the blind chart game shell", async () => {
   assert.match(html, /今日盲盘/);
   assert.match(html, /今日排行/);
   assert.match(html, /可缩放的真实历史日K线图/);
-  assert.match(html, /委托买入并揭晓 3 天/);
+  assert.match(html, /委托买入并持有 3 天/);
+  assert.match(html, /已推进 .*0.*60.*个交易日/);
+  assert.match(html, /选择持有交易日数/);
   assert.doesNotMatch(html, /Building your site|Your site is taking shape/);
 });
 
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
   const [page, route, schema, hosting] = await Promise.all([
-    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),

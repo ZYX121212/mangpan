@@ -1,9 +1,13 @@
-import { and, asc, count, desc, eq, gt, lt, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
 import { dailyScores, players } from "../../../db/schema";
-import { chinaDate, replayChallenge, type ReplayAction } from "../../game-core";
+import { GAME_VERSION, MAX_ACTIONS, chinaDate, replayChallenge, type ReplayAction } from "../../game-core";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
+
+function scoreDate(date: string) {
+  return `${date}@${GAME_VERSION}`;
+}
 
 function validDate(value: string | null): value is string {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
@@ -24,11 +28,12 @@ function cleanNickname(value: unknown, playerId: string) {
 }
 
 function validActions(value: unknown): value is ReplayAction[] {
-  if (!Array.isArray(value) || value.length > 10) return false;
+  if (!Array.isArray(value) || value.length > MAX_ACTIONS) return false;
   return value.every((item) => {
     if (!item || typeof item !== "object") return false;
     const action = item as Partial<ReplayAction>;
     if (!(["buy", "sell", "hold"] as const).includes(action.kind as ReplayAction["kind"])) return false;
+    if (action.days !== undefined && ![1, 2, 3, 4, 5].includes(action.days)) return false;
     if (action.kind === "hold") return true;
     return action.allocation === 0.25 || action.allocation === 0.5 || action.allocation === 1;
   });
@@ -71,6 +76,7 @@ function weeklyProfile(rows: ScoreRow[]) {
 
 async function buildScoreboard(date: string, playerId?: string, opponentId?: string) {
   const db = getDb();
+  const storageDate = scoreDate(date);
   const top = await db.select({
     playerId: dailyScores.playerId,
     nickname: dailyScores.nickname,
@@ -78,18 +84,18 @@ async function buildScoreboard(date: string, playerId?: string, opponentId?: str
     returnRate: dailyScores.returnRate,
     createdAt: dailyScores.createdAt,
   }).from(dailyScores)
-    .where(eq(dailyScores.challengeDate, date))
+    .where(eq(dailyScores.challengeDate, storageDate))
     .orderBy(desc(dailyScores.score), asc(dailyScores.createdAt), asc(dailyScores.playerId))
     .limit(20);
-  const [{ total }] = await db.select({ total: count() }).from(dailyScores).where(eq(dailyScores.challengeDate, date));
+  const [{ total }] = await db.select({ total: count() }).from(dailyScores).where(eq(dailyScores.challengeDate, storageDate));
 
   const rankFor = async (targetId?: string) => {
     if (!targetId) return null;
     const [score] = await db.select().from(dailyScores)
-      .where(and(eq(dailyScores.challengeDate, date), eq(dailyScores.playerId, targetId))).limit(1);
+      .where(and(eq(dailyScores.challengeDate, storageDate), eq(dailyScores.playerId, targetId))).limit(1);
     if (!score) return null;
     const [{ above }] = await db.select({ above: count() }).from(dailyScores).where(and(
-      eq(dailyScores.challengeDate, date),
+      eq(dailyScores.challengeDate, storageDate),
       or(
         gt(dailyScores.score, score.score),
         and(eq(dailyScores.score, score.score), or(
@@ -118,12 +124,12 @@ async function buildScoreboard(date: string, playerId?: string, opponentId?: str
   let stats = null;
   if (playerId) {
     const history = await db.select().from(dailyScores)
-      .where(eq(dailyScores.playerId, playerId))
+      .where(and(eq(dailyScores.playerId, playerId), like(dailyScores.challengeDate, `%@${GAME_VERSION}`)))
       .orderBy(desc(dailyScores.challengeDate)).limit(60);
     const averageScore = history.length ? Math.round(history.reduce((sum, row) => sum + row.score, 0) / history.length) : 0;
     stats = {
       completedDays: history.length,
-      streak: calculateStreak(history.map((row) => row.challengeDate), chinaDate()),
+      streak: calculateStreak(history.map((row) => row.challengeDate.split("@")[0]), chinaDate()),
       averageScore,
       bestScore: history.length ? Math.max(...history.map((row) => row.score)) : 0,
       profile: weeklyProfile(history),
@@ -176,12 +182,13 @@ export async function POST(request: Request) {
     const playerId = payload.playerId;
     const nickname = cleanNickname(payload.nickname, playerId);
     const result = replayChallenge(date, payload.actions);
+    const storageDate = scoreDate(date);
     const db = getDb();
     await db.insert(players).values({ id: playerId, nickname })
       .onConflictDoUpdate({ target: players.id, set: { nickname, updatedAt: new Date().toISOString() } });
     await db.insert(dailyScores).values({
-      id: `${date}:${playerId}`,
-      challengeDate: date,
+      id: `${storageDate}:${playerId}`,
+      challengeDate: storageDate,
       playerId,
       nickname,
       score: result.score,
