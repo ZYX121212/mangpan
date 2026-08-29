@@ -142,6 +142,21 @@ export function ensureDatabase() {
       database.prepare(
         "CREATE INDEX IF NOT EXISTS pattern_quizzes_player_market_created_idx ON pattern_quizzes (player_id, market, created_at)",
       ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS daily_progress (
+        id TEXT PRIMARY KEY NOT NULL,
+        player_id TEXT NOT NULL,
+        market TEXT NOT NULL,
+        progress_date TEXT NOT NULL,
+        advanced_days INTEGER NOT NULL DEFAULT 0,
+        quiz_attempts INTEGER NOT NULL DEFAULT 0,
+        quiz_correct INTEGER NOT NULL DEFAULT 0,
+        training_completions INTEGER NOT NULL DEFAULT 0,
+        reward_xp INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS daily_progress_player_market_date_unique ON daily_progress (player_id, market, progress_date)",
+      ),
       database.prepare(
         "DROP INDEX IF EXISTS daily_challenges_date_market_unique",
       ),

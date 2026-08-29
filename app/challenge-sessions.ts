@@ -1,6 +1,11 @@
 import { and, eq } from "drizzle-orm";
 import { ensureDatabase, getD1Database, getDb } from "../db";
-import { gameSessions, patternQuizzes, trainingProgress } from "../db/schema";
+import {
+  dailyProgress,
+  gameSessions,
+  patternQuizzes,
+  trainingProgress,
+} from "../db/schema";
 import {
   createPracticeChallenge,
   getDailyChallengeBundle,
@@ -9,6 +14,7 @@ import {
 } from "./challenge-service";
 import {
   MAX_ACTIONS,
+  chinaDate,
   hashText,
   initialBarsFor,
   isOrderAllocation,
@@ -48,6 +54,13 @@ export type PublicChallengeSession = {
 const QUIZ_SCENARIOS = ["trend", "reversal", "crash", "volatile"] as const;
 type QuizScenario = (typeof QUIZ_SCENARIOS)[number];
 
+type DailyActivity = {
+  advancedDays?: number;
+  quizAttempts?: number;
+  quizCorrect?: number;
+  trainingCompletions?: number;
+};
+
 export type PublicPatternQuiz = {
   quizId: string;
   market: MarketKind;
@@ -55,6 +68,88 @@ export type PublicPatternQuiz = {
   stock: StockSample;
   universeSize: number;
 };
+
+async function getDailyMission(playerId: string, market: MarketKind) {
+  const date = chinaDate();
+  const [row] = await getDb()
+    .select()
+    .from(dailyProgress)
+    .where(
+      and(
+        eq(dailyProgress.playerId, playerId),
+        eq(dailyProgress.market, market),
+        eq(dailyProgress.progressDate, date),
+      ),
+    )
+    .limit(1);
+  const value = row ?? {
+    advancedDays: 0,
+    quizAttempts: 0,
+    quizCorrect: 0,
+    trainingCompletions: 0,
+    rewardXp: 0,
+  };
+  const tasks = {
+    quiz: Math.min(1, value.quizAttempts),
+    days: Math.min(15, value.advancedDays),
+    training: Math.min(1, value.trainingCompletions),
+  };
+  return {
+    date,
+    ...tasks,
+    quizCorrect: value.quizCorrect,
+    rewardXp: value.rewardXp,
+    completed: Number(tasks.quiz >= 1) + Number(tasks.days >= 15) + Number(tasks.training >= 1),
+  };
+}
+
+async function recordDailyActivity(
+  playerId: string,
+  market: MarketKind,
+  activity: DailyActivity,
+) {
+  const date = chinaDate();
+  const now = new Date().toISOString();
+  const increments = {
+    advancedDays: Math.max(0, Math.floor(activity.advancedDays || 0)),
+    quizAttempts: Math.max(0, Math.floor(activity.quizAttempts || 0)),
+    quizCorrect: Math.max(0, Math.floor(activity.quizCorrect || 0)),
+    trainingCompletions: Math.max(
+      0,
+      Math.floor(activity.trainingCompletions || 0),
+    ),
+  };
+  await getD1Database()
+    .prepare(`INSERT INTO daily_progress (
+      id, player_id, market, progress_date, advanced_days, quiz_attempts,
+      quiz_correct, training_completions, reward_xp, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?)
+    ON CONFLICT(player_id, market, progress_date) DO UPDATE SET
+      advanced_days = daily_progress.advanced_days + excluded.advanced_days,
+      quiz_attempts = daily_progress.quiz_attempts + excluded.quiz_attempts,
+      quiz_correct = daily_progress.quiz_correct + excluded.quiz_correct,
+      training_completions = daily_progress.training_completions + excluded.training_completions,
+      reward_xp = CASE
+        WHEN daily_progress.reward_xp > 0 THEN daily_progress.reward_xp
+        WHEN daily_progress.advanced_days + excluded.advanced_days >= 15
+          AND daily_progress.quiz_attempts + excluded.quiz_attempts >= 1
+          AND daily_progress.training_completions + excluded.training_completions >= 1
+        THEN 60 ELSE 0 END,
+      updated_at = excluded.updated_at`)
+    .bind(
+      `${playerId}:${market}:${date}`,
+      playerId,
+      market,
+      date,
+      increments.advancedDays,
+      increments.quizAttempts,
+      increments.quizCorrect,
+      increments.trainingCompletions,
+      now,
+    )
+    .run();
+  return getDailyMission(playerId, market);
+}
 
 type SessionRow = typeof gameSessions.$inferSelect;
 
@@ -224,12 +319,15 @@ export async function startPatternQuiz(
   market: MarketKind,
   difficulty: ScenarioDifficulty,
   playerId: string,
+  focus?: QuizScenario,
 ) {
   const scenario =
-    QUIZ_SCENARIOS[
-      hashText(`${playerId}:${market}:${difficulty}:${seed}`) %
-        QUIZ_SCENARIOS.length
-    ];
+    focus && QUIZ_SCENARIOS.includes(focus)
+      ? focus
+      : QUIZ_SCENARIOS[
+          hashText(`${playerId}:${market}:${difficulty}:${seed}`) %
+            QUIZ_SCENARIOS.length
+        ];
   const challenge = await createPracticeChallenge(
     `quiz-${seed}`,
     market,
@@ -291,6 +389,10 @@ export async function answerPatternQuiz(
     .bind(answer, confidence, correct ? 1 : 0, new Date().toISOString(), id)
     .run();
   if (updated.meta.changes !== 1) throw new Error("请勿重复提交识别答案");
+  await recordDailyActivity(playerId, quiz.market as MarketKind, {
+    quizAttempts: 1,
+    quizCorrect: correct ? 1 : 0,
+  });
   const bundle = await getStoredChallengeBundle(quiz.challengeId);
   const initialVisibleCount = initialBarsFor(bundle.stock);
   return {
@@ -428,6 +530,14 @@ export async function advanceSession(
     .run();
   if (updated.meta.changes !== 1)
     throw new Error("检测到重复推进，请以最新行情继续决策");
+  const activityPlayerId = playerId ?? session.playerId ?? undefined;
+  const dailyMission = activityPlayerId
+    ? await recordDailyActivity(
+        activityPlayerId,
+        session.market as MarketKind,
+        { advancedDays: holdingDays },
+      )
+    : null;
   return {
     candles: bundle.stock.candles
       .slice(session.visibleCount, nextVisibleCount)
@@ -437,6 +547,7 @@ export async function advanceSession(
     maxDecisions: null,
     finished,
     action: savedAction,
+    dailyMission,
   };
 }
 
@@ -512,6 +623,7 @@ async function recordTrainingResult(
         now,
       )
       .run();
+    await recordDailyActivity(playerId, market, { trainingCompletions: 1 });
   }
   return { passed, score: result.score, scenario, difficulty };
 }
@@ -561,6 +673,22 @@ export async function getTrainingProfile(
     .first<QuizProfileRow>();
   const quizAttempts = Number(quizProfile?.attempts || 0);
   const quizCorrect = Number(quizProfile?.correct_count || 0);
+  const weakestRecognition = await getD1Database()
+    .prepare(`SELECT correct_scenario, COUNT(*) AS mistakes
+      FROM pattern_quizzes
+      WHERE player_id = ? AND market = ? AND correct = 0
+      GROUP BY correct_scenario
+      ORDER BY mistakes DESC, MAX(answered_at) DESC
+      LIMIT 1`)
+    .bind(playerId, market)
+    .first<{ correct_scenario: string; mistakes: number }>();
+  const missionReward = await getD1Database()
+    .prepare(
+      "SELECT COALESCE(SUM(reward_xp), 0) AS xp FROM daily_progress WHERE player_id = ? AND market = ?",
+    )
+    .bind(playerId, market)
+    .first<{ xp: number }>();
+  const daily = await getDailyMission(playerId, market);
   const average = (key: keyof AbilityRow) =>
     recentRows.length
       ? Math.round(
@@ -596,7 +724,15 @@ export async function getTrainingProfile(
       correct: quizCorrect,
       accuracy: quizAttempts ? Math.round((quizCorrect / quizAttempts) * 100) : 0,
       highConfidenceMisses: Number(quizProfile?.high_confidence_misses || 0),
+      weakestScenario: QUIZ_SCENARIOS.includes(
+        weakestRecognition?.correct_scenario as QuizScenario,
+      )
+        ? (weakestRecognition?.correct_scenario as QuizScenario)
+        : null,
+      mistakes: Number(weakestRecognition?.mistakes || 0),
     },
+    daily,
+    missionXp: Number(missionReward?.xp || 0),
   };
 }
 

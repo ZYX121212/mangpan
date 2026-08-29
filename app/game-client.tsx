@@ -123,7 +123,20 @@ type TrainingProfile = {
     correct: number;
     accuracy: number;
     highConfidenceMisses: number;
+    weakestScenario: QuizScenario | null;
+    mistakes: number;
   };
+  daily: DailyMission;
+  missionXp: number;
+};
+type DailyMission = {
+  date: string;
+  quiz: number;
+  days: number;
+  training: number;
+  quizCorrect: number;
+  rewardXp: number;
+  completed: number;
 };
 type QuizScenario = Exclude<ScenarioKind, "random">;
 type PatternQuiz = {
@@ -174,6 +187,7 @@ type AdvanceResponse = {
   maxDecisions: number | null;
   finished: boolean;
   action: ReplayAction;
+  dailyMission: DailyMission | null;
 };
 
 type DecisionFeedback = {
@@ -1020,6 +1034,8 @@ export default function GameClient({
   const [scenarioProgress, setScenarioProgress] = useState<
     Record<string, number>
   >({});
+  const [trainingProfile, setTrainingProfile] =
+    useState<TrainingProfile | null>(null);
   const [revealPulse, setRevealPulse] = useState(0),
     [shareStatus, setShareStatus] = useState("");
   const [actions, setActions] = useState<ReplayAction[]>([]),
@@ -1048,6 +1064,16 @@ export default function GameClient({
   const activeScenario =
     session.scenario === "random" ? null : SCENARIO_CONFIG[session.scenario];
   const activeDifficulty = DIFFICULTY_CONFIG[session.difficulty];
+  const dailyMission: DailyMission = trainingProfile?.daily ?? {
+    date: today,
+    quiz: 0,
+    days: 0,
+    training: 0,
+    quizCorrect: 0,
+    rewardXp: 0,
+    completed: 0,
+  };
+  const weakestRecognition = trainingProfile?.recognition.weakestScenario;
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
   const normalized = useMemo(() => {
@@ -1371,6 +1397,7 @@ export default function GameClient({
         if (!cancelled) {
           setScoreboard(next);
           if (next.stats?.training) {
+            setTrainingProfile(next.stats.training);
             setScenarioProgress(next.stats.training.progress);
             localStorage.setItem(
               "mangpan-scenario-progress",
@@ -1539,7 +1566,7 @@ export default function GameClient({
     history.replaceState(null, "", location.pathname);
   };
 
-  const startQuiz = async () => {
+  const startQuiz = async (focus?: QuizScenario) => {
     if (!playerId || quizLoading) return;
     setQuizLoading(true);
     try {
@@ -1549,6 +1576,7 @@ export default function GameClient({
         seed: crypto.randomUUID(),
         playerId,
       });
+      if (focus) query.set("focus", focus);
       const response = await fetch(`/api/quiz?${query}`);
       if (!response.ok) throw new Error("quiz load failed");
       setPatternQuiz((await response.json()) as PatternQuiz);
@@ -1579,6 +1607,7 @@ export default function GameClient({
       if (!response.ok) throw new Error("quiz submit failed");
       const result = (await response.json()) as PatternQuizResult;
       setQuizResult(result);
+      setTrainingProfile(result.trainingProfile);
       setScenarioProgress(result.trainingProfile.progress);
       setScoreboard((value) =>
         value?.stats
@@ -1625,6 +1654,7 @@ export default function GameClient({
         decisionsUsed: revealed.actions.length,
       }));
       if (revealed.trainingProfile) {
+        setTrainingProfile(revealed.trainingProfile);
         setScenarioProgress(revealed.trainingProfile.progress);
         localStorage.setItem(
           "mangpan-scenario-progress",
@@ -1685,6 +1715,10 @@ export default function GameClient({
       return;
     }
     const advanced = (await response.json()) as AdvanceResponse;
+    if (advanced.dailyMission)
+      setTrainingProfile((value) =>
+        value ? { ...value, daily: advanced.dailyMission! } : value,
+      );
     const factor = 100 / stock.candles[initialVisibleCount - 1].close;
     const normalizedNew = advanced.candles.map((candle) => ({
       ...candle,
@@ -1880,6 +1914,13 @@ export default function GameClient({
           已推进 {advancedDays} 个交易日
         </div>
         <div className="top-actions">
+          <button
+            className={`mission-chip ${dailyMission.completed === 3 ? "done" : ""}`}
+            onClick={() => setTrainingOpen(true)}
+          >
+            <span>今日任务</span>
+            <b>{dailyMission.completed}/3</b>
+          </button>
           <button
             className="player-chip"
             onClick={() => setScoreboardOpen(true)}
@@ -2403,6 +2444,32 @@ export default function GameClient({
             <p>
               系统从真实历史中筛选典型片段。你会提前看到训练目标，但股票身份、日期和后续走势仍然隐藏。
             </p>
+            <section className={`daily-missions ${dailyMission.completed === 3 ? "complete" : ""}`}>
+              <div className="daily-mission-head">
+                <div>
+                  <small>DAILY ROUTINE · 今日训练</small>
+                  <b>{dailyMission.completed === 3 ? "今日训练闭环已完成" : `完成 ${dailyMission.completed}/3 项`}</b>
+                </div>
+                <span>{dailyMission.rewardXp ? "+60 XP 已获得" : "全部完成 +60 XP"}</span>
+              </div>
+              <div className="daily-task-list">
+                <div className={dailyMission.quiz >= 1 ? "done" : ""}>
+                  <i>{dailyMission.quiz >= 1 ? "✓" : "01"}</i>
+                  <span>完成 1 道形态盲测</span>
+                  <b>{dailyMission.quiz}/1</b>
+                </div>
+                <div className={dailyMission.days >= 15 ? "done" : ""}>
+                  <i>{dailyMission.days >= 15 ? "✓" : "02"}</i>
+                  <span>累计推进 15 个交易日</span>
+                  <b>{dailyMission.days}/15</b>
+                </div>
+                <div className={dailyMission.training >= 1 ? "done" : ""}>
+                  <i>{dailyMission.training >= 1 ? "✓" : "03"}</i>
+                  <span>完成 1 局情景训练</span>
+                  <b>{dailyMission.training}/1</b>
+                </div>
+              </div>
+            </section>
             <button
               className="quiz-entry"
               disabled={quizLoading || !playerId}
@@ -2414,8 +2481,8 @@ export default function GameClient({
               </span>
               <i>{quizLoading ? "正在抽题…" : "开始盲测 →"}</i>
             </button>
-            <div className="difficulty-picker">
-              <span>训练难度</span>
+            <div className="quiz-level-row">
+              <span>盲测难度</span>
               <div>
                 {(["starter", "standard", "expert"] as const).map((value) => (
                   <button
@@ -2427,43 +2494,67 @@ export default function GameClient({
                   </button>
                 ))}
               </div>
-              <small>
-                最低训练 {DIFFICULTY_CONFIG[selectedDifficulty].days} 日 ·
-                回撤目标 {DIFFICULTY_CONFIG[selectedDifficulty].drawdown}% ·
-                命中率目标 {DIFFICULTY_CONFIG[selectedDifficulty].accuracy}%
-              </small>
-            </div>
-            <div className="scenario-grid">
-              {(
-                Object.entries(SCENARIO_CONFIG) as [
-                  Exclude<ScenarioKind, "random">,
-                  (typeof SCENARIO_CONFIG)[Exclude<ScenarioKind, "random">],
-                ][]
-              ).map(([value, config]) => (
+              {weakestRecognition && (
                 <button
-                  key={value}
-                  disabled={challengeLoading}
-                  onClick={() =>
-                    void resetGame(
-                      "practice",
-                      market,
-                      value,
-                      selectedDifficulty,
-                    )
-                  }
+                  className="mistake-retry"
+                  disabled={quizLoading}
+                  onClick={() => void startQuiz(weakestRecognition)}
                 >
-                  <span>
-                    {config.title}
-                    <em>
-                      {scenarioProgress[`${value}:${selectedDifficulty}`] || 0}{" "}
-                      次通关
-                    </em>
-                  </span>
-                  <small>{config.description}</small>
-                  <p>{config.mission}</p>
-                  <i>{challengeLoading ? "正在筛选行情…" : "开始训练 →"}</i>
+                  错题重练 · {SCENARIO_CONFIG[weakestRecognition].title}（
+                  {trainingProfile?.recognition.mistakes || 0}）
                 </button>
-              ))}
+              )}
+            </div>
+            <div className="course-head">
+              <div>
+                <small>MASTERY PATH · 12 课训练树</small>
+                <b>从认识行情，到在压力下执行</b>
+              </div>
+              <span>{trainingProfile?.mastered || 0}/12 已掌握</span>
+            </div>
+            <div className="course-tree">
+              {(["starter", "standard", "expert"] as const).map(
+                (difficulty) => (
+                  <article key={difficulty}>
+                    <header>
+                      <span>{DIFFICULTY_CONFIG[difficulty].label}</span>
+                      <small>
+                        {DIFFICULTY_CONFIG[difficulty].days} 日 · 回撤
+                        {DIFFICULTY_CONFIG[difficulty].drawdown}%
+                      </small>
+                    </header>
+                    {(Object.keys(SCENARIO_CONFIG) as QuizScenario[]).map(
+                      (scenario) => {
+                        const passes =
+                          scenarioProgress[`${scenario}:${difficulty}`] || 0;
+                        const locked =
+                          difficulty === "expert" &&
+                          !scenarioProgress[`${scenario}:standard`];
+                        return (
+                          <button
+                            key={scenario}
+                            className={`${passes ? "mastered" : ""} ${locked ? "locked" : ""}`}
+                            disabled={challengeLoading || locked}
+                            onClick={() => {
+                              setSelectedDifficulty(difficulty);
+                              void resetGame(
+                                "practice",
+                                market,
+                                scenario,
+                                difficulty,
+                              );
+                            }}
+                          >
+                            <i>{passes ? "✓" : locked ? "锁" : "·"}</i>
+                            <span>{SCENARIO_CONFIG[scenario].title}</span>
+                            <b>{passes ? `${passes} 次` : locked ? "先过标准" : "开始"}</b>
+                          </button>
+                        );
+                      },
+                    )}
+                  </article>
+                ),
+              )}
             </div>
             <button
               className="random-training"
@@ -2569,7 +2660,15 @@ export default function GameClient({
                   · {quizResult.identity.from}—{quizResult.identity.to}
                 </small>
                 <div>
-                  <button onClick={() => void startQuiz()}>再来一道</button>
+                  <button
+                    onClick={() =>
+                      void startQuiz(
+                        quizResult.correct ? undefined : quizResult.actual,
+                      )
+                    }
+                  >
+                    {quizResult.correct ? "再来一道" : "针对错因再练"}
+                  </button>
                   <button
                     onClick={() => {
                       setQuizOpen(false);
@@ -2668,7 +2767,13 @@ export default function GameClient({
               <li>
                 <b>情景训练</b>
                 <span>
-                  可选择趋势、拐点、急跌或高波动训练，并设定入门、标准、专家难度；完成时按四项任务逐项判定是否通关。
+                  12 课训练树覆盖趋势、拐点、急跌和高波动的入门、标准、专家难度；专家课需先通过对应标准课。
+                </span>
+              </li>
+              <li>
+                <b>每日任务</b>
+                <span>
+                  每日完成 1 道盲测、推进 15 个交易日并完成 1 局情景训练，可获得 60 XP；误判会自动进入错题重练。
                 </span>
               </li>
               <li>
@@ -2769,7 +2874,7 @@ export default function GameClient({
                   </i>
                   <small>
                     再获得 {300 - scoreboard.stats.levelProgress} XP 升级 ·
-                    每局按风险调整评分积累
+                    正式局评分与每日任务共同积累
                   </small>
                 </div>
                 <section className="cloud-training-card">

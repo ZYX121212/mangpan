@@ -39,7 +39,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /信心校准/);
   assert.match(page, /今日长线挑战/);
   assert.match(page, /不限制决策次数/);
-  assert.match(page, /训练难度/);
+  assert.match(page, /12 课训练树/);
   assert.match(page, /训练通关/);
   assert.match(page, /情景复盘/);
   assert.match(page, /第 \{lastFeedback\.round\} 次决策反馈/);
@@ -53,6 +53,10 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /PATTERN QUIZ · 形态识别盲测/);
   assert.match(page, /真实成本模型/);
   assert.match(page, /交易税费/);
+  assert.match(page, /DAILY ROUTINE · 今日训练/);
+  assert.match(page, /全部完成 \+60 XP/);
+  assert.match(page, /错题重练/);
+  assert.match(page, /先过标准/);
   assert.match(page, /mangpan-active-session-/);
   assert.match(page, /mangpan-scenario-progress/);
   assert.match(page, /四维诊断/);
@@ -83,6 +87,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     migration,
     quizMigration,
     sessionIndexMigration,
+    dailyProgressMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -110,6 +115,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     ),
     readFile(
       new URL("../drizzle/0006_red_bloodaxe.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0007_silent_umar.sql", import.meta.url),
       "utf8",
     ),
   ]);
@@ -149,6 +158,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /trainingResults/);
   assert.match(schema, /trainingProgress/);
   assert.match(schema, /patternQuizzes/);
+  assert.match(schema, /dailyProgress/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
@@ -188,6 +198,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(core, /feesPaid/);
   assert.match(sessions, /recordTrainingResult/);
   assert.match(sessions, /getTrainingProfile/);
+  assert.match(sessions, /recordDailyActivity/);
+  assert.match(sessions, /weakestRecognition/);
   assert.match(sessions, /该挑战属于另一位玩家/);
   assert.match(migration, /CREATE TABLE `training_results`/);
   assert.match(migration, /ALTER TABLE `game_sessions` ADD `scenario`/);
@@ -196,6 +208,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     sessionIndexMigration,
     /game_sessions_player_active_idx/,
   );
+  assert.match(dailyProgressMigration, /CREATE TABLE `daily_progress`/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);

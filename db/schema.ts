@@ -187,3 +187,28 @@ export const patternQuizzes = sqliteTable(
     ),
   ],
 );
+
+export const dailyProgress = sqliteTable(
+  "daily_progress",
+  {
+    id: text("id").primaryKey(),
+    playerId: text("player_id").notNull(),
+    market: text("market").notNull(),
+    progressDate: text("progress_date").notNull(),
+    advancedDays: integer("advanced_days").notNull().default(0),
+    quizAttempts: integer("quiz_attempts").notNull().default(0),
+    quizCorrect: integer("quiz_correct").notNull().default(0),
+    trainingCompletions: integer("training_completions").notNull().default(0),
+    rewardXp: integer("reward_xp").notNull().default(0),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("daily_progress_player_market_date_unique").on(
+      table.playerId,
+      table.market,
+      table.progressDate,
+    ),
+  ],
+);

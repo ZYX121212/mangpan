@@ -18,6 +18,12 @@ function difficultyFrom(value: string | null): ScenarioDifficulty {
   return value === "starter" || value === "expert" ? value : "standard";
 }
 
+function focusFrom(value: string | null) {
+  return quizScenarios.includes(value as (typeof quizScenarios)[number])
+    ? (value as (typeof quizScenarios)[number])
+    : undefined;
+}
+
 function errorResponse(error: unknown) {
   return Response.json(
     { error: error instanceof Error ? error.message : "识别训练暂时不可用" },
@@ -40,6 +46,7 @@ export async function GET(request: Request) {
         marketFrom(params.get("market")),
         difficultyFrom(params.get("difficulty")),
         playerId,
+        focusFrom(params.get("focus")),
       ),
       { headers: responseHeaders },
     );

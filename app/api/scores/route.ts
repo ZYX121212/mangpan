@@ -210,8 +210,9 @@ async function buildScoreboard(
           history.reduce((sum, row) => sum + row.score, 0) / history.length,
         )
       : 0;
-    const xp = history.reduce((sum, row) => sum + row.score, 0);
     const training = await getTrainingProfile(playerId, market);
+    const xp =
+      history.reduce((sum, row) => sum + row.score, 0) + training.missionXp;
     stats = {
       completedDays: history.length,
       streak: calculateStreak(

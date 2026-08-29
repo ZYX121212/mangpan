@@ -50,6 +50,13 @@
       "when": 1788020719568,
       "tag": "0006_red_bloodaxe",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1788021823453,
+      "tag": "0007_silent_umar",
+      "breakpoints": true
     }
   ]
 }
