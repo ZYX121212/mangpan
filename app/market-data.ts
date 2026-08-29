@@ -7,20 +7,22 @@ export type ChallengeBundle = { date: string; market: MarketKind; stock: StockSa
 
 const EXCHANGE_LABELS = { sh: "上证", sz: "深证", bj: "北证" } as const;
 const HISTORY_PAGE_SIZE = 640;
+const CN_MARKET_START = "1990-12-01";
+const HISTORY_WINDOW_YEARS = 2;
+const HISTORY_FETCH_CONCURRENCY = 6;
 
-function openEndedWindow(stock: StockSample, seed: number, poolSize: number) {
+function prepareGameStock(stock: StockSample, seed: number, poolSize: number) {
   if (stock.candles.length < MIN_GAME_BARS) return null;
   const latestDecisionIndex = stock.candles.length - MIN_FUTURE_BARS;
   const decisionSpan = latestDecisionIndex - INITIAL_BARS + 1;
   const decisionIndex = INITIAL_BARS + (Math.floor(seed / Math.max(1, poolSize)) % decisionSpan);
-  const start = decisionIndex - INITIAL_BARS;
-  return { ...stock, candles: stock.candles.slice(start) } as StockSample;
+  return { ...stock, initialVisibleCount: decisionIndex } as StockSample;
 }
 
 function bundledStock(seed: number, market: MarketKind) {
   const pool = market === "cn" ? STOCK_SAMPLES : US_STOCK_SAMPLES;
   const stock = pool[seed % pool.length];
-  return openEndedWindow(stock, seed, pool.length) ?? stock;
+  return prepareGameStock(stock, seed, pool.length) ?? stock;
 }
 
 function parseTencentCandles(payload: unknown, symbol: string) {
@@ -45,7 +47,18 @@ async function loadCnStock(entry: CnStockEntry, endDate: string, seed: number) {
     if (!response.ok) throw new Error(`行情服务返回 ${response.status}`);
     return parseTencentCandles(await response.json(), symbol);
   };
-  const candles = await fetchCandles(endDate);
+  const candlesByDate = new Map<string, Candle>();
+  const windowEnds: string[] = [];
+  const cursor = new Date(`${endDate}T00:00:00Z`);
+  while (cursor.toISOString().slice(0, 10) >= CN_MARKET_START) {
+    windowEnds.push(cursor.toISOString().slice(0, 10));
+    cursor.setUTCFullYear(cursor.getUTCFullYear() - HISTORY_WINDOW_YEARS);
+  }
+  for (let offset = 0; offset < windowEnds.length; offset += HISTORY_FETCH_CONCURRENCY) {
+    const pages = await Promise.all(windowEnds.slice(offset, offset + HISTORY_FETCH_CONCURRENCY).map(fetchCandles));
+    pages.flat().forEach((candle) => candlesByDate.set(candle.date, candle));
+  }
+  const candles = [...candlesByDate.values()];
   candles.sort((a, b) => a.date.localeCompare(b.date));
   const fullStock = {
     code: entry.code,
@@ -54,7 +67,7 @@ async function loadCnStock(entry: CnStockEntry, endDate: string, seed: number) {
     assetClass: "cn",
     candles,
   } satisfies StockSample;
-  return openEndedWindow(fullStock, seed, CN_STOCK_UNIVERSE.length);
+  return prepareGameStock(fullStock, seed, CN_STOCK_UNIVERSE.length);
 }
 
 async function cnBundle(key: string, date: string) {

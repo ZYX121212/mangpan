@@ -1,5 +1,5 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "latest-horizon-v2";
+export const GAME_VERSION = "full-history-v3";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;
@@ -55,6 +55,12 @@ export function orderQuantity({
 
 export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+export function initialBarsFor(stock: { candles: unknown[]; initialVisibleCount?: number }) {
+  const latestAllowed = Math.max(INITIAL_BARS, stock.candles.length - MIN_FUTURE_BARS);
+  const requested = Number.isInteger(stock.initialVisibleCount) ? stock.initialVisibleCount as number : INITIAL_BARS;
+  return clamp(requested, INITIAL_BARS, latestAllowed);
 }
 
 export function hashText(value: string) {

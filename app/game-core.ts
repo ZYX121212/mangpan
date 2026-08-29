@@ -1,10 +1,11 @@
 import type { StockSample } from "./stock-data";
-import { INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, clamp, isOrderAllocation, orderQuantity, type MarketKind, type ReplayAction } from "./game-config";
+import { INITIAL_CASH, MAX_ACTIONS, clamp, initialBarsFor, isOrderAllocation, orderQuantity, type MarketKind, type ReplayAction } from "./game-config";
 
 export { GAME_VERSION, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, MIN_FUTURE_BARS, MIN_GAME_BARS, clamp, chinaDate, isOrderAllocation, type MarketKind, type ReplayAction } from "./game-config";
 
 export function replayChallenge(stock: StockSample, actions: ReplayAction[], market: MarketKind = "cn") {
-  const factor = 100 / stock.candles[INITIAL_BARS - 1].close;
+  const initialBars = initialBarsFor(stock);
+  const factor = 100 / stock.candles[initialBars - 1].close;
   const candles = stock.candles.map((candle) => ({
     ...candle,
     open: candle.open * factor,
@@ -15,12 +16,12 @@ export function replayChallenge(stock: StockSample, actions: ReplayAction[], mar
   let trades = 0;
   let rounds = 0;
   let advancedDays = 0;
-  const availableDays = Math.max(0, candles.length - INITIAL_BARS);
+  const availableDays = Math.max(0, candles.length - initialBars);
   const equityHistory = [INITIAL_CASH];
 
   for (const action of actions.slice(0, MAX_ACTIONS)) {
     if (advancedDays >= availableDays) break;
-    const executionIndex = INITIAL_BARS + advancedDays;
+    const executionIndex = initialBars + advancedDays;
     const execution = candles[executionIndex]?.open;
     if (!execution) break;
     const allocation = isOrderAllocation(action.allocation) ? action.allocation : 1;
@@ -50,9 +51,9 @@ export function replayChallenge(stock: StockSample, actions: ReplayAction[], mar
     if (equityHistory[equityHistory.length - 1] <= INITIAL_CASH * 0.2) break;
   }
 
-  const visibleIndex = INITIAL_BARS + advancedDays - 1;
-  const current = candles[Math.max(INITIAL_BARS - 1, visibleIndex)];
-  const initial = candles[INITIAL_BARS - 1];
+  const visibleIndex = initialBars + advancedDays - 1;
+  const current = candles[Math.max(initialBars - 1, visibleIndex)];
+  const initial = candles[initialBars - 1];
   const equity = cash + shares * current.close;
   const returnRate = (equity / INITIAL_CASH - 1) * 100;
   const benchmark = (current.close / initial.close - 1) * 100;
