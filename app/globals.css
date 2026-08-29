@@ -28,3 +28,6 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 @media(max-width:480px){.market-tooltip{top:43px;width:174px}.market-tooltip dl{padding:6px 8px}.market-tooltip dl>div{height:21px}.market-tooltip dt{font-size:10px}.market-tooltip dd{font-size:11px}.tooltip-ma{display:none}}
 
 .chart-area{position:relative}
+
+/* Transparent enough to keep the candles readable beneath the quote card */
+.market-tooltip{border-color:rgba(112,111,104,.32);background:rgba(252,251,247,.76);box-shadow:0 4px 16px rgba(35,35,30,.09);backdrop-filter:none}.tooltip-head{border-bottom-color:rgba(255,255,255,.18);background:rgba(35,36,31,.82)}.market-tooltip dl>div{border-bottom-color:rgba(105,104,98,.13)}.tooltip-ma{background:rgba(237,235,228,.62)}
