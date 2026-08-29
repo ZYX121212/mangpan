@@ -192,3 +192,29 @@ export function replayChallenge(
     },
   };
 }
+
+export function evaluateScenarioPass(
+  scenario: "random" | "trend" | "reversal" | "crash" | "volatile",
+  difficulty: "starter" | "standard" | "expert",
+  result: ReturnType<typeof replayChallenge>,
+) {
+  if (scenario === "random") return false;
+  const target = {
+    starter: { days: 20, drawdown: -15, accuracy: 35, excess: -3 },
+    standard: { days: 40, drawdown: -10, accuracy: 45, excess: 0 },
+    expert: { days: 60, drawdown: -7, accuracy: 55, excess: 3 },
+  }[difficulty];
+  const focusPassed =
+    scenario === "reversal"
+      ? result.confidentMisses <= 1 && result.rounds >= 3
+      : scenario === "volatile"
+        ? (result.trades / Math.max(1, result.advancedDays)) * 20 <= 6
+        : result.excess >= target.excess;
+  return (
+    result.advancedDays >= target.days &&
+    result.maxDrawdown >= target.drawdown &&
+    result.rounds >= 3 &&
+    result.directionAccuracy >= target.accuracy &&
+    focusPassed
+  );
+}

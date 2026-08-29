@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { ensureDatabase, getD1Database, getDb } from "../db";
-import { gameSessions } from "../db/schema";
+import { gameSessions, trainingProgress } from "../db/schema";
 import {
   createPracticeChallenge,
   getDailyChallengeBundle,
@@ -17,6 +17,7 @@ import {
   type MarketOutlook,
   type ReplayAction,
 } from "./game-config";
+import { evaluateScenarioPass, replayChallenge } from "./game-core";
 import type {
   ChallengeBundle,
   ScenarioDifficulty,
@@ -39,6 +40,8 @@ export type PublicChallengeSession = {
   dataSource: ChallengeBundle["dataSource"];
   scenario: ScenarioKind;
   difficulty: ScenarioDifficulty;
+  actions: ReplayAction[];
+  resumed?: boolean;
 };
 
 type SessionRow = typeof gameSessions.$inferSelect;
@@ -130,6 +133,7 @@ async function insertSession(
   mode: GameMode,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  playerId?: string,
 ) {
   await ensureDatabase();
   const initialVisibleCount = initialBarsFor(bundle.stock);
@@ -140,6 +144,9 @@ async function insertSession(
     challengeDate: bundle.date,
     market: bundle.market,
     mode,
+    scenario,
+    difficulty,
+    playerId,
     visibleCount: initialVisibleCount,
     actions: "[]",
   });
@@ -157,12 +164,24 @@ async function insertSession(
     dataSource: bundle.dataSource,
     scenario,
     difficulty,
+    actions: [],
   } satisfies PublicChallengeSession;
 }
 
-export async function startDailySession(date: string, market: MarketKind) {
+export async function startDailySession(
+  date: string,
+  market: MarketKind,
+  playerId?: string,
+) {
   const bundle = await getDailyChallengeBundle(date, market);
-  return insertSession(snapshotId(date, market), bundle, "daily");
+  return insertSession(
+    snapshotId(date, market),
+    bundle,
+    "daily",
+    "random",
+    "standard",
+    playerId,
+  );
 }
 
 export async function startPracticeSession(
@@ -170,6 +189,7 @@ export async function startPracticeSession(
   market: MarketKind,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  playerId?: string,
 ) {
   const challenge = await createPracticeChallenge(
     seed,
@@ -183,6 +203,7 @@ export async function startPracticeSession(
     "practice",
     scenario,
     difficulty,
+    playerId,
   );
 }
 
@@ -198,8 +219,68 @@ async function loadSession(id: string) {
   return { session, bundle, actions: parseActions(session) };
 }
 
-export async function advanceSession(id: string, value: unknown) {
+async function claimSession(
+  session: SessionRow,
+  playerId: string | undefined,
+) {
+  if (!playerId) return;
+  if (session.playerId && session.playerId !== playerId)
+    throw new Error("该挑战属于另一位玩家");
+  if (session.playerId) return;
+  const claimed = await getD1Database()
+    .prepare(
+      "UPDATE game_sessions SET player_id = ?, updated_at = ? WHERE id = ? AND player_id IS NULL",
+    )
+    .bind(playerId, new Date().toISOString(), session.id)
+    .run();
+  if (claimed.meta.changes !== 1) throw new Error("挑战归属校验失败");
+}
+
+function sessionScenario(session: SessionRow): ScenarioKind {
+  return session.scenario === "trend" ||
+    session.scenario === "reversal" ||
+    session.scenario === "crash" ||
+    session.scenario === "volatile"
+    ? session.scenario
+    : "random";
+}
+
+function sessionDifficulty(session: SessionRow): ScenarioDifficulty {
+  return session.difficulty === "starter" || session.difficulty === "expert"
+    ? session.difficulty
+    : "standard";
+}
+
+export async function resumeSession(id: string, playerId: string) {
   const { session, bundle, actions } = await loadSession(id);
+  if (session.finished) throw new Error("这局训练已经结束");
+  await claimSession(session, playerId);
+  return {
+    sessionId: session.id,
+    date: session.challengeDate,
+    market: session.market as MarketKind,
+    mode: session.mode === "daily" ? "daily" : "practice",
+    stock: publicStock(bundle, session.visibleCount),
+    totalBars: bundle.stock.candles.length,
+    remainingBars: bundle.stock.candles.length - session.visibleCount,
+    decisionsUsed: actions.length,
+    maxDecisions: null,
+    universeSize: bundle.universeSize,
+    dataSource: bundle.dataSource,
+    scenario: sessionScenario(session),
+    difficulty: sessionDifficulty(session),
+    actions,
+    resumed: true,
+  } satisfies PublicChallengeSession;
+}
+
+export async function advanceSession(
+  id: string,
+  value: unknown,
+  playerId?: string,
+) {
+  const { session, bundle, actions } = await loadSession(id);
+  await claimSession(session, playerId);
   if (session.finished) throw new Error("本局已经结束");
   if (actions.length >= MAX_ACTIONS) throw new Error("决策次数超出上限");
   const action = cleanAction(value);
@@ -242,15 +323,167 @@ export async function advanceSession(id: string, value: unknown) {
   };
 }
 
-export async function revealSession(id: string) {
+async function recordTrainingResult(
+  session: SessionRow,
+  bundle: ChallengeBundle,
+  actions: ReplayAction[],
+  playerId: string,
+) {
+  if (session.mode !== "practice") return null;
+  if (!actions.length) return null;
+  const scenario = sessionScenario(session);
+  if (scenario === "random") return null;
+  const difficulty = sessionDifficulty(session);
+  const market = session.market as MarketKind;
+  const result = replayChallenge(bundle.stock, actions, market);
+  const passed = evaluateScenarioPass(scenario, difficulty, result);
+  const process = result.processScores;
+  const now = new Date().toISOString();
+  const inserted = await getD1Database()
+    .prepare(`INSERT OR IGNORE INTO training_results (
+      id, player_id, market, scenario, difficulty, score, passed,
+      return_rate, excess, max_drawdown, direction_accuracy,
+      risk_score, calibration_score, execution_score, discipline_score,
+      performance_score, advanced_days, trades, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .bind(
+      session.id,
+      playerId,
+      market,
+      scenario,
+      difficulty,
+      result.score,
+      passed ? 1 : 0,
+      result.returnRate,
+      result.excess,
+      result.maxDrawdown,
+      result.directionAccuracy,
+      process.risk,
+      process.calibration,
+      process.execution,
+      process.discipline,
+      process.performance,
+      result.advancedDays,
+      result.trades,
+      now,
+    )
+    .run();
+  if (inserted.meta.changes === 1) {
+    const progressId = `${playerId}:${market}:${scenario}:${difficulty}`;
+    await getD1Database()
+      .prepare(`INSERT INTO training_progress (
+        id, player_id, market, scenario, difficulty, attempts, passes,
+        best_score, last_score, total_days, updated_at
+      ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+      ON CONFLICT(player_id, market, scenario, difficulty) DO UPDATE SET
+        attempts = attempts + 1,
+        passes = passes + excluded.passes,
+        best_score = MAX(best_score, excluded.best_score),
+        last_score = excluded.last_score,
+        total_days = total_days + excluded.total_days,
+        updated_at = excluded.updated_at`)
+      .bind(
+        progressId,
+        playerId,
+        market,
+        scenario,
+        difficulty,
+        passed ? 1 : 0,
+        result.score,
+        result.score,
+        result.advancedDays,
+        now,
+      )
+      .run();
+  }
+  return { passed, score: result.score, scenario, difficulty };
+}
+
+export async function getTrainingProfile(
+  playerId: string,
+  market: MarketKind,
+) {
+  await ensureDatabase();
+  const rows = await getDb()
+    .select()
+    .from(trainingProgress)
+    .where(
+      and(
+        eq(trainingProgress.playerId, playerId),
+        eq(trainingProgress.market, market),
+      ),
+    );
+  type AbilityRow = {
+    risk_score: number;
+    calibration_score: number;
+    execution_score: number;
+    discipline_score: number;
+    performance_score: number;
+  };
+  const recent = await getD1Database()
+    .prepare(`SELECT risk_score, calibration_score, execution_score,
+      discipline_score, performance_score
+      FROM training_results
+      WHERE player_id = ? AND market = ?
+      ORDER BY created_at DESC LIMIT 20`)
+    .bind(playerId, market)
+    .all<AbilityRow>();
+  const recentRows = recent.results as AbilityRow[];
+  const average = (key: keyof AbilityRow) =>
+    recentRows.length
+      ? Math.round(
+          recentRows.reduce(
+            (sum: number, row: AbilityRow) => sum + Number(row[key]),
+            0,
+          ) / recentRows.length,
+        )
+      : 0;
+  return {
+    progress: Object.fromEntries(
+      rows.map((row) => [
+        `${row.scenario}:${row.difficulty}`,
+        row.passes,
+      ]),
+    ),
+    attempts: rows.reduce((sum, row) => sum + row.attempts, 0),
+    passes: rows.reduce((sum, row) => sum + row.passes, 0),
+    totalDays: rows.reduce((sum, row) => sum + row.totalDays, 0),
+    bestScore: rows.length
+      ? Math.max(...rows.map((row) => row.bestScore))
+      : 0,
+    mastered: rows.filter((row) => row.passes > 0).length,
+    ability: {
+      risk: average("risk_score"),
+      calibration: average("calibration_score"),
+      execution: average("execution_score"),
+      discipline: average("discipline_score"),
+      performance: average("performance_score"),
+    },
+  };
+}
+
+export async function revealSession(id: string, playerId?: string) {
   const { session, bundle, actions } = await loadSession(id);
+  await claimSession(session, playerId);
   if (!session.finished) {
     await getDb()
       .update(gameSessions)
       .set({ finished: true, updatedAt: new Date().toISOString() })
       .where(eq(gameSessions.id, id));
   }
-  return { stock: bundle.stock, actions, visibleCount: session.visibleCount };
+  const trainingResult = playerId
+    ? await recordTrainingResult(session, bundle, actions, playerId)
+    : null;
+  const trainingProfile = playerId
+    ? await getTrainingProfile(playerId, session.market as MarketKind)
+    : null;
+  return {
+    stock: bundle.stock,
+    actions,
+    visibleCount: session.visibleCount,
+    trainingResult,
+    trainingProfile,
+  };
 }
 
 export async function getSessionForScore(id: string, playerId: string) {

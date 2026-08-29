@@ -83,19 +83,67 @@ export function ensureDatabase() {
       database.prepare(
         "CREATE INDEX IF NOT EXISTS game_sessions_created_idx ON game_sessions (created_at)",
       ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS training_results (
+      id TEXT PRIMARY KEY NOT NULL,
+      player_id TEXT NOT NULL,
+      market TEXT NOT NULL,
+      scenario TEXT NOT NULL,
+      difficulty TEXT NOT NULL,
+      score INTEGER NOT NULL,
+      passed INTEGER NOT NULL,
+      return_rate REAL NOT NULL,
+      excess REAL NOT NULL,
+      max_drawdown REAL NOT NULL,
+      direction_accuracy REAL NOT NULL,
+      risk_score REAL NOT NULL,
+      calibration_score REAL NOT NULL,
+      execution_score REAL NOT NULL,
+      discipline_score REAL NOT NULL,
+      performance_score REAL NOT NULL,
+      advanced_days INTEGER NOT NULL,
+      trades INTEGER NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
+    )`),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS training_results_player_market_created_idx ON training_results (player_id, market, created_at)",
+      ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS training_progress (
+      id TEXT PRIMARY KEY NOT NULL,
+      player_id TEXT NOT NULL,
+      market TEXT NOT NULL,
+      scenario TEXT NOT NULL,
+      difficulty TEXT NOT NULL,
+      attempts INTEGER DEFAULT 0 NOT NULL,
+      passes INTEGER DEFAULT 0 NOT NULL,
+      best_score INTEGER DEFAULT 0 NOT NULL,
+      last_score INTEGER DEFAULT 0 NOT NULL,
+      total_days INTEGER DEFAULT 0 NOT NULL,
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
+    )`),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS training_progress_player_market_scenario_difficulty_unique ON training_progress (player_id, market, scenario, difficulty)",
+      ),
       database.prepare(
         "DROP INDEX IF EXISTS daily_challenges_date_market_unique",
       ),
       database.prepare("PRAGMA optimize"),
     ])
-    .then(async (result) => {
-      const columns = await database.prepare("PRAGMA table_info(game_sessions)").all<{ name: string }>();
+    .then(async (result: unknown) => {
+      const columns = (await database
+        .prepare("PRAGMA table_info(game_sessions)")
+        .all()) as { results: { name: string }[] };
       if (!columns.results.some((column) => column.name === "player_id")) {
         await database.prepare("ALTER TABLE game_sessions ADD COLUMN player_id TEXT").run();
       }
+      if (!columns.results.some((column) => column.name === "scenario")) {
+        await database.prepare("ALTER TABLE game_sessions ADD COLUMN scenario TEXT NOT NULL DEFAULT 'random'").run();
+      }
+      if (!columns.results.some((column) => column.name === "difficulty")) {
+        await database.prepare("ALTER TABLE game_sessions ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'standard'").run();
+      }
       return result;
     })
-    .catch((error) => {
+    .catch((error: unknown) => {
       initialization = null;
       throw error;
     });

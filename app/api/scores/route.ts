@@ -1,7 +1,10 @@
 import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
 import { dailyScores, players } from "../../../db/schema";
-import { getSessionForScore } from "../../challenge-sessions";
+import {
+  getSessionForScore,
+  getTrainingProfile,
+} from "../../challenge-sessions";
 import {
   GAME_VERSION,
   chinaDate,
@@ -207,6 +210,7 @@ async function buildScoreboard(
         )
       : 0;
     const xp = history.reduce((sum, row) => sum + row.score, 0);
+    const training = await getTrainingProfile(playerId, market);
     stats = {
       completedDays: history.length,
       streak: calculateStreak(
@@ -221,6 +225,7 @@ async function buildScoreboard(
       level: Math.floor(xp / 300) + 1,
       levelProgress: xp % 300,
       profile: weeklyProfile(history),
+      training,
     };
   }
 

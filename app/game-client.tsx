@@ -2,7 +2,7 @@
 
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- dialog backdrops only close when the backdrop itself is pressed */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Candle, StockSample } from "./stock-data";
 import {
   INITIAL_BARS,
@@ -100,6 +100,22 @@ type Scoreboard = {
     level: number;
     levelProgress: number;
     profile: { title: string; text: string };
+    training: TrainingProfile;
+  };
+};
+type TrainingProfile = {
+  progress: Record<string, number>;
+  attempts: number;
+  passes: number;
+  totalDays: number;
+  bestScore: number;
+  mastered: number;
+  ability: {
+    risk: number;
+    calibration: number;
+    execution: number;
+    discipline: number;
+    performance: number;
   };
 };
 type ChallengeSession = {
@@ -116,6 +132,8 @@ type ChallengeSession = {
   dataSource: "live-universe" | "embedded-fallback";
   scenario: ScenarioKind;
   difficulty: ScenarioDifficulty;
+  actions: ReplayAction[];
+  resumed?: boolean;
 };
 type InitialChallenges = Record<MarketKind, ChallengeSession>;
 type AdvanceResponse = {
@@ -179,6 +197,85 @@ function evaluateDecision(
     adverse,
     title: `${matched ? "判断命中" : "判断偏差"} · 后续${OUTLOOK_LABEL[actual]} ${move >= 0 ? "+" : ""}${move.toFixed(2)}%`,
     lesson,
+  };
+}
+
+function restoreGameState(session: ChallengeSession) {
+  const stock = session.stock;
+  const initialVisibleCount = initialBarsFor(stock);
+  const factor = 100 / stock.candles[initialVisibleCount - 1].close;
+  const normalized = stock.candles.map((candle) => ({
+    ...candle,
+    open: candle.open * factor,
+    close: candle.close * factor,
+    high: candle.high * factor,
+    low: candle.low * factor,
+  }));
+  let cash = INITIAL_CASH;
+  let shares = 0;
+  let offset = 0;
+  let trades = 0;
+  const markers: TradeMarker[] = [];
+  const equityHistory = [INITIAL_CASH];
+  const exposureHistory = [0];
+  const feedbackHistory: DecisionFeedback[] = [];
+  session.actions.forEach((action, actionIndex) => {
+    const days = action.days || 3;
+    const executionIndex = initialVisibleCount + offset;
+    const execution = normalized[executionIndex]?.open;
+    if (execution == null) return;
+    let amount = 0;
+    if (action.kind === "buy" || action.kind === "sell") {
+      amount = orderQuantity({
+        market: session.market,
+        kind: action.kind,
+        price: execution,
+        cash,
+        shares,
+        allocation: action.allocation,
+        quantity: action.quantity,
+      });
+      if (action.kind === "buy" && amount > 0) {
+        cash -= amount * execution;
+        shares += amount;
+      }
+      if (action.kind === "sell" && amount > 0) {
+        shares -= amount;
+        cash += amount * execution;
+      }
+      if (amount > 0) {
+        trades++;
+        markers.push({
+          index: executionIndex,
+          type: action.kind === "buy" ? "B" : "S",
+          price: execution,
+          quantity: amount,
+          round: actionIndex,
+        });
+      }
+    }
+    const revealed = normalized.slice(executionIndex, executionIndex + days);
+    if (revealed.length)
+      feedbackHistory.push(evaluateDecision(action, revealed, actionIndex + 1));
+    revealed.forEach((candle) => {
+      const equity = cash + shares * candle.close;
+      equityHistory.push(equity);
+      exposureHistory.push(
+        equity > 0 ? ((shares * candle.close) / equity) * 100 : 0,
+      );
+    });
+    offset += revealed.length;
+  });
+  return {
+    cash,
+    shares,
+    trades,
+    markers,
+    equityHistory,
+    exposureHistory,
+    feedbackHistory,
+    round: session.actions.length,
+    visibleCount: stock.candles.length,
   };
 }
 
@@ -871,7 +968,7 @@ export default function GameClient({
   >("idle");
   const [challengeLoading, setChallengeLoading] = useState(false);
   const submissionRef = useRef(false);
-  const trainingRecordedRef = useRef("");
+  const resumeAttemptRef = useRef(new Set<MarketKind>());
   const initialUrlHandledRef = useRef(false);
   const marketLabel = market === "cn" ? "A股" : "美股";
   const scenarioLabel = (
@@ -1185,29 +1282,6 @@ export default function GameClient({
   }, [initialChallenges, today]);
 
   useEffect(() => {
-    if (
-      !finished ||
-      !scenarioEvaluation?.passed ||
-      session.scenario === "random" ||
-      trainingRecordedRef.current === session.sessionId
-    )
-      return;
-    trainingRecordedRef.current = session.sessionId;
-    const key = `${session.scenario}:${session.difficulty}`;
-    setScenarioProgress((value) => {
-      const next = { ...value, [key]: (value[key] || 0) + 1 };
-      localStorage.setItem("mangpan-scenario-progress", JSON.stringify(next));
-      return next;
-    });
-  }, [
-    finished,
-    scenarioEvaluation,
-    session.difficulty,
-    session.scenario,
-    session.sessionId,
-  ]);
-
-  useEffect(() => {
     if (!playerId) return;
     let cancelled = false;
     const query = new URLSearchParams({ date: today, market, playerId });
@@ -1216,7 +1290,16 @@ export default function GameClient({
       .then(async (response) => {
         if (!response.ok) throw new Error("load failed");
         const next = (await response.json()) as Scoreboard;
-        if (!cancelled) setScoreboard(next);
+        if (!cancelled) {
+          setScoreboard(next);
+          if (next.stats?.training) {
+            setScenarioProgress(next.stats.training.progress);
+            localStorage.setItem(
+              "mangpan-scenario-progress",
+              JSON.stringify(next.stats.training.progress),
+            );
+          }
+        }
       })
       .catch(() => undefined);
     return () => {
@@ -1279,16 +1362,17 @@ export default function GameClient({
     today,
   ]);
 
-  const resetSession = (nextSession: ChallengeSession) => {
+  const resetSession = useCallback((nextSession: ChallengeSession) => {
     submissionRef.current = false;
-    trainingRecordedRef.current = "";
+    const restored = restoreGameState(nextSession);
+    setMarket(nextSession.market);
     setGameMode(nextSession.mode);
     setSession(nextSession);
     setStock(nextSession.stock);
-    setVisibleCount(initialBarsFor(nextSession.stock));
-    setRound(0);
-    setCash(INITIAL_CASH);
-    setShares(0);
+    setVisibleCount(restored.visibleCount);
+    setRound(restored.round);
+    setCash(restored.cash);
+    setShares(restored.shares);
     setMode("buy");
     setAllocation(1);
     setOrderInputMode("allocation");
@@ -1297,21 +1381,51 @@ export default function GameClient({
     setOutlook("up");
     setThesis("trend");
     setConfidence(2);
-    setTrades(0);
-    setTradeMarkers([]);
-    setEquityHistory([INITIAL_CASH]);
-    setExposureHistory([0]);
-    setActions([]);
+    setTrades(restored.trades);
+    setTradeMarkers(restored.markers);
+    setEquityHistory(restored.equityHistory);
+    setExposureHistory(restored.exposureHistory);
+    setActions(nextSession.actions);
     setFinished(false);
     setResultOpen(false);
     setAnalysisOpen(false);
-    setLastFeedback(null);
-    setFeedbackHistory([]);
+    setLastFeedback(restored.feedbackHistory.at(-1) ?? null);
+    setFeedbackHistory(restored.feedbackHistory);
     setRevealPulse(0);
     setShareStatus("");
     setScoreStatus("idle");
     setScoreboard(null);
-  };
+    localStorage.setItem(
+      `mangpan-active-session-${nextSession.market}`,
+      nextSession.sessionId,
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!playerId || resumeAttemptRef.current.has(market)) return;
+    resumeAttemptRef.current.add(market);
+    const storageKey = `mangpan-active-session-${market}`;
+    const savedSession = localStorage.getItem(storageKey);
+    if (!savedSession || savedSession === session.sessionId) return;
+    const query = new URLSearchParams({
+      sessionId: savedSession,
+      playerId,
+    });
+    fetch(`/api/challenge?${query}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error("resume failed");
+        resetSession((await response.json()) as ChallengeSession);
+      })
+      .catch(() => localStorage.removeItem(storageKey));
+  }, [market, playerId, resetSession, session.sessionId]);
+
+  useEffect(() => {
+    if (!playerId || !actions.length || finished) return;
+    localStorage.setItem(
+      `mangpan-active-session-${market}`,
+      session.sessionId,
+    );
+  }, [actions.length, finished, market, playerId, session.sessionId]);
 
   const resetGame = async (
     nextMode: GameMode,
@@ -1323,7 +1437,7 @@ export default function GameClient({
     try {
       const seed = crypto.randomUUID();
       const response = await fetch(
-        `/api/challenge?mode=${nextMode}&seed=${encodeURIComponent(seed)}&market=${nextMarket}&scenario=${scenario}&difficulty=${difficulty}`,
+        `/api/challenge?mode=${nextMode}&seed=${encodeURIComponent(seed)}&market=${nextMarket}&scenario=${scenario}&difficulty=${difficulty}&playerId=${encodeURIComponent(playerId)}`,
       );
       if (!response.ok) throw new Error("challenge load failed");
       resetSession((await response.json()) as ChallengeSession);
@@ -1348,13 +1462,20 @@ export default function GameClient({
       const response = await fetch("/api/challenge", {
         method: "PATCH",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ sessionId: session.sessionId }),
+        body: JSON.stringify({ sessionId: session.sessionId, playerId }),
       });
       if (!response.ok) throw new Error("reveal failed");
       const revealed = (await response.json()) as {
         stock: StockSample;
         actions: ReplayAction[];
         visibleCount: number;
+        trainingResult: null | {
+          passed: boolean;
+          score: number;
+          scenario: ScenarioKind;
+          difficulty: ScenarioDifficulty;
+        };
+        trainingProfile: TrainingProfile | null;
       };
       setStock(revealed.stock);
       setActions(revealed.actions);
@@ -1365,6 +1486,22 @@ export default function GameClient({
         remainingBars: Math.max(0, value.totalBars - revealed.visibleCount),
         decisionsUsed: revealed.actions.length,
       }));
+      if (revealed.trainingProfile) {
+        setScenarioProgress(revealed.trainingProfile.progress);
+        localStorage.setItem(
+          "mangpan-scenario-progress",
+          JSON.stringify(revealed.trainingProfile.progress),
+        );
+        setScoreboard((value) =>
+          value?.stats
+            ? {
+                ...value,
+                stats: { ...value.stats, training: revealed.trainingProfile! },
+              }
+            : value,
+        );
+      }
+      localStorage.removeItem(`mangpan-active-session-${market}`);
       setFinished(true);
       setResultOpen(true);
     } finally {
@@ -1402,6 +1539,7 @@ export default function GameClient({
       body: JSON.stringify({
         sessionId: session.sessionId,
         action: replayAction,
+        playerId,
       }),
     });
     if (!response.ok) {
@@ -1736,9 +1874,10 @@ export default function GameClient({
                 : "无限练习 · 随时结束"}
             </small>
           </div>
-          <div className="horizon-track open-ended">
+              <div className="horizon-track open-ended">
             <i />
             <span>
+              {session.resumed ? "已恢复云端进度 · " : ""}
               已推进 {advancedDays} 个交易日 · 尚有{" "}
               {remainingDays.toLocaleString("zh-CN")} 个交易日 · 可随时结束
             </span>
@@ -2230,7 +2369,7 @@ export default function GameClient({
               <li>
                 <b>复盘</b>
                 <span>
-                  结算后揭晓真实股票、交易所和日期，并从仓位、风险、频率、持有周期和买卖时机生成深度画像。
+                  结算后揭晓真实股票、交易所和日期，并生成深度画像；未完成会话和情景训练成绩会同步到云端。
                 </span>
               </li>
             </ol>
@@ -2322,6 +2461,52 @@ export default function GameClient({
                     每局按风险调整评分积累
                   </small>
                 </div>
+                <section className="cloud-training-card">
+                  <div className="cloud-training-head">
+                    <div>
+                      <small>CLOUD TRAINING DNA</small>
+                      <b>{marketLabel}云端训练档案</b>
+                    </div>
+                    <span>自动同步</span>
+                  </div>
+                  <div className="cloud-training-summary">
+                    <div>
+                      <b>{scoreboard.stats.training.attempts}</b>
+                      <small>训练次数</small>
+                    </div>
+                    <div>
+                      <b>{scoreboard.stats.training.passes}</b>
+                      <small>累计通关</small>
+                    </div>
+                    <div>
+                      <b>{scoreboard.stats.training.mastered}/12</b>
+                      <small>已掌握课目</small>
+                    </div>
+                    <div>
+                      <b>{scoreboard.stats.training.totalDays}</b>
+                      <small>训练交易日</small>
+                    </div>
+                  </div>
+                  <div className="cloud-ability-list">
+                    {(
+                      [
+                        ["风险", scoreboard.stats.training.ability.risk],
+                        ["校准", scoreboard.stats.training.ability.calibration],
+                        ["执行", scoreboard.stats.training.ability.execution],
+                        ["纪律", scoreboard.stats.training.ability.discipline],
+                        ["收益", scoreboard.stats.training.ability.performance],
+                      ] as const
+                    ).map(([label, value]) => (
+                      <div key={label}>
+                        <span>{label}</span>
+                        <i>
+                          <em style={{ width: `${value}%` }} />
+                        </i>
+                        <b>{value || "—"}</b>
+                      </div>
+                    ))}
+                  </div>
+                </section>
               </>
             )}
             <div className="board-head">

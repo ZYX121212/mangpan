@@ -77,6 +77,8 @@ export const gameSessions = sqliteTable(
     playerId: text("player_id"),
     market: text("market").notNull(),
     mode: text("mode").notNull(),
+    scenario: text("scenario").notNull().default("random"),
+    difficulty: text("difficulty").notNull().default("standard"),
     visibleCount: integer("visible_count").notNull(),
     actions: text("actions").notNull().default("[]"),
     finished: integer("finished", { mode: "boolean" }).notNull().default(false),
@@ -90,5 +92,66 @@ export const gameSessions = sqliteTable(
   (table) => [
     index("game_sessions_challenge_idx").on(table.challengeId),
     index("game_sessions_created_idx").on(table.createdAt),
+  ],
+);
+
+export const trainingResults = sqliteTable(
+  "training_results",
+  {
+    id: text("id").primaryKey(),
+    playerId: text("player_id").notNull(),
+    market: text("market").notNull(),
+    scenario: text("scenario").notNull(),
+    difficulty: text("difficulty").notNull(),
+    score: integer("score").notNull(),
+    passed: integer("passed", { mode: "boolean" }).notNull(),
+    returnRate: real("return_rate").notNull(),
+    excess: real("excess").notNull(),
+    maxDrawdown: real("max_drawdown").notNull(),
+    directionAccuracy: real("direction_accuracy").notNull(),
+    riskScore: real("risk_score").notNull(),
+    calibrationScore: real("calibration_score").notNull(),
+    executionScore: real("execution_score").notNull(),
+    disciplineScore: real("discipline_score").notNull(),
+    performanceScore: real("performance_score").notNull(),
+    advancedDays: integer("advanced_days").notNull(),
+    trades: integer("trades").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    index("training_results_player_market_created_idx").on(
+      table.playerId,
+      table.market,
+      table.createdAt,
+    ),
+  ],
+);
+
+export const trainingProgress = sqliteTable(
+  "training_progress",
+  {
+    id: text("id").primaryKey(),
+    playerId: text("player_id").notNull(),
+    market: text("market").notNull(),
+    scenario: text("scenario").notNull(),
+    difficulty: text("difficulty").notNull(),
+    attempts: integer("attempts").notNull().default(0),
+    passes: integer("passes").notNull().default(0),
+    bestScore: integer("best_score").notNull().default(0),
+    lastScore: integer("last_score").notNull().default(0),
+    totalDays: integer("total_days").notNull().default(0),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("training_progress_player_market_scenario_difficulty_unique").on(
+      table.playerId,
+      table.market,
+      table.scenario,
+      table.difficulty,
+    ),
   ],
 );
