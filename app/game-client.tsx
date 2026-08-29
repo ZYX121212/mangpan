@@ -33,6 +33,42 @@ type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
 type GameMode = "daily" | "practice";
 type ScenarioKind = "random" | "trend" | "reversal" | "crash" | "volatile";
+type ScenarioDifficulty = "starter" | "standard" | "expert";
+const SCENARIO_CONFIG = {
+  trend: {
+    title: "趋势识别",
+    description: "辨别主趋势，练习顺势、加仓与退出节奏",
+    mission: "在趋势中控制追高冲动，并争取跑赢持有基准",
+    debrief:
+      "趋势行情最容易让人把短期回撤误判成反转，也容易在连续上涨后过度加仓。",
+  },
+  reversal: {
+    title: "拐点应对",
+    description: "辨别普通反弹与真正的趋势反转",
+    mission: "等待确认再交易，减少高信心猜底和猜顶",
+    debrief:
+      "拐点通常不会一次完成，价格会反复测试原趋势，因此仓位和确认信号比猜中最低点更重要。",
+  },
+  crash: {
+    title: "急跌生存",
+    description: "练习减仓、空仓和极端回撤控制",
+    mission: "优先活下来，把最大回撤控制在目标线以内",
+    debrief:
+      "急跌阶段的核心不是抓住每次反弹，而是避免亏损扩大后被迫在最低点退出。",
+  },
+  volatile: {
+    title: "高波动控仓",
+    description: "练习仓位大小、交易频率与信心校准",
+    mission: "降低无效交易，用仓位吸收价格噪声",
+    debrief:
+      "高波动会制造大量似是而非的信号，过度交易和高信心重仓往往比方向判断本身更危险。",
+  },
+} as const;
+const DIFFICULTY_CONFIG = {
+  starter: { label: "入门", days: 20, drawdown: -15, accuracy: 35, excess: -3 },
+  standard: { label: "标准", days: 40, drawdown: -10, accuracy: 45, excess: 0 },
+  expert: { label: "专家", days: 60, drawdown: -7, accuracy: 55, excess: 3 },
+} as const;
 type TradeMarker = {
   index: number;
   type: "B" | "S";
@@ -79,6 +115,7 @@ type ChallengeSession = {
   universeSize: number;
   dataSource: "live-universe" | "embedded-fallback";
   scenario: ScenarioKind;
+  difficulty: ScenarioDifficulty;
 };
 type InitialChallenges = Record<MarketKind, ChallengeSession>;
 type AdvanceResponse = {
@@ -756,6 +793,11 @@ export default function GameClient({
     [isRevealing, setIsRevealing] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [trainingOpen, setTrainingOpen] = useState(false);
+  const [selectedDifficulty, setSelectedDifficulty] =
+    useState<ScenarioDifficulty>("standard");
+  const [scenarioProgress, setScenarioProgress] = useState<
+    Record<string, number>
+  >({});
   const [revealPulse, setRevealPulse] = useState(0),
     [shareStatus, setShareStatus] = useState("");
   const [actions, setActions] = useState<ReplayAction[]>([]),
@@ -769,6 +811,7 @@ export default function GameClient({
   >("idle");
   const [challengeLoading, setChallengeLoading] = useState(false);
   const submissionRef = useRef(false);
+  const trainingRecordedRef = useRef("");
   const initialUrlHandledRef = useRef(false);
   const marketLabel = market === "cn" ? "A股" : "美股";
   const scenarioLabel = (
@@ -780,6 +823,9 @@ export default function GameClient({
       volatile: "高波动控仓",
     } as const
   )[session.scenario];
+  const activeScenario =
+    session.scenario === "random" ? null : SCENARIO_CONFIG[session.scenario];
+  const activeDifficulty = DIFFICULTY_CONFIG[session.difficulty];
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
   const normalized = useMemo(() => {
@@ -890,6 +936,63 @@ export default function GameClient({
       : 50;
     return { total, hits, accuracy, calibration, confidentMisses };
   }, [actions, initialVisibleCount, normalized]);
+  const scenarioEvaluation = useMemo(() => {
+    if (!activeScenario) return null;
+    const durationCheck = {
+      label: `完成至少 ${activeDifficulty.days} 个交易日`,
+      passed: advancedDays >= activeDifficulty.days,
+      value: `${advancedDays} 日`,
+    };
+    const riskCheck = {
+      label: `最大回撤不低于 ${activeDifficulty.drawdown}%`,
+      passed: maxDrawdown >= activeDifficulty.drawdown,
+      value: `${maxDrawdown.toFixed(1)}%`,
+    };
+    const accuracyCheck = {
+      label: `方向命中率达到 ${activeDifficulty.accuracy}%`,
+      passed:
+        decisionStats.total >= 3 &&
+        decisionStats.accuracy >= activeDifficulty.accuracy,
+      value: decisionStats.total
+        ? `${decisionStats.accuracy.toFixed(0)}%`
+        : "无样本",
+    };
+    const frequency = (trades / Math.max(1, advancedDays)) * 20;
+    const focusCheck =
+      session.scenario === "reversal"
+        ? {
+            label: "高信心误判不超过 1 次",
+            passed:
+              decisionStats.confidentMisses <= 1 && decisionStats.total >= 3,
+            value: `${decisionStats.confidentMisses} 次`,
+          }
+        : session.scenario === "volatile"
+          ? {
+              label: "每 20 日成交不超过 6 次",
+              passed: frequency <= 6,
+              value: `${frequency.toFixed(1)} 次`,
+            }
+          : {
+              label: `超额收益达到 ${activeDifficulty.excess >= 0 ? "+" : ""}${activeDifficulty.excess}%`,
+              passed: excess >= activeDifficulty.excess,
+              value: `${excess >= 0 ? "+" : ""}${excess.toFixed(1)}%`,
+            };
+    const checks = [durationCheck, riskCheck, accuracyCheck, focusCheck];
+    return {
+      checks,
+      passed: checks.every((check) => check.passed),
+      completed: checks.filter((check) => check.passed).length,
+    };
+  }, [
+    activeDifficulty,
+    activeScenario,
+    advancedDays,
+    decisionStats,
+    excess,
+    maxDrawdown,
+    session.scenario,
+    trades,
+  ]);
   const allowedTrades = Math.max(4, Math.ceil(advancedDays / 10) + 1);
   const skillScore = Math.round(
     clamp(50 + excess * 2.5, 0, 100) * 0.4 +
@@ -936,6 +1039,14 @@ export default function GameClient({
     const storedNickname =
       localStorage.getItem("mangpan-player-name") ||
       `盲盘客${id.slice(-4).toUpperCase()}`;
+    let storedProgress: Record<string, number> = {};
+    try {
+      storedProgress = JSON.parse(
+        localStorage.getItem("mangpan-scenario-progress") || "{}",
+      ) as Record<string, number>;
+    } catch {
+      storedProgress = {};
+    }
     const params = new URLSearchParams(location.search);
     const challenger = params.get("duel") || "";
     const requestedMarket: MarketKind =
@@ -957,8 +1068,32 @@ export default function GameClient({
       }
       setPlayerId(id);
       setNickname(storedNickname);
+      setScenarioProgress(storedProgress);
     });
   }, [initialChallenges, today]);
+
+  useEffect(() => {
+    if (
+      !finished ||
+      !scenarioEvaluation?.passed ||
+      session.scenario === "random" ||
+      trainingRecordedRef.current === session.sessionId
+    )
+      return;
+    trainingRecordedRef.current = session.sessionId;
+    const key = `${session.scenario}:${session.difficulty}`;
+    setScenarioProgress((value) => {
+      const next = { ...value, [key]: (value[key] || 0) + 1 };
+      localStorage.setItem("mangpan-scenario-progress", JSON.stringify(next));
+      return next;
+    });
+  }, [
+    finished,
+    scenarioEvaluation,
+    session.difficulty,
+    session.scenario,
+    session.sessionId,
+  ]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -1034,6 +1169,7 @@ export default function GameClient({
 
   const resetSession = (nextSession: ChallengeSession) => {
     submissionRef.current = false;
+    trainingRecordedRef.current = "";
     setGameMode(nextSession.mode);
     setSession(nextSession);
     setStock(nextSession.stock);
@@ -1067,12 +1203,13 @@ export default function GameClient({
     nextMode: GameMode,
     nextMarket = market,
     scenario: ScenarioKind = "random",
+    difficulty: ScenarioDifficulty = "standard",
   ) => {
     setChallengeLoading(true);
     try {
       const seed = crypto.randomUUID();
       const response = await fetch(
-        `/api/challenge?mode=${nextMode}&seed=${encodeURIComponent(seed)}&market=${nextMarket}&scenario=${scenario}`,
+        `/api/challenge?mode=${nextMode}&seed=${encodeURIComponent(seed)}&market=${nextMarket}&scenario=${scenario}&difficulty=${difficulty}`,
       );
       if (!response.ok) throw new Error("challenge load failed");
       resetSession((await response.json()) as ChallengeSession);
@@ -1086,7 +1223,7 @@ export default function GameClient({
     if (nextMarket === market || challengeLoading || isRevealing) return;
     setMarket(nextMarket);
     setDuelId("");
-    void resetGame(gameMode, nextMarket);
+    void resetGame(gameMode, nextMarket, session.scenario, session.difficulty);
     history.replaceState(null, "", location.pathname);
   };
 
@@ -1350,6 +1487,17 @@ export default function GameClient({
           <span>⚔</span>
           <b>好友向你发起了今日同图挑战</b>
           <small>完成后立即对比分数，双方看到的 K 线完全相同</small>
+        </div>
+      )}
+      {activeScenario && (
+        <div className="mission-banner">
+          <span>训练任务</span>
+          <b>
+            {activeScenario.title} · {activeDifficulty.label}
+          </b>
+          <p>{activeScenario.mission}</p>
+          <small>{scenarioEvaluation?.completed || 0}/4 项当前达标</small>
+          <button onClick={() => setTrainingOpen(true)}>更换训练</button>
         </div>
       )}
       <section className="portfolio-strip">
@@ -1781,27 +1929,67 @@ export default function GameClient({
             </button>
             <small className="eyebrow">SCENARIO LAB · 针对性训练</small>
             <h2>今天想练哪一种行情？</h2>
-            <p>系统从真实历史中筛选典型片段，但不会告诉你后面将如何发展。</p>
+            <p>
+              系统从真实历史中筛选典型片段。你会提前看到训练目标，但股票身份、日期和后续走势仍然隐藏。
+            </p>
+            <div className="difficulty-picker">
+              <span>训练难度</span>
+              <div>
+                {(["starter", "standard", "expert"] as const).map((value) => (
+                  <button
+                    key={value}
+                    className={selectedDifficulty === value ? "selected" : ""}
+                    onClick={() => setSelectedDifficulty(value)}
+                  >
+                    {DIFFICULTY_CONFIG[value].label}
+                  </button>
+                ))}
+              </div>
+              <small>
+                最低训练 {DIFFICULTY_CONFIG[selectedDifficulty].days} 日 ·
+                回撤目标 {DIFFICULTY_CONFIG[selectedDifficulty].drawdown}% ·
+                命中率目标 {DIFFICULTY_CONFIG[selectedDifficulty].accuracy}%
+              </small>
+            </div>
             <div className="scenario-grid">
               {(
-                [
-                  ["trend", "趋势识别", "练习顺势、加仓与退出节奏"],
-                  ["reversal", "拐点应对", "练习辨别反弹与真正反转"],
-                  ["crash", "急跌生存", "练习减仓、空仓和回撤控制"],
-                  ["volatile", "高波动控仓", "练习仓位大小与信心校准"],
-                ] as const
-              ).map(([value, title, description]) => (
+                Object.entries(SCENARIO_CONFIG) as [
+                  Exclude<ScenarioKind, "random">,
+                  (typeof SCENARIO_CONFIG)[Exclude<ScenarioKind, "random">],
+                ][]
+              ).map(([value, config]) => (
                 <button
                   key={value}
                   disabled={challengeLoading}
-                  onClick={() => void resetGame("practice", market, value)}
+                  onClick={() =>
+                    void resetGame(
+                      "practice",
+                      market,
+                      value,
+                      selectedDifficulty,
+                    )
+                  }
                 >
-                  <span>{title}</span>
-                  <small>{description}</small>
-                  <i>开始训练 →</i>
+                  <span>
+                    {config.title}
+                    <em>
+                      {scenarioProgress[`${value}:${selectedDifficulty}`] || 0}{" "}
+                      次通关
+                    </em>
+                  </span>
+                  <small>{config.description}</small>
+                  <p>{config.mission}</p>
+                  <i>{challengeLoading ? "正在筛选行情…" : "开始训练 →"}</i>
                 </button>
               ))}
             </div>
+            <button
+              className="random-training"
+              disabled={challengeLoading}
+              onClick={() => void resetGame("practice", market, "random")}
+            >
+              不指定情景，开始随机综合训练
+            </button>
             <div className="interval-roadmap">
               <div>
                 <b>日 K 经典训练</b>
@@ -1881,6 +2069,12 @@ export default function GameClient({
                 <b>判断</b>
                 <span>
                   每次推进前记录看涨、震荡或看跌，并选择判断依据与信心；结算时逐笔检查是否命中。
+                </span>
+              </li>
+              <li>
+                <b>情景训练</b>
+                <span>
+                  可选择趋势、拐点、急跌或高波动训练，并设定入门、标准、专家难度；完成时按四项任务逐项判定是否通关。
                 </span>
               </li>
               <li>
@@ -2098,6 +2292,50 @@ export default function GameClient({
                   : "你的主观判断与真实后续走势会被逐笔对照，评分不再只奖励高收益。"}
               </p>
             </div>
+            {activeScenario && scenarioEvaluation && (
+              <section
+                className={`scenario-settlement ${scenarioEvaluation.passed ? "passed" : "retry"}`}
+              >
+                <div className="scenario-settlement-head">
+                  <span>
+                    {scenarioEvaluation.passed ? "训练通关" : "训练未通关"}
+                  </span>
+                  <b>
+                    {activeScenario.title} · {activeDifficulty.label}
+                  </b>
+                  <strong>{scenarioEvaluation.completed}/4</strong>
+                </div>
+                <div className="scenario-checks">
+                  {scenarioEvaluation.checks.map((check) => (
+                    <div
+                      key={check.label}
+                      className={check.passed ? "done" : "miss"}
+                    >
+                      <i>{check.passed ? "✓" : "×"}</i>
+                      <span>{check.label}</span>
+                      <b>{check.value}</b>
+                    </div>
+                  ))}
+                </div>
+                <p>
+                  <b>情景复盘：</b>
+                  {activeScenario.debrief}
+                </p>
+                <button
+                  disabled={challengeLoading}
+                  onClick={() =>
+                    void resetGame(
+                      "practice",
+                      market,
+                      session.scenario,
+                      session.difficulty,
+                    )
+                  }
+                >
+                  {challengeLoading ? "正在重新筛选…" : "再练一次同类情景"}
+                </button>
+              </section>
+            )}
             {gameMode === "daily" && (
               <div className="rank-result">
                 {scoreStatus === "loading" ? (

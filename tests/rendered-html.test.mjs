@@ -39,6 +39,10 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /信心校准/);
   assert.match(page, /今日长线挑战/);
   assert.match(page, /不限制决策次数/);
+  assert.match(page, /训练难度/);
+  assert.match(page, /训练通关/);
+  assert.match(page, /情景复盘/);
+  assert.match(page, /mangpan-scenario-progress/);
   assert.match(page, /四维诊断/);
   assert.match(page, /完整数据：/);
   assert.match(page, /stock\.candles\.length\.toLocaleString/);
@@ -100,6 +104,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.doesNotMatch(pageRoute, /getDailyChallengeBundle/);
   assert.match(challengeRoute, /advanceSession/);
   assert.match(challengeRoute, /revealSession/);
+  assert.match(challengeRoute, /difficultyFrom/);
   assert.match(sessions, /maskCandle/);
   assert.match(sessions, /请完整记录方向、依据和信心/);
   assert.match(schema, /game_sessions/);
@@ -123,6 +128,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(marketData, /Promise\.all/);
   assert.match(marketData, /candlesByDate/);
   assert.match(marketData, /initialVisibleCount: decisionIndex/);
+  assert.match(marketData, /scenarioFutureBars/);
+  assert.match(marketData, /ScenarioDifficulty/);
   assert.doesNotMatch(marketData, /candles\.slice\(start\)/);
   assert.doesNotMatch(marketData, /historicalEnd/);
   assert.doesNotMatch(marketData, /TOTAL_BARS/);

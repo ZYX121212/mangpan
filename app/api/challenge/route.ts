@@ -5,7 +5,7 @@ import {
   startPracticeSession,
 } from "../../challenge-sessions";
 import { chinaDate, type MarketKind } from "../../game-config";
-import type { ScenarioKind } from "../../market-data";
+import type { ScenarioDifficulty, ScenarioKind } from "../../market-data";
 
 const headers = { "cache-control": "no-store" };
 
@@ -20,6 +20,10 @@ function scenarioFrom(value: string | null): ScenarioKind {
     value === "volatile"
     ? value
     : "random";
+}
+
+function difficultyFrom(value: string | null): ScenarioDifficulty {
+  return value === "starter" || value === "expert" ? value : "standard";
 }
 
 function errorResponse(error: unknown) {
@@ -41,6 +45,7 @@ export async function GET(request: Request) {
             params.get("seed")?.slice(0, 100) || crypto.randomUUID(),
             market,
             scenarioFrom(params.get("scenario")),
+            difficultyFrom(params.get("difficulty")),
           );
     return Response.json(session, { headers });
   } catch (error) {

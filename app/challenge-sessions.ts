@@ -17,7 +17,11 @@ import {
   type MarketOutlook,
   type ReplayAction,
 } from "./game-config";
-import type { ChallengeBundle, ScenarioKind } from "./market-data";
+import type {
+  ChallengeBundle,
+  ScenarioDifficulty,
+  ScenarioKind,
+} from "./market-data";
 import type { Candle, StockSample } from "./stock-data";
 
 export type GameMode = "daily" | "practice";
@@ -34,6 +38,7 @@ export type PublicChallengeSession = {
   universeSize: number;
   dataSource: ChallengeBundle["dataSource"];
   scenario: ScenarioKind;
+  difficulty: ScenarioDifficulty;
 };
 
 type SessionRow = typeof gameSessions.$inferSelect;
@@ -124,6 +129,7 @@ async function insertSession(
   bundle: ChallengeBundle,
   mode: GameMode,
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
   await ensureDatabase();
   const initialVisibleCount = initialBarsFor(bundle.stock);
@@ -150,6 +156,7 @@ async function insertSession(
     universeSize: bundle.universeSize,
     dataSource: bundle.dataSource,
     scenario,
+    difficulty,
   } satisfies PublicChallengeSession;
 }
 
@@ -162,9 +169,21 @@ export async function startPracticeSession(
   seed: string,
   market: MarketKind,
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
-  const challenge = await createPracticeChallenge(seed, market, scenario);
-  return insertSession(challenge.id, challenge.bundle, "practice", scenario);
+  const challenge = await createPracticeChallenge(
+    seed,
+    market,
+    scenario,
+    difficulty,
+  );
+  return insertSession(
+    challenge.id,
+    challenge.bundle,
+    "practice",
+    scenario,
+    difficulty,
+  );
 }
 
 async function loadSession(id: string) {

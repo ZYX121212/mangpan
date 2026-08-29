@@ -6,6 +6,7 @@ import {
   getChallengeBundle,
   getPracticeBundle,
   type ChallengeBundle,
+  type ScenarioDifficulty,
   type ScenarioKind,
 } from "./market-data";
 
@@ -96,9 +97,15 @@ export async function createPracticeChallenge(
   seedText: string,
   market: MarketKind,
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
   await ensureDatabase();
-  const bundle = await getPracticeBundle(seedText, market, scenario);
+  const bundle = await getPracticeBundle(
+    seedText,
+    market,
+    scenario,
+    difficulty,
+  );
   const id = `practice@${GAME_VERSION}@${market}@${crypto.randomUUID()}`;
   await getDb()
     .insert(dailyChallenges)

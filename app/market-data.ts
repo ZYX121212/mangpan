@@ -20,6 +20,7 @@ export type ChallengeBundle = {
 };
 export type ScenarioKind =
   "random" | "trend" | "reversal" | "crash" | "volatile";
+export type ScenarioDifficulty = "starter" | "standard" | "expert";
 
 const EXCHANGE_LABELS = { sh: "上证", sz: "深证", bj: "北证" } as const;
 const HISTORY_PAGE_SIZE = 640;
@@ -65,9 +66,15 @@ function prepareGameStock(
   stock: StockSample,
   seed: number,
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
   if (stock.candles.length < MIN_GAME_BARS) return null;
-  const latestDecisionIndex = stock.candles.length - MIN_FUTURE_BARS;
+  if (scenario !== "random" && stock.candles.length < INITIAL_BARS + 240)
+    return null;
+  const scenarioFutureBars = 240;
+  const latestDecisionIndex =
+    stock.candles.length -
+    (scenario === "random" ? MIN_FUTURE_BARS : scenarioFutureBars);
   let decisionIndex = INITIAL_BARS;
   if (scenario !== "random") {
     const candidates: { index: number; score: number }[] = [];
@@ -80,7 +87,14 @@ function prepareGameStock(
       (a, b) =>
         b.score - a.score || ((a.index + seed) % 97) - ((b.index + seed) % 97),
     );
-    decisionIndex = candidates[0]?.index ?? decisionIndex;
+    const candidateShare =
+      difficulty === "starter" ? 0.35 : difficulty === "standard" ? 0.12 : 0.03;
+    const candidatePool = candidates.slice(
+      0,
+      Math.max(1, Math.ceil(candidates.length * candidateShare)),
+    );
+    decisionIndex =
+      candidatePool[seed % candidatePool.length]?.index ?? decisionIndex;
   }
   return { ...stock, initialVisibleCount: decisionIndex } as StockSample;
 }
@@ -89,10 +103,11 @@ function bundledStock(
   seed: number,
   market: MarketKind,
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
   const pool = market === "cn" ? STOCK_SAMPLES : US_STOCK_SAMPLES;
   const stock = pool[seed % pool.length];
-  return prepareGameStock(stock, seed, scenario) ?? stock;
+  return prepareGameStock(stock, seed, scenario, difficulty) ?? stock;
 }
 
 function parseTencentCandles(payload: unknown, symbol: string) {
@@ -127,6 +142,7 @@ async function loadCnStock(
   endDate: string,
   seed: number,
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
   const symbol = `${entry.exchange}${entry.code}`;
   const fetchCandles = async (requestedEnd: string) => {
@@ -170,13 +186,14 @@ async function loadCnStock(
     assetClass: "cn",
     candles,
   } satisfies StockSample;
-  return prepareGameStock(fullStock, seed, scenario);
+  return prepareGameStock(fullStock, seed, scenario, difficulty);
 }
 
 async function cnBundle(
   key: string,
   date: string,
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
   const seed = hashText(`mangpan-${GAME_VERSION}-cn-${key}`);
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -189,6 +206,7 @@ async function cnBundle(
         date,
         seed + attempt,
         scenario,
+        difficulty,
       );
       if (stock)
         return {
@@ -205,7 +223,7 @@ async function cnBundle(
   return {
     date,
     market: "cn",
-    stock: bundledStock(seed, "cn", scenario),
+    stock: bundledStock(seed, "cn", scenario, difficulty),
     universeSize: CN_STOCK_UNIVERSE.length,
     dataSource: "embedded-fallback",
   } satisfies ChallengeBundle;
@@ -230,14 +248,20 @@ export async function getPracticeBundle(
   seedText: string,
   market: MarketKind = "cn",
   scenario: ScenarioKind = "random",
+  difficulty: ScenarioDifficulty = "standard",
 ) {
   const seed = hashText(`practice-${GAME_VERSION}-${market}-${seedText}`);
   if (market === "cn")
-    return cnBundle(`practice-${scenario}-${seedText}`, chinaDate(), scenario);
+    return cnBundle(
+      `practice-${scenario}-${difficulty}-${seedText}`,
+      chinaDate(),
+      scenario,
+      difficulty,
+    );
   return {
     date: "practice",
     market,
-    stock: bundledStock(seed, market, scenario),
+    stock: bundledStock(seed, market, scenario, difficulty),
     universeSize: US_STOCK_SAMPLES.length,
     dataSource: "embedded-fallback",
   } satisfies ChallengeBundle;
