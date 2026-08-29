@@ -1,17 +1,57 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "market-v1";
+export const GAME_VERSION = "market-v2";
 export const INITIAL_BARS = 120;
 export const HORIZON_DAYS = 60;
 export const MAX_ACTIONS = HORIZON_DAYS;
 export const TOTAL_BARS = INITIAL_BARS + HORIZON_DAYS;
 
 export type MarketKind = "cn" | "us";
+export const ORDER_ALLOCATIONS = [0.25, 1 / 3, 0.5, 0.75, 1] as const;
+export type OrderAllocation = (typeof ORDER_ALLOCATIONS)[number];
 
 export type ReplayAction = {
   kind: "buy" | "sell" | "hold";
-  allocation?: 0.25 | 0.5 | 1;
+  allocation?: number;
+  quantity?: number;
   days?: 1 | 2 | 3 | 4 | 5;
 };
+
+export function isOrderAllocation(value: unknown): value is OrderAllocation {
+  return typeof value === "number" && ORDER_ALLOCATIONS.some((allocation) => Math.abs(allocation - value) < 1e-9);
+}
+
+export function lotSizeFor(market: MarketKind) {
+  return market === "cn" ? 100 : 1;
+}
+
+export function orderQuantity({
+  market,
+  kind,
+  price,
+  cash,
+  shares,
+  allocation = 1,
+  quantity,
+}: {
+  market: MarketKind;
+  kind: "buy" | "sell";
+  price: number;
+  cash: number;
+  shares: number;
+  allocation?: number;
+  quantity?: number;
+}) {
+  const lot = lotSizeFor(market);
+  const available = kind === "buy" ? Math.floor(cash / price / lot) * lot : Math.floor(shares + 1e-9);
+  if (available <= 0) return 0;
+  if (quantity !== undefined) {
+    const requested = Math.floor(quantity / lot) * lot;
+    return Math.max(0, Math.min(available, requested));
+  }
+  if (allocation >= 1) return available;
+  const target = kind === "buy" ? cash * allocation / price : shares * allocation;
+  return Math.max(0, Math.min(available, Math.floor(target / lot) * lot));
+}
 
 export function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));

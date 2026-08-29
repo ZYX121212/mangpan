@@ -1,7 +1,7 @@
 import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
 import { dailyScores, players } from "../../../db/schema";
-import { GAME_VERSION, MAX_ACTIONS, chinaDate, replayChallenge, type MarketKind, type ReplayAction } from "../../game-core";
+import { GAME_VERSION, MAX_ACTIONS, chinaDate, isOrderAllocation, replayChallenge, type MarketKind, type ReplayAction } from "../../game-core";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
 
@@ -39,7 +39,11 @@ function validActions(value: unknown): value is ReplayAction[] {
     if (!(["buy", "sell", "hold"] as const).includes(action.kind as ReplayAction["kind"])) return false;
     if (action.days !== undefined && ![1, 2, 3, 4, 5].includes(action.days)) return false;
     if (action.kind === "hold") return true;
-    return action.allocation === 0.25 || action.allocation === 0.5 || action.allocation === 1;
+    const hasAllocation = action.allocation !== undefined;
+    const hasQuantity = action.quantity !== undefined;
+    if (hasAllocation === hasQuantity) return false;
+    if (hasAllocation) return isOrderAllocation(action.allocation);
+    return typeof action.quantity === "number" && Number.isInteger(action.quantity) && action.quantity > 0 && action.quantity <= 1_000_000;
   });
 }
 

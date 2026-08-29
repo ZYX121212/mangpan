@@ -1,8 +1,8 @@
 import { STOCK_SAMPLES } from "./stock-data";
 import { US_STOCK_SAMPLES } from "./us-stock-data";
-import { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, hashText, type MarketKind, type ReplayAction } from "./game-config";
+import { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, hashText, isOrderAllocation, orderQuantity, type MarketKind, type ReplayAction } from "./game-config";
 
-export { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, chinaDate, type MarketKind, type ReplayAction } from "./game-config";
+export { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, chinaDate, isOrderAllocation, type MarketKind, type ReplayAction } from "./game-config";
 
 const MARKET_POOLS = { cn: STOCK_SAMPLES, us: US_STOCK_SAMPLES } satisfies Record<MarketKind, typeof STOCK_SAMPLES>;
 
@@ -76,20 +76,21 @@ export function replayChallenge(date: string, actions: ReplayAction[], market: M
     const executionIndex = challenge.start + INITIAL_BARS + advancedDays;
     const execution = candles[executionIndex]?.open;
     if (!execution) break;
-    const allocation = action.allocation === 0.25 || action.allocation === 0.5 || action.allocation === 1 ? action.allocation : 1;
+    const allocation = isOrderAllocation(action.allocation) ? action.allocation : 1;
     const requestedDays = action.days && action.days >= 1 && action.days <= 5 ? action.days : 3;
     const holdingDays = Math.min(requestedDays, HORIZON_DAYS - advancedDays);
 
     if (action.kind === "buy" && cash > 0.01) {
-      const spend = cash * allocation;
+      const amount = orderQuantity({ market, kind: "buy", price: execution, cash, shares, allocation, quantity: action.quantity });
+      const spend = amount * execution;
       cash -= spend;
-      shares += spend / execution;
-      if (spend > 0.01) trades++;
+      shares += amount;
+      if (amount > 0) trades++;
     } else if (action.kind === "sell" && shares > 0.000001) {
-      const amount = shares * allocation;
+      const amount = orderQuantity({ market, kind: "sell", price: execution, cash, shares, allocation, quantity: action.quantity });
       shares -= amount;
       cash += amount * execution;
-      if (amount > 0.000001) trades++;
+      if (amount > 0) trades++;
     }
 
     for (let step = 0; step < holdingDays; step++) {
