@@ -34,11 +34,12 @@ test("server-renders the blind chart game shell", async () => {
 });
 
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
-  const [page, route, schema, hosting] = await Promise.all([
+  const [page, route, schema, hosting, styles] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /ticker-mask/);
@@ -52,4 +53,5 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(route, /onConflictDoNothing/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
+  assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
 });
