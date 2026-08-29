@@ -10,7 +10,16 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(layout, /盲盘｜真实历史 K 线交易挑战/);
   assert.match(page, /今日盲盘/);
   assert.match(page, /今日排行/);
-  assert.match(page, /可缩放的真实历史日K线图/);
+  assert.match(page, /可缩放、拖动和键盘操作的真实历史日K线图/);
+  assert.match(page, /向左查看更早K线/);
+  assert.match(page, /向右查看更新K线/);
+  assert.match(page, /定位K线历史位置/);
+  assert.match(page, /onPointerDown/);
+  assert.match(page, /touchPointsRef/);
+  assert.match(page, /Math\.hypot/);
+  assert.match(page, /onDoubleClick=\{resetView\}/);
+  assert.match(page, /event\.key === "ArrowLeft"/);
+  assert.match(page, /event\.shiftKey/);
   assert.match(page, /或按股数委托/);
   assert.match(page, /减少 \$\{lotSize\} 股/);
   assert.match(page, /增加 \$\{lotSize\} 股/);
