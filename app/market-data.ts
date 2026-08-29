@@ -38,9 +38,6 @@ function parseTencentCandles(payload: unknown, symbol: string) {
 
 async function loadCnStock(entry: CnStockEntry, endDate: string, seed: number) {
   const symbol = `${entry.exchange}${entry.code}`;
-  const end = new Date(`${endDate}T00:00:00Z`);
-  end.setUTCDate(end.getUTCDate() - (seed % (16 * 365)));
-  const historicalEnd = end.toISOString().slice(0, 10);
   const fetchCandles = async (requestedEnd: string) => {
     const url = new URL("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get");
     url.searchParams.set("param", `${symbol},day,,${requestedEnd},${HISTORY_PAGE_SIZE},qfq`);
@@ -48,8 +45,7 @@ async function loadCnStock(entry: CnStockEntry, endDate: string, seed: number) {
     if (!response.ok) throw new Error(`行情服务返回 ${response.status}`);
     return parseTencentCandles(await response.json(), symbol);
   };
-  let candles = await fetchCandles(historicalEnd);
-  if (candles.length < MIN_GAME_BARS && historicalEnd !== endDate) candles = await fetchCandles(endDate);
+  const candles = await fetchCandles(endDate);
   candles.sort((a, b) => a.date.localeCompare(b.date));
   const fullStock = {
     code: entry.code,

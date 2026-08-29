@@ -26,6 +26,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /无固定期限/);
   assert.match(page, /深度分析我的画像/);
   assert.match(page, /四维诊断/);
+  assert.match(page, /完整数据更新至/);
   assert.doesNotMatch(page, /最多推进 60/);
   assert.doesNotMatch(page, /Building your site|Your site is taking shape/);
 });
@@ -62,11 +63,14 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
+  assert.match(config, /latest-horizon-v2/);
   assert.match(core, /orderQuantity\(\{ market, kind: "buy"/);
   assert.match(challengeService, /dailyChallenges/);
   assert.match(challengeService, /onConflictDoNothing/);
   assert.match(marketData, /MIN_GAME_BARS/);
   assert.match(marketData, /candles\.slice\(start\)/);
+  assert.match(marketData, /const candles = await fetchCandles\(endDate\)/);
+  assert.doesNotMatch(marketData, /historicalEnd/);
   assert.doesNotMatch(marketData, /TOTAL_BARS/);
   assert.match(core, /availableDays = Math\.max\(0, candles\.length - INITIAL_BARS\)/);
   assert.match(analysis, /平均仓位/);

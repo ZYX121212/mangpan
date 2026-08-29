@@ -1,5 +1,5 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "open-horizon-v1";
+export const GAME_VERSION = "latest-horizon-v2";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;
