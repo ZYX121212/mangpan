@@ -57,6 +57,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
+  assert.match(styles, /Desktop trading terminal/);
+  assert.match(styles, /\.shell\{height:100dvh;min-height:0/);
+  assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
   assert.match(core, /orderQuantity\(\{ market, kind: "buy"/);
