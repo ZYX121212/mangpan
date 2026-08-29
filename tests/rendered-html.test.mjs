@@ -12,6 +12,10 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /今日排行/);
   assert.match(page, /可缩放的真实历史日K线图/);
   assert.match(page, /或按股数委托/);
+  assert.match(page, /减少 \$\{lotSize\} 股/);
+  assert.match(page, /增加 \$\{lotSize\} 股/);
+  assert.match(page, /adjustQuantity\(-1\)/);
+  assert.match(page, /adjustQuantity\(1\)/);
   assert.match(page, /"1\/4"/);
   assert.match(page, /"1\/3"/);
   assert.match(page, /"3\/4"/);
