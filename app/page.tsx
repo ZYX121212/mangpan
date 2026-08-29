@@ -1,36 +1,31 @@
 "use client";
 
+/* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- dialog backdrops only close when the backdrop itself is pressed */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { STOCK_SAMPLES, type Candle } from "./stock-data";
+import { INITIAL_BARS, INITIAL_CASH, MAX_ROUNDS, STEP, TOTAL_BARS, chinaDate, clamp, getChallenge, type ReplayAction } from "./game-core";
 
-const INITIAL_CASH = 100_000;
-const INITIAL_BARS = 60;
-const STEP = 3;
-const MAX_ROUNDS = 10;
-const TOTAL_BARS = INITIAL_BARS + STEP * MAX_ROUNDS;
 const nf = new Intl.NumberFormat("zh-CN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const delay = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
 
 type TradeMode = "buy" | "sell";
 type GameMode = "daily" | "practice";
 type TradeMarker = { index: number; type: "B" | "S"; price: number; round: number };
+type RankedScore = { nickname: string; score: number; returnRate: number; rank: number; percentile?: number; isPlayer?: boolean; excess?: number; maxDrawdown?: number };
+type Scoreboard = {
+  total: number;
+  leaderboard: RankedScore[];
+  playerScore: RankedScore | null;
+  opponent: RankedScore | null;
+  stats: null | { completedDays: number; streak: number; averageScore: number; bestScore: number; profile: { title: string; text: string } };
+};
 
 function average(data: Candle[], at: number, period: number) {
   if (at < period - 1) return null;
   let total = 0;
   for (let i = at - period + 1; i <= at; i++) total += data[i].close;
   return total / period;
-}
-
-function clamp(value: number, min: number, max: number) { return Math.min(max, Math.max(min, value)); }
-function hashText(value: string) { let hash = 2166136261; for (let i = 0; i < value.length; i++) { hash ^= value.charCodeAt(i); hash = Math.imul(hash, 16777619); } return hash >>> 0; }
-function chinaDate() { return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Shanghai", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()); }
-
-function getChallenge(date: string) {
-  const seed = hashText(`mangpan-${date}`);
-  const stockIndex = seed % STOCK_SAMPLES.length;
-  const maxStart = Math.max(0, STOCK_SAMPLES[stockIndex].candles.length - TOTAL_BARS);
-  return { stockIndex, start: Math.floor(seed / STOCK_SAMPLES.length) % (maxStart + 1) };
 }
 
 function CandleChart({ data, markers }: { data: Candle[]; markers: TradeMarker[] }) {
@@ -104,7 +99,7 @@ function CandleChart({ data, markers }: { data: Candle[]; markers: TradeMarker[]
 }
 
 export default function Home() {
-  const today = useMemo(chinaDate, []), daily = useMemo(() => getChallenge(today), [today]);
+  const today = chinaDate(), daily = getChallenge(today);
   const [gameMode, setGameMode] = useState<GameMode>("daily");
   const [stockIndex, setStockIndex] = useState(daily.stockIndex), [windowStart, setWindowStart] = useState(daily.start);
   const [visibleCount, setVisibleCount] = useState(INITIAL_BARS), [round, setRound] = useState(0);
@@ -114,6 +109,11 @@ export default function Home() {
   const [equityHistory, setEquityHistory] = useState([INITIAL_CASH]);
   const [finished, setFinished] = useState(false), [resultOpen, setResultOpen] = useState(false), [rulesOpen, setRulesOpen] = useState(false), [isRevealing, setIsRevealing] = useState(false);
   const [revealPulse, setRevealPulse] = useState(0), [shareStatus, setShareStatus] = useState("");
+  const [actions, setActions] = useState<ReplayAction[]>([]), [playerId, setPlayerId] = useState("");
+  const [nickname, setNickname] = useState("盲盘客"), [duelId, setDuelId] = useState("");
+  const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null), [scoreboardOpen, setScoreboardOpen] = useState(false);
+  const [scoreStatus, setScoreStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const submissionRef = useRef(false);
   const stock = STOCK_SAMPLES[stockIndex];
   const normalized = useMemo(() => { const factor = 100 / stock.candles[windowStart + INITIAL_BARS - 1].close; return stock.candles.map((candle) => ({ ...candle, open: candle.open * factor, close: candle.close * factor, high: candle.high * factor, low: candle.low * factor })); }, [stock, windowStart]);
   const data = normalized.slice(windowStart, windowStart + visibleCount), current = data[data.length - 1], previous = data[data.length - 2];
@@ -131,16 +131,65 @@ export default function Home() {
     return { title: "冷静的观察者", text: "你的决策相对克制。继续积累不同市场环境，才能看出稳定优势。" };
   }, [benchmark, excess, maxDrawdown, returnRate, trades]);
 
+  useEffect(() => {
+    let id = localStorage.getItem("mangpan-player-id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("mangpan-player-id", id);
+    }
+    const storedNickname = localStorage.getItem("mangpan-player-name") || `盲盘客${id.slice(-4).toUpperCase()}`;
+    const params = new URLSearchParams(location.search);
+    const challenger = params.get("duel") || "";
+    queueMicrotask(() => {
+      if (params.get("date") === today && challenger !== id && /^[a-zA-Z0-9_-]{10,80}$/.test(challenger)) setDuelId(challenger);
+      setPlayerId(id);
+      setNickname(storedNickname);
+    });
+  }, [today]);
+
+  useEffect(() => {
+    if (!playerId) return;
+    const query = new URLSearchParams({ date: today, playerId });
+    if (duelId) query.set("opponentId", duelId);
+    fetch(`/api/scores?${query}`).then(async (response) => {
+      if (!response.ok) throw new Error("load failed");
+      setScoreboard(await response.json() as Scoreboard);
+    }).catch(() => undefined);
+  }, [duelId, playerId, today]);
+
+  useEffect(() => {
+    if (!playerId || !finished || gameMode !== "daily" || scoreStatus !== "idle" || submissionRef.current) return;
+    submissionRef.current = true;
+    queueMicrotask(() => setScoreStatus("loading"));
+    fetch("/api/scores", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ date: today, playerId, nickname, actions }),
+    }).then(async (response) => {
+      if (!response.ok) throw new Error("submit failed");
+      const next = await response.json() as Scoreboard;
+      if (duelId) {
+        const query = new URLSearchParams({ date: today, playerId, opponentId: duelId });
+        const duelResponse = await fetch(`/api/scores?${query}`);
+        if (duelResponse.ok) setScoreboard(await duelResponse.json() as Scoreboard);
+        else setScoreboard(next);
+      } else setScoreboard(next);
+      setScoreStatus("done");
+    }).catch(() => { submissionRef.current = false; setScoreStatus("error"); });
+  }, [actions, duelId, finished, gameMode, nickname, playerId, scoreStatus, today]);
+
   const resetGame = (nextMode: GameMode) => {
     let nextStock = daily.stockIndex, nextStart = daily.start;
     if (nextMode === "practice") { nextStock = Math.floor(Math.random() * STOCK_SAMPLES.length); nextStart = Math.floor(Math.random() * Math.max(1, STOCK_SAMPLES[nextStock].candles.length - TOTAL_BARS + 1)); }
-    setGameMode(nextMode); setStockIndex(nextStock); setWindowStart(nextStart); setVisibleCount(INITIAL_BARS); setRound(0); setCash(INITIAL_CASH); setShares(0); setMode("buy"); setAllocation(1); setTrades(0); setTradeMarkers([]); setEquityHistory([INITIAL_CASH]); setFinished(false); setResultOpen(false); setRevealPulse(0); setShareStatus("");
+    submissionRef.current = false; setGameMode(nextMode); setStockIndex(nextStock); setWindowStart(nextStart); setVisibleCount(INITIAL_BARS); setRound(0); setCash(INITIAL_CASH); setShares(0); setMode("buy"); setAllocation(1); setTrades(0); setTradeMarkers([]); setEquityHistory([INITIAL_CASH]); setActions([]); setFinished(false); setResultOpen(false); setRevealPulse(0); setShareStatus(""); setScoreStatus("idle");
   };
 
   const finishGame = () => { if (isRevealing) return; setFinished(true); setResultOpen(true); };
   const advance = async (action: "trade" | "hold") => {
     if (finished || isRevealing) return;
     setIsRevealing(true);
+    const replayAction: ReplayAction = action === "hold" ? { kind: "hold" } : { kind: mode, allocation: allocation as 0.25 | 0.5 | 1 };
+    setActions((value) => [...value, replayAction]);
     const executionIndex = visibleCount, execution = normalized[windowStart + executionIndex].open;
     let nextCash = cash, nextShares = shares, didTrade = false;
     if (action === "trade" && mode === "buy" && cash > .01) { const spend = cash * allocation; nextCash -= spend; nextShares += spend / execution; didTrade = spend > .01; }
@@ -154,18 +203,18 @@ export default function Home() {
     if (nextRound >= MAX_ROUNDS || nextEquity <= INITIAL_CASH * .2) { setFinished(true); setResultOpen(true); }
   };
 
-  useEffect(() => { if (finished && gameMode === "daily") localStorage.setItem(`mangpan-daily-${today}`, JSON.stringify({ score: skillScore, returnRate, finishedAt: Date.now() })); }, [finished, gameMode, returnRate, skillScore, today]);
-
   const shareResult = async () => {
     const sequence = Array.from({ length: Math.max(1, round) }, (_, index) => { const marker = tradeMarkers.find((item) => item.round === index); return marker?.type === "B" ? "🟥" : marker?.type === "S" ? "🟩" : "⬜"; }).join("");
     const text = `盲盘 #${today.replaceAll("-", "")}\n${sequence}\n收益 ${returnRate >= 0 ? "+" : ""}${returnRate.toFixed(1)}% · 操盘评分 ${skillScore}\n只看走势，不看答案`;
-    try { if (navigator.share) await navigator.share({ title: "盲盘｜真实历史K线挑战", text, url: location.href }); else { await navigator.clipboard.writeText(`${text}\n${location.href}`); setShareStatus("已复制战绩"); } } catch { setShareStatus(""); }
+    const shareUrl = playerId ? `${location.origin}${location.pathname}?duel=${encodeURIComponent(playerId)}&date=${today}` : location.href;
+    try { if (navigator.share) await navigator.share({ title: "盲盘｜真实历史K线挑战", text, url: shareUrl }); else { await navigator.clipboard.writeText(`${text}\n${shareUrl}`); setShareStatus("挑战链接已复制"); } } catch { setShareStatus(""); }
   };
 
   const tradeDisabled = isRevealing || finished || (mode === "buy" ? cash < .01 : shares < .000001);
   return <main className="shell">
-    <header className="topbar"><div className="brand"><span className="brand-mark">K</span><span>盲盘</span></div><div className="round-pill"><span>{gameMode === "daily" ? "今日盲盘" : "练习模式"}</span><i />第 {Math.min(round + 1, MAX_ROUNDS)}/{MAX_ROUNDS} 回合</div><button className="text-button" onClick={() => setRulesOpen(true)}>游戏规则</button></header>
-    <section className="portfolio-strip"><div><small>总资产</small><strong>¥{nf.format(equity)}</strong></div><div><small>持仓市值</small><strong>¥{nf.format(positionValue)}</strong></div><div><small>可用现金</small><strong>¥{nf.format(cash)}</strong></div><div><small>累计收益</small><strong className={returnRate > 0 ? "up" : returnRate < 0 ? "down" : "muted"}>{returnRate > 0 ? "+" : ""}{returnRate.toFixed(2)}%</strong></div><div className="challenge"><span>{gameMode === "daily" ? `每日同题 · #${today.slice(5).replace("-", "")}` : "随机练习"}</span><small>价格已归一化，身份结算后揭晓</small></div></section>
+    <header className="topbar"><div className="brand"><span className="brand-mark">K</span><span>盲盘</span></div><div className="round-pill"><span>{gameMode === "daily" ? "今日盲盘" : "练习模式"}</span><i />第 {Math.min(round + 1, MAX_ROUNDS)}/{MAX_ROUNDS} 回合</div><div className="top-actions"><button className="player-chip" onClick={() => setScoreboardOpen(true)}><i>{nickname.slice(0, 1)}</i><span>{nickname}</span>{scoreboard?.stats?.streak ? <b>🔥 {scoreboard.stats.streak}</b> : null}</button><button className="text-button rank-button" onClick={() => setScoreboardOpen(true)}>今日排行</button><button className="text-button" onClick={() => setRulesOpen(true)}>游戏规则</button></div></header>
+    {duelId && <div className="duel-banner"><span>⚔</span><b>好友向你发起了今日同图挑战</b><small>完成后立即对比分数，双方看到的 K 线完全相同</small></div>}
+    <section className="portfolio-strip"><div><small>总资产</small><strong>¥{nf.format(equity)}</strong></div><div><small>持仓市值</small><strong>¥{nf.format(positionValue)}</strong></div><div><small>可用现金</small><strong>¥{nf.format(cash)}</strong></div><div><small>累计收益</small><strong className={returnRate > 0 ? "up" : returnRate < 0 ? "down" : "muted"}>{returnRate > 0 ? "+" : ""}{returnRate.toFixed(2)}%</strong></div><div className="challenge"><span>{gameMode === "daily" ? scoreboard?.playerScore ? `今日已上榜 · 第 ${scoreboard.playerScore.rank} 名` : `每日同题 · #${today.slice(5).replace("-", "")}` : "随机练习"}</span><small>{duelId ? "好友挑战进行中，结算后对比" : "价格已归一化，身份结算后揭晓"}</small></div></section>
     <section className="workspace">
       <div className="chart-panel">{revealPulse > 0 && <span key={revealPulse} className="reveal-toast">+{STEP} 个交易日</span>}<div className="chart-head"><div><span className="ticker-mask">••••••</span><span className="market-tag">日 K</span><span className="adjust-tag">归一化 · 前复权</span></div><div className="ohlc"><span>开 <b>{current.open.toFixed(2)}</b></span><span>高 <b>{current.high.toFixed(2)}</b></span><span>低 <b>{current.low.toFixed(2)}</b></span><span>收 <b>{current.close.toFixed(2)}</b></span><strong className={dayChange >= 0 ? "up" : "down"}>{dayChange >= 0 ? "+" : ""}{dayChange.toFixed(2)}%</strong></div></div><div className="ma-row"><span>MA5 {ma5?.toFixed(2)}</span><span>MA10 {ma10?.toFixed(2)}</span><span>MA20 {ma20?.toFixed(2)}</span><em>相对量 {current.volume ? (current.volume / (data.slice(-20).reduce((sum, candle) => sum + candle.volume, 0) / Math.min(20, data.length))).toFixed(2) : "0"}×</em></div><CandleChart data={data} markers={tradeMarkers} /></div>
       <aside className="trade-panel"><div className="decision-head"><span>做出决策</span><small>委托于次日开盘成交</small></div><div className="turn-track">{Array.from({ length: MAX_ROUNDS }, (_, index) => { const marker = tradeMarkers.find((item) => item.round === index); return <i key={index} className={index < round ? marker?.type === "B" ? "buy-turn" : marker?.type === "S" ? "sell-turn" : "done-turn" : index === round ? "current-turn" : ""} />; })}</div><div className="price-block"><small>归一化价格</small><strong>{current.close.toFixed(2)}</strong><span className={dayChange >= 0 ? "up" : "down"}>{dayChange >= 0 ? "+" : ""}{dayChange.toFixed(2)}%</span></div>
@@ -174,8 +223,10 @@ export default function Home() {
       </aside>
     </section><footer className="source-note">12 只 A 股真实前复权行情 · 价格归一化仅用于隐藏身份 · 不构成投资建议</footer>
 
-    {rulesOpen && <div className="modal-backdrop" onMouseDown={() => setRulesOpen(false)}><section className="rules-modal" onMouseDown={(event) => event.stopPropagation()}><button className="modal-close" onClick={() => setRulesOpen(false)}>×</button><small>HOW TO PLAY</small><h2>每天一张真实盲盘</h2><ol><li><b>观察</b><span>开局提供 60 根真实日 K，价格归一化为 100，股票和历史日期隐藏。</span></li><li><b>决策</b><span>买入、卖出或空仓，委托在下一交易日开盘成交并留下 B/S 点。</span></li><li><b>揭晓</b><span>每回合逐根展示未来 3 个交易日，共 10 回合。</span></li><li><b>评分</b><span>综合相对收益、最大回撤和交易纪律，而不是只奖励冒险。</span></li><li><b>复盘</b><span>结算后揭晓真实股票、日期和本局交易画像。</span></li></ol><button className="primary-action" onClick={() => setRulesOpen(false)}>继续挑战</button></section></div>}
+    {rulesOpen && <dialog open className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setRulesOpen(false); }}><section className="rules-modal"><button className="modal-close" onClick={() => setRulesOpen(false)}>×</button><small>HOW TO PLAY</small><h2>每天一张真实盲盘</h2><ol><li><b>观察</b><span>开局提供 60 根真实日 K，价格归一化为 100，股票和历史日期隐藏。</span></li><li><b>决策</b><span>买入、卖出或空仓，委托在下一交易日开盘成交并留下 B/S 点。</span></li><li><b>揭晓</b><span>每回合逐根展示未来 3 个交易日，共 10 回合。</span></li><li><b>评分</b><span>综合相对收益、最大回撤和交易纪律，而不是只奖励冒险。</span></li><li><b>复盘</b><span>结算后揭晓真实股票、日期和本局交易画像。</span></li></ol><button className="primary-action" onClick={() => setRulesOpen(false)}>继续挑战</button></section></dialog>}
 
-    {resultOpen && <div className="modal-backdrop result-backdrop"><section className="result-modal"><small className="eyebrow">{gameMode === "daily" ? `今日盲盘 #${today.slice(5).replace("-", "")}` : "随机练习"} · 股票揭晓</small><h1>{stock.name}</h1><p className="stock-code">{stock.market} · {stock.code}</p><div className={`result-hero ${returnRate >= 0 ? "positive" : "negative"}`}><span>最终收益</span><strong>{returnRate >= 0 ? "+" : ""}{returnRate.toFixed(2)}%</strong><small>¥{nf.format(INITIAL_CASH)} → ¥{nf.format(equity)}</small></div><div className="result-grid"><div><small>操盘评分</small><b>{skillScore}</b></div><div><small>股票同期</small><b className={benchmark >= 0 ? "up" : "down"}>{benchmark >= 0 ? "+" : ""}{benchmark.toFixed(2)}%</b></div><div><small>超额收益</small><b>{excess >= 0 ? "+" : ""}{excess.toFixed(2)}%</b></div><div><small>最大回撤</small><b>{maxDrawdown.toFixed(2)}%</b></div></div><div className="profile-card"><small>本局交易画像</small><b>{profile.title}</b><p>{profile.text}</p></div><div className="date-reveal">真实区间：{stock.candles[windowStart + INITIAL_BARS - 1].date} — {stock.candles[windowStart + visibleCount - 1].date} · 共 {trades} 次交易</div><div className="result-actions three"><button className="primary-action" onClick={shareResult}>{shareStatus || "分享战绩"}</button><button className="hold-action" onClick={() => resetGame(gameMode === "daily" ? "practice" : "daily")}>{gameMode === "daily" ? "随机练习" : "返回今日挑战"}</button><button className="review-action" onClick={() => setResultOpen(false)}>返回复盘 K 线</button></div></section></div>}
+    {scoreboardOpen && <dialog open className="modal-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setScoreboardOpen(false); }}><section className="leaderboard-modal"><button className="modal-close" onClick={() => setScoreboardOpen(false)}>×</button><small className="eyebrow">PLAYER PROFILE · 今日同题榜</small><div className="player-editor"><span>{nickname.slice(0, 1)}</span><div><small>我的盲盘名</small><input value={nickname} maxLength={12} onChange={(event) => setNickname(event.target.value)} onBlur={() => { const name = nickname.trim() || `盲盘客${playerId.slice(-4).toUpperCase()}`; setNickname(name); localStorage.setItem("mangpan-player-name", name); }} /></div></div>{scoreboard?.stats && <><div className="career-grid"><div><b>{scoreboard.stats.streak}</b><small>连续挑战</small></div><div><b>{scoreboard.stats.completedDays}</b><small>完成天数</small></div><div><b>{scoreboard.stats.averageScore}</b><small>平均评分</small></div><div><b>{scoreboard.stats.bestScore}</b><small>最佳评分</small></div></div><div className="profile-card career-profile"><small>近 7 局决策画像</small><b>{scoreboard.stats.profile.title}</b><p>{scoreboard.stats.profile.text}</p></div></>}<div className="board-head"><b>今日排行榜</b><span>{scoreboard?.total || 0} 人完成</span></div><div className="board-list">{scoreboard?.leaderboard.length ? scoreboard.leaderboard.map((item) => <div key={`${item.rank}-${item.nickname}`} className={item.isPlayer ? "me" : ""}><i>{item.rank <= 3 ? ["🥇", "🥈", "🥉"][item.rank - 1] : item.rank}</i><span>{item.nickname}{item.isPlayer && <em>我</em>}</span><b>{item.score}</b><small className={item.returnRate >= 0 ? "up" : "down"}>{item.returnRate >= 0 ? "+" : ""}{item.returnRate.toFixed(1)}%</small></div>) : <p className="board-empty">还没有人完成今日挑战，等你成为第一名。</p>}</div><p className="board-note">排名按服务器复算的首次正式成绩生成；股票身份在每位玩家结算前保持隐藏。</p></section></dialog>}
+
+    {resultOpen && <div className="modal-backdrop result-backdrop"><section className="result-modal"><small className="eyebrow">{gameMode === "daily" ? `今日盲盘 #${today.slice(5).replace("-", "")}` : "随机练习"} · 股票揭晓</small><h1>{stock.name}</h1><p className="stock-code">{stock.market} · {stock.code}</p><div className={`result-hero ${returnRate >= 0 ? "positive" : "negative"}`}><span>最终收益</span><strong>{returnRate >= 0 ? "+" : ""}{returnRate.toFixed(2)}%</strong><small>¥{nf.format(INITIAL_CASH)} → ¥{nf.format(equity)}</small></div><div className="result-grid"><div><small>操盘评分</small><b>{skillScore}</b></div><div><small>股票同期</small><b className={benchmark >= 0 ? "up" : "down"}>{benchmark >= 0 ? "+" : ""}{benchmark.toFixed(2)}%</b></div><div><small>超额收益</small><b>{excess >= 0 ? "+" : ""}{excess.toFixed(2)}%</b></div><div><small>最大回撤</small><b>{maxDrawdown.toFixed(2)}%</b></div></div>{gameMode === "daily" && <div className="rank-result">{scoreStatus === "loading" ? <p>正在由服务器复算决策路径并生成排名…</p> : scoreStatus === "error" ? <button onClick={() => setScoreStatus("idle")}>成绩提交失败，点击重试</button> : scoreboard?.playerScore ? <><div><small>今日首次成绩</small><b>第 {scoreboard.playerScore.rank} 名</b><span>超过 {scoreboard.playerScore.percentile}% 玩家 · 共 {scoreboard.total} 人</span></div>{duelId && <div className="duel-result"><small>好友对决</small>{scoreboard.opponent ? <b className={scoreboard.playerScore.score >= scoreboard.opponent.score ? "win" : "lose"}>{scoreboard.playerScore.score} : {scoreboard.opponent.score}<em>{scoreboard.playerScore.score >= scoreboard.opponent.score ? "你领先" : "好友领先"}</em></b> : <span>好友尚未完成，稍后再来看</span>}</div>}</> : <p>完成校验后显示今日排名</p>}</div>}<div className="profile-card"><small>本局交易画像</small><b>{profile.title}</b><p>{profile.text}</p></div><div className="date-reveal">真实区间：{stock.candles[windowStart + INITIAL_BARS - 1].date} — {stock.candles[windowStart + visibleCount - 1].date} · 共 {trades} 次交易</div><div className="result-actions three"><button className="primary-action" onClick={shareResult}>{shareStatus || (gameMode === "daily" ? "发起好友同图挑战" : "分享战绩")}</button><button className="hold-action" onClick={() => resetGame(gameMode === "daily" ? "practice" : "daily")}>{gameMode === "daily" ? "随机练习" : "返回今日挑战"}</button><button className="review-action" onClick={() => setResultOpen(false)}>返回复盘 K 线</button></div></section></div>}
   </main>;
 }
