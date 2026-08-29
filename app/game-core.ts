@@ -1,64 +1,10 @@
-import { STOCK_SAMPLES } from "./stock-data";
-import { US_STOCK_SAMPLES } from "./us-stock-data";
-import { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, hashText, isOrderAllocation, orderQuantity, type MarketKind, type ReplayAction } from "./game-config";
+import type { StockSample } from "./stock-data";
+import { HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, clamp, isOrderAllocation, orderQuantity, type MarketKind, type ReplayAction } from "./game-config";
 
 export { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, chinaDate, isOrderAllocation, type MarketKind, type ReplayAction } from "./game-config";
 
-const MARKET_POOLS = { cn: STOCK_SAMPLES, us: US_STOCK_SAMPLES } satisfies Record<MarketKind, typeof STOCK_SAMPLES>;
-
-export function getChallenge(date: string, market: MarketKind = "cn") {
-  const pool = MARKET_POOLS[market];
-  const seed = hashText(`mangpan-${GAME_VERSION}-${market}-${date}`);
-  const stockIndex = seed % pool.length;
-  const maxStart = Math.max(0, pool[stockIndex].candles.length - TOTAL_BARS);
-  return {
-    stockIndex,
-    start: Math.floor(seed / pool.length) % (maxStart + 1),
-  };
-}
-
-export function getChallengeBundle(date: string, market: MarketKind = "cn") {
-  const pool = MARKET_POOLS[market];
-  const challenge = getChallenge(date, market);
-  const stock = pool[challenge.stockIndex];
-  return {
-    date,
-    market,
-    stock: {
-      code: stock.code,
-      name: stock.name,
-      market: stock.market,
-      assetClass: stock.assetClass,
-      candles: stock.candles.slice(challenge.start, challenge.start + TOTAL_BARS),
-    },
-  };
-}
-
-export function getPracticeBundle(seed: string, market: MarketKind = "cn") {
-  const pool = MARKET_POOLS[market];
-  const value = hashText(`practice-${GAME_VERSION}-${market}-${seed}`);
-  const stockIndex = value % pool.length;
-  const stock = pool[stockIndex];
-  const maxStart = Math.max(0, stock.candles.length - TOTAL_BARS);
-  const start = Math.floor(value / pool.length) % (maxStart + 1);
-  return {
-    date: "practice",
-    market,
-    stock: {
-      code: stock.code,
-      name: stock.name,
-      market: stock.market,
-      assetClass: stock.assetClass,
-      candles: stock.candles.slice(start, start + TOTAL_BARS),
-    },
-  };
-}
-
-export function replayChallenge(date: string, actions: ReplayAction[], market: MarketKind = "cn") {
-  const pool = MARKET_POOLS[market];
-  const challenge = getChallenge(date, market);
-  const stock = pool[challenge.stockIndex];
-  const factor = 100 / stock.candles[challenge.start + INITIAL_BARS - 1].close;
+export function replayChallenge(stock: StockSample, actions: ReplayAction[], market: MarketKind = "cn") {
+  const factor = 100 / stock.candles[INITIAL_BARS - 1].close;
   const candles = stock.candles.map((candle) => ({
     ...candle,
     open: candle.open * factor,
@@ -73,7 +19,7 @@ export function replayChallenge(date: string, actions: ReplayAction[], market: M
 
   for (const action of actions.slice(0, MAX_ACTIONS)) {
     if (advancedDays >= HORIZON_DAYS) break;
-    const executionIndex = challenge.start + INITIAL_BARS + advancedDays;
+    const executionIndex = INITIAL_BARS + advancedDays;
     const execution = candles[executionIndex]?.open;
     if (!execution) break;
     const allocation = isOrderAllocation(action.allocation) ? action.allocation : 1;
@@ -103,9 +49,9 @@ export function replayChallenge(date: string, actions: ReplayAction[], market: M
     if (equityHistory[equityHistory.length - 1] <= INITIAL_CASH * 0.2) break;
   }
 
-  const visibleIndex = challenge.start + INITIAL_BARS + advancedDays - 1;
-  const current = candles[Math.max(challenge.start + INITIAL_BARS - 1, visibleIndex)];
-  const initial = candles[challenge.start + INITIAL_BARS - 1];
+  const visibleIndex = INITIAL_BARS + advancedDays - 1;
+  const current = candles[Math.max(INITIAL_BARS - 1, visibleIndex)];
+  const initial = candles[INITIAL_BARS - 1];
   const equity = cash + shares * current.close;
   const returnRate = (equity / INITIAL_CASH - 1) * 100;
   const benchmark = (current.close / initial.close - 1) * 100;

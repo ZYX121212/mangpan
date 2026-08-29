@@ -8,6 +8,13 @@
       "when": 1787998473441,
       "tag": "0000_crazy_abomination",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1788006193027,
+      "tag": "0001_greedy_talos",
+      "breakpoints": true
     }
   ]
 }

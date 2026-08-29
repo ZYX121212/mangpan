@@ -49,6 +49,14 @@ export function ensureDatabase() {
     database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS daily_scores_date_player_unique ON daily_scores (challenge_date, player_id)"),
     database.prepare("CREATE INDEX IF NOT EXISTS daily_scores_leaderboard_idx ON daily_scores (challenge_date, score, created_at)"),
     database.prepare("CREATE INDEX IF NOT EXISTS daily_scores_player_history_idx ON daily_scores (player_id, challenge_date)"),
+    database.prepare(`CREATE TABLE IF NOT EXISTS daily_challenges (
+      id TEXT PRIMARY KEY NOT NULL,
+      challenge_date TEXT NOT NULL,
+      market TEXT NOT NULL,
+      payload TEXT NOT NULL,
+      source TEXT NOT NULL,
+      created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
+    )`),
     database.prepare("PRAGMA optimize"),
   ]).catch((error) => {
     initialization = null;

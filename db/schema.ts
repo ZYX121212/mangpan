@@ -27,3 +27,12 @@ export const dailyScores = sqliteTable("daily_scores", {
   index("daily_scores_leaderboard_idx").on(table.challengeDate, table.score, table.createdAt),
   index("daily_scores_player_history_idx").on(table.playerId, table.challengeDate),
 ]);
+
+export const dailyChallenges = sqliteTable("daily_challenges", {
+  id: text("id").primaryKey(),
+  challengeDate: text("challenge_date").notNull(),
+  market: text("market").notNull(),
+  payload: text("payload").notNull(),
+  source: text("source").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

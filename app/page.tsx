@@ -1,8 +1,9 @@
 import GameClient from "./game-client";
+import { getDailyChallengeBundle } from "./challenge-service";
 import { chinaDate } from "./game-config";
-import { getChallengeBundle } from "./game-core";
 
-export default function Page() {
+export default async function Page() {
   const date = chinaDate();
-  return <GameClient initialChallenges={{ cn: getChallengeBundle(date, "cn"), us: getChallengeBundle(date, "us") }} />;
+  const [cn, us] = await Promise.all([getDailyChallengeBundle(date, "cn"), getDailyChallengeBundle(date, "us")]);
+  return <GameClient initialChallenges={{ cn, us }} />;
 }

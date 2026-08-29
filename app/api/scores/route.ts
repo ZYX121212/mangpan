@@ -1,6 +1,7 @@
 import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
 import { dailyScores, players } from "../../../db/schema";
+import { getDailyChallengeBundle } from "../../challenge-service";
 import { GAME_VERSION, MAX_ACTIONS, chinaDate, isOrderAllocation, replayChallenge, type MarketKind, type ReplayAction } from "../../game-core";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
@@ -193,7 +194,8 @@ export async function POST(request: Request) {
     const playerId = payload.playerId;
     const nickname = cleanNickname(payload.nickname, playerId);
     const market = payload.market;
-    const result = replayChallenge(date, payload.actions, market);
+    const challenge = await getDailyChallengeBundle(date, market);
+    const result = replayChallenge(challenge.stock, payload.actions, market);
     const storageDate = scoreDate(date, market);
     const db = getDb();
     await db.insert(players).values({ id: playerId, nickname })

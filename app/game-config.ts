@@ -1,5 +1,5 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "market-v2";
+export const GAME_VERSION = "universe-v1";
 export const INITIAL_BARS = 120;
 export const HORIZON_DAYS = 60;
 export const MAX_ACTIONS = HORIZON_DAYS;
