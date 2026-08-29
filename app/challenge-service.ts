@@ -8,8 +8,29 @@ function snapshotId(date: string, market: MarketKind) {
   return `${date}@${GAME_VERSION}@${market}`;
 }
 
-function parseBundle(payload: string) {
-  return JSON.parse(payload) as ChallengeBundle;
+function bytesToBase64(bytes: Uint8Array) {
+  let binary = "";
+  for (let index = 0; index < bytes.length; index += 0x8000) binary += String.fromCharCode(...bytes.subarray(index, index + 0x8000));
+  return btoa(binary);
+}
+
+function base64ToBytes(value: string) {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+  return bytes;
+}
+
+async function serializeBundle(bundle: ChallengeBundle) {
+  const json = JSON.stringify(bundle);
+  const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("gzip"));
+  return `gzip:${bytesToBase64(new Uint8Array(await new Response(stream).arrayBuffer()))}`;
+}
+
+async function parseBundle(payload: string) {
+  if (!payload.startsWith("gzip:")) return JSON.parse(payload) as ChallengeBundle;
+  const stream = new Blob([base64ToBytes(payload.slice(5))]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return JSON.parse(await new Response(stream).text()) as ChallengeBundle;
 }
 
 export async function getDailyChallengeBundle(date: string, market: MarketKind) {
@@ -17,17 +38,18 @@ export async function getDailyChallengeBundle(date: string, market: MarketKind) 
   const id = snapshotId(date, market);
   const db = getDb();
   const [existing] = await db.select({ payload: dailyChallenges.payload }).from(dailyChallenges).where(eq(dailyChallenges.id, id)).limit(1);
-  if (existing) return parseBundle(existing.payload);
+  if (existing) return await parseBundle(existing.payload);
 
   const bundle = await getChallengeBundle(date, market);
+  const payload = await serializeBundle(bundle);
   await db.insert(dailyChallenges).values({
     id,
     challengeDate: date,
     market,
-    payload: JSON.stringify(bundle),
+    payload,
     source: bundle.dataSource,
   }).onConflictDoNothing({ target: dailyChallenges.id });
 
   const [saved] = await db.select({ payload: dailyChallenges.payload }).from(dailyChallenges).where(eq(dailyChallenges.id, id)).limit(1);
-  return saved ? parseBundle(saved.payload) : bundle;
+  return saved ? await parseBundle(saved.payload) : bundle;
 }

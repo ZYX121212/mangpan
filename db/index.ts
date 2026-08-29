@@ -57,6 +57,7 @@ export function ensureDatabase() {
       source TEXT NOT NULL,
       created_at TEXT DEFAULT CURRENT_TIMESTAMP NOT NULL
     )`),
+    database.prepare("DROP INDEX IF EXISTS daily_challenges_date_market_unique"),
     database.prepare("PRAGMA optimize"),
   ]).catch((error) => {
     initialization = null;

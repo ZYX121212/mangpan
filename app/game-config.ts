@@ -1,9 +1,9 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "universe-v1";
+export const GAME_VERSION = "open-horizon-v1";
 export const INITIAL_BARS = 120;
-export const HORIZON_DAYS = 60;
-export const MAX_ACTIONS = HORIZON_DAYS;
-export const TOTAL_BARS = INITIAL_BARS + HORIZON_DAYS;
+export const MIN_FUTURE_BARS = 60;
+export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;
+export const MAX_ACTIONS = 10_000;
 
 export type MarketKind = "cn" | "us";
 export const ORDER_ALLOCATIONS = [0.25, 1 / 3, 0.5, 0.75, 1] as const;

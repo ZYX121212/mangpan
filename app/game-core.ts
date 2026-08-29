@@ -1,7 +1,7 @@
 import type { StockSample } from "./stock-data";
-import { HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, clamp, isOrderAllocation, orderQuantity, type MarketKind, type ReplayAction } from "./game-config";
+import { INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, clamp, isOrderAllocation, orderQuantity, type MarketKind, type ReplayAction } from "./game-config";
 
-export { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, chinaDate, isOrderAllocation, type MarketKind, type ReplayAction } from "./game-config";
+export { GAME_VERSION, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, MIN_FUTURE_BARS, MIN_GAME_BARS, clamp, chinaDate, isOrderAllocation, type MarketKind, type ReplayAction } from "./game-config";
 
 export function replayChallenge(stock: StockSample, actions: ReplayAction[], market: MarketKind = "cn") {
   const factor = 100 / stock.candles[INITIAL_BARS - 1].close;
@@ -15,16 +15,17 @@ export function replayChallenge(stock: StockSample, actions: ReplayAction[], mar
   let trades = 0;
   let rounds = 0;
   let advancedDays = 0;
+  const availableDays = Math.max(0, candles.length - INITIAL_BARS);
   const equityHistory = [INITIAL_CASH];
 
   for (const action of actions.slice(0, MAX_ACTIONS)) {
-    if (advancedDays >= HORIZON_DAYS) break;
+    if (advancedDays >= availableDays) break;
     const executionIndex = INITIAL_BARS + advancedDays;
     const execution = candles[executionIndex]?.open;
     if (!execution) break;
     const allocation = isOrderAllocation(action.allocation) ? action.allocation : 1;
     const requestedDays = action.days && action.days >= 1 && action.days <= 5 ? action.days : 3;
-    const holdingDays = Math.min(requestedDays, HORIZON_DAYS - advancedDays);
+    const holdingDays = Math.min(requestedDays, availableDays - advancedDays);
 
     if (action.kind === "buy" && cash > 0.01) {
       const amount = orderQuantity({ market, kind: "buy", price: execution, cash, shares, allocation, quantity: action.quantity });

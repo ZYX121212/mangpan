@@ -19,11 +19,15 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /只全市场股票池/);
   assert.match(page, /选择持有交易日数/);
   assert.match(page, /选择股票市场/);
+  assert.match(page, /无固定期限/);
+  assert.match(page, /深度分析我的画像/);
+  assert.match(page, /四维诊断/);
+  assert.doesNotMatch(page, /最多推进 60/);
   assert.doesNotMatch(page, /Building your site|Your site is taking shape/);
 });
 
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
-  const [page, route, schema, hosting, styles, config, core, challengeService, universe] = await Promise.all([
+  const [page, route, schema, hosting, styles, config, core, challengeService, universe, marketData, analysis] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -33,6 +37,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     readFile(new URL("../app/game-core.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/challenge-service.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/cn-stock-universe.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/market-data.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/trade-analysis.ts", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /ticker-mask/);
@@ -52,5 +58,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(core, /orderQuantity\(\{ market, kind: "buy"/);
   assert.match(challengeService, /dailyChallenges/);
   assert.match(challengeService, /onConflictDoNothing/);
+  assert.match(marketData, /MIN_GAME_BARS/);
+  assert.match(marketData, /candles\.slice\(start\)/);
+  assert.doesNotMatch(marketData, /TOTAL_BARS/);
+  assert.match(core, /availableDays = Math\.max\(0, candles\.length - INITIAL_BARS\)/);
+  assert.match(analysis, /平均仓位/);
+  assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);
 });

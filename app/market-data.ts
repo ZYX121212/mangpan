@@ -1,18 +1,26 @@
 import { CN_STOCK_UNIVERSE, type CnStockEntry } from "./cn-stock-universe";
-import { GAME_VERSION, INITIAL_BARS, HORIZON_DAYS, TOTAL_BARS, chinaDate, hashText, type MarketKind } from "./game-config";
+import { GAME_VERSION, INITIAL_BARS, MIN_FUTURE_BARS, MIN_GAME_BARS, chinaDate, hashText, type MarketKind } from "./game-config";
 import { STOCK_SAMPLES, type Candle, type StockSample } from "./stock-data";
 import { US_STOCK_SAMPLES } from "./us-stock-data";
 
 export type ChallengeBundle = { date: string; market: MarketKind; stock: StockSample; universeSize: number; dataSource: "live-universe" | "embedded-fallback" };
 
 const EXCHANGE_LABELS = { sh: "上证", sz: "深证", bj: "北证" } as const;
+const HISTORY_PAGE_SIZE = 640;
+
+function openEndedWindow(stock: StockSample, seed: number, poolSize: number) {
+  if (stock.candles.length < MIN_GAME_BARS) return null;
+  const latestDecisionIndex = stock.candles.length - MIN_FUTURE_BARS;
+  const decisionSpan = latestDecisionIndex - INITIAL_BARS + 1;
+  const decisionIndex = INITIAL_BARS + (Math.floor(seed / Math.max(1, poolSize)) % decisionSpan);
+  const start = decisionIndex - INITIAL_BARS;
+  return { ...stock, candles: stock.candles.slice(start) } as StockSample;
+}
 
 function bundledStock(seed: number, market: MarketKind) {
   const pool = market === "cn" ? STOCK_SAMPLES : US_STOCK_SAMPLES;
   const stock = pool[seed % pool.length];
-  const maxStart = Math.max(0, stock.candles.length - TOTAL_BARS);
-  const start = Math.floor(seed / pool.length) % (maxStart + 1);
-  return { ...stock, candles: stock.candles.slice(start, start + TOTAL_BARS) } as StockSample;
+  return openEndedWindow(stock, seed, pool.length) ?? stock;
 }
 
 function parseTencentCandles(payload: unknown, symbol: string) {
@@ -30,21 +38,27 @@ function parseTencentCandles(payload: unknown, symbol: string) {
 
 async function loadCnStock(entry: CnStockEntry, endDate: string, seed: number) {
   const symbol = `${entry.exchange}${entry.code}`;
-  const url = new URL("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get");
-  url.searchParams.set("param", `${symbol},day,,${endDate},640,qfq`);
-  const response = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) });
-  if (!response.ok) throw new Error(`行情服务返回 ${response.status}`);
-  const candles = parseTencentCandles(await response.json(), symbol);
-  if (candles.length < TOTAL_BARS) return null;
-  const maxStart = candles.length - TOTAL_BARS;
-  const start = Math.floor(seed / Math.max(1, CN_STOCK_UNIVERSE.length)) % (maxStart + 1);
-  return {
+  const end = new Date(`${endDate}T00:00:00Z`);
+  end.setUTCDate(end.getUTCDate() - (seed % (16 * 365)));
+  const historicalEnd = end.toISOString().slice(0, 10);
+  const fetchCandles = async (requestedEnd: string) => {
+    const url = new URL("https://web.ifzq.gtimg.cn/appstock/app/fqkline/get");
+    url.searchParams.set("param", `${symbol},day,,${requestedEnd},${HISTORY_PAGE_SIZE},qfq`);
+    const response = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) });
+    if (!response.ok) throw new Error(`行情服务返回 ${response.status}`);
+    return parseTencentCandles(await response.json(), symbol);
+  };
+  let candles = await fetchCandles(historicalEnd);
+  if (candles.length < MIN_GAME_BARS && historicalEnd !== endDate) candles = await fetchCandles(endDate);
+  candles.sort((a, b) => a.date.localeCompare(b.date));
+  const fullStock = {
     code: entry.code,
     name: entry.name,
     market: EXCHANGE_LABELS[entry.exchange],
     assetClass: "cn",
-    candles: candles.slice(start, start + TOTAL_BARS),
+    candles,
   } satisfies StockSample;
+  return openEndedWindow(fullStock, seed, CN_STOCK_UNIVERSE.length);
 }
 
 async function cnBundle(key: string, date: string) {
@@ -74,4 +88,4 @@ export async function getPracticeBundle(seedText: string, market: MarketKind = "
 }
 
 export const MARKET_COUNTS = { cn: CN_STOCK_UNIVERSE.length, us: US_STOCK_SAMPLES.length } as const;
-export const REQUIRED_CANDLES = INITIAL_BARS + HORIZON_DAYS;
+export const REQUIRED_CANDLES = MIN_GAME_BARS;
