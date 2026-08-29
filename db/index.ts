@@ -157,6 +157,19 @@ export function ensureDatabase() {
       database.prepare(
         "CREATE UNIQUE INDEX IF NOT EXISTS daily_progress_player_market_date_unique ON daily_progress (player_id, market, progress_date)",
       ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS duel_challenges (
+        code TEXT PRIMARY KEY NOT NULL,
+        challenger_player_id TEXT NOT NULL,
+        challenge_date TEXT NOT NULL,
+        market TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS duel_challenges_player_date_market_unique ON duel_challenges (challenger_player_id, challenge_date, market)",
+      ),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS duel_challenges_date_market_idx ON duel_challenges (challenge_date, market)",
+      ),
       database.prepare(
         "DROP INDEX IF EXISTS daily_challenges_date_market_unique",
       ),

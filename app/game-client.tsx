@@ -87,11 +87,30 @@ type RankedScore = {
   excess?: number;
   maxDrawdown?: number;
 };
+type WeeklyScore = {
+  rank: number;
+  nickname: string;
+  points: number;
+  completedDays: number;
+  averageScore: number;
+  averageReturn: number;
+  averageExcess: number;
+  isPlayer?: boolean;
+};
 type Scoreboard = {
   total: number;
   leaderboard: RankedScore[];
   playerScore: RankedScore | null;
   opponent: RankedScore | null;
+  duelCode: string | null;
+  weekly: {
+    start: string;
+    end: string;
+    rule: string;
+    total: number;
+    leaderboard: WeeklyScore[];
+    player: WeeklyScore | null;
+  };
   stats: null | {
     completedDays: number;
     streak: number;
@@ -201,10 +220,31 @@ type DecisionFeedback = {
   lesson: string;
 };
 
+type DecisionReplayItem = {
+  round: number;
+  date: string;
+  action: "买入" | "卖出" | "观望";
+  order: string;
+  thesis: string;
+  confidence: ConfidenceLevel;
+  outlook: MarketOutlook;
+  actual: MarketOutlook;
+  move: number;
+  matched: boolean;
+  days: number;
+};
+
 const OUTLOOK_LABEL: Record<MarketOutlook, string> = {
   up: "上涨",
   range: "震荡",
   down: "下跌",
+};
+const THESIS_LABEL: Record<DecisionThesis, string> = {
+  trend: "趋势延续",
+  breakout: "突破确认",
+  reversal: "反转信号",
+  volume: "量价配合",
+  uncertain: "信号不足",
 };
 
 function evaluateDecision(
@@ -243,6 +283,64 @@ function evaluateDecision(
     title: `${matched ? "判断命中" : "判断偏差"} · 后续${OUTLOOK_LABEL[actual]} ${move >= 0 ? "+" : ""}${move.toFixed(2)}%`,
     lesson,
   };
+}
+
+function buildDecisionReplay(
+  actions: ReplayAction[],
+  stock: StockSample,
+  normalized: Candle[],
+  initialVisibleCount: number,
+) {
+  const items: DecisionReplayItem[] = [];
+  let offset = 0;
+  actions.forEach((action, index) => {
+    const days = action.days || 3;
+    const executionIndex = initialVisibleCount + offset;
+    const execution = normalized[executionIndex]?.open ?? 0;
+    const outcome =
+      normalized[executionIndex + days - 1]?.close ?? execution;
+    const move = execution ? (outcome / execution - 1) * 100 : 0;
+    const actual: MarketOutlook =
+      move > 0.75 ? "up" : move < -0.75 ? "down" : "range";
+    const outlook = action.outlook ?? "range";
+    const allocationLabel =
+      action.allocation === 1
+        ? "全仓"
+        : action.allocation === 0.75
+          ? "3/4 仓"
+          : action.allocation === 0.5
+            ? "1/2 仓"
+            : action.allocation === 0.25
+              ? "1/4 仓"
+              : action.allocation != null
+                ? "1/3 仓"
+                : "";
+    items.push({
+      round: index + 1,
+      date: stock.candles[executionIndex]?.date ?? `T${executionIndex + 1}`,
+      action:
+        action.kind === "buy"
+          ? "买入"
+          : action.kind === "sell"
+            ? "卖出"
+            : "观望",
+      order:
+        action.kind === "hold"
+          ? "保持当前仓位"
+          : action.quantity != null
+            ? `${action.quantity.toLocaleString("zh-CN")} 股`
+            : allocationLabel,
+      thesis: THESIS_LABEL[action.thesis ?? "uncertain"],
+      confidence: action.confidence ?? 2,
+      outlook,
+      actual,
+      move,
+      matched: outlook === actual,
+      days,
+    });
+    offset += days;
+  });
+  return items;
 }
 
 function restoreGameState(session: ChallengeSession) {
@@ -1041,9 +1139,11 @@ export default function GameClient({
   const [actions, setActions] = useState<ReplayAction[]>([]),
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("盲盘客"),
-    [duelId, setDuelId] = useState("");
+    [duelCode, setDuelCode] = useState("");
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
     [scoreboardOpen, setScoreboardOpen] = useState(false);
+  const [boardTab, setBoardTab] = useState<"daily" | "weekly">("daily");
+  const [replayLimit, setReplayLimit] = useState(8);
   const [scoreStatus, setScoreStatus] = useState<
     "idle" | "loading" | "done" | "error"
   >("idle");
@@ -1074,6 +1174,9 @@ export default function GameClient({
     completed: 0,
   };
   const weakestRecognition = trainingProfile?.recognition.weakestScenario;
+  const activeDuel = Boolean(
+    duelCode && scoreboard?.duelCode?.toUpperCase() === duelCode,
+  );
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
   const normalized = useMemo(() => {
@@ -1210,6 +1313,10 @@ export default function GameClient({
       tradeEdgeSamples,
     };
   }, [actions, initialVisibleCount, market, normalized]);
+  const decisionReplay = useMemo(
+    () => buildDecisionReplay(actions, stock, normalized, initialVisibleCount),
+    [actions, initialVisibleCount, normalized, stock],
+  );
   const scenarioEvaluation = useMemo(() => {
     if (!activeScenario) return null;
     const durationCheck = {
@@ -1367,10 +1474,9 @@ export default function GameClient({
     queueMicrotask(() => {
       if (
         params.get("date") === today &&
-        challenger !== id &&
-        /^[a-zA-Z0-9_-]{10,80}$/.test(challenger)
+        /^[A-Z0-9]{8,12}$/i.test(challenger)
       )
-        setDuelId(challenger);
+        setDuelCode(challenger.toUpperCase());
       if (requestedMarket === "us") {
         setMarket(requestedMarket);
         setSession(initialChallenges[requestedMarket]);
@@ -1389,7 +1495,7 @@ export default function GameClient({
     if (!playerId) return;
     let cancelled = false;
     const query = new URLSearchParams({ date: today, market, playerId });
-    if (duelId) query.set("opponentId", duelId);
+    if (duelCode) query.set("duel", duelCode);
     fetch(`/api/scores?${query}`)
       .then(async (response) => {
         if (!response.ok) throw new Error("load failed");
@@ -1410,7 +1516,7 @@ export default function GameClient({
     return () => {
       cancelled = true;
     };
-  }, [duelId, market, playerId, today]);
+  }, [duelCode, market, playerId, today]);
 
   useEffect(() => {
     if (
@@ -1437,12 +1543,12 @@ export default function GameClient({
       .then(async (response) => {
         if (!response.ok) throw new Error("submit failed");
         const next = (await response.json()) as Scoreboard;
-        if (duelId) {
+        if (duelCode) {
           const query = new URLSearchParams({
             date: today,
             market,
             playerId,
-            opponentId: duelId,
+            duel: duelCode,
           });
           const duelResponse = await fetch(`/api/scores?${query}`);
           if (duelResponse.ok)
@@ -1456,7 +1562,7 @@ export default function GameClient({
         setScoreStatus("error");
       });
   }, [
-    duelId,
+    duelCode,
     finished,
     gameMode,
     market,
@@ -1500,6 +1606,7 @@ export default function GameClient({
     setFeedbackHistory(restored.feedbackHistory);
     setRevealPulse(0);
     setShareStatus("");
+    setReplayLimit(8);
     setScoreStatus("idle");
     setScoreboard(null);
     localStorage.setItem(
@@ -1561,7 +1668,7 @@ export default function GameClient({
   const changeMarket = (nextMarket: MarketKind) => {
     if (nextMarket === market || challengeLoading || isRevealing) return;
     setMarket(nextMarket);
-    setDuelId("");
+    setDuelCode("");
     void resetGame(gameMode, nextMarket, session.scenario, session.difficulty);
     history.replaceState(null, "", location.pathname);
   };
@@ -1840,22 +1947,36 @@ export default function GameClient({
       return marker?.type === "B" ? "🟥" : marker?.type === "S" ? "🟩" : "⬜";
     }).join("");
     const text = `${marketLabel}盲盘 #${today.replaceAll("-", "")}\n${sequence}\n收益 ${returnRate >= 0 ? "+" : ""}${returnRate.toFixed(1)}% · 操盘评分 ${skillScore}\n只看走势，不看答案`;
-    const shareUrl = playerId
-      ? `${location.origin}${location.pathname}?duel=${encodeURIComponent(playerId)}&date=${today}&market=${market}`
-      : location.href;
     try {
-      if (navigator.share)
+      let shareUrl = location.href;
+      if (gameMode === "daily" && playerId) {
+        setShareStatus("正在生成挑战码…");
+        const response = await fetch("/api/duels", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ date: today, market, playerId }),
+        });
+        if (!response.ok) throw new Error("duel unavailable");
+        const duel = (await response.json()) as { code: string };
+        shareUrl = `${location.origin}${location.pathname}?duel=${encodeURIComponent(duel.code)}&date=${today}&market=${market}`;
+      }
+      if (navigator.share) {
         await navigator.share({
           title: "盲盘｜真实历史K线挑战",
           text,
           url: shareUrl,
         });
-      else {
+        setShareStatus("挑战已发出");
+      } else {
         await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
         setShareStatus("挑战链接已复制");
       }
-    } catch {
-      setShareStatus("");
+    } catch (error) {
+      setShareStatus(
+        error instanceof DOMException && error.name === "AbortError"
+          ? ""
+          : "生成失败，请稍后重试",
+      );
     }
   };
 
@@ -1938,14 +2059,14 @@ export default function GameClient({
             className="text-button rank-button"
             onClick={() => setScoreboardOpen(true)}
           >
-            今日排行
+            竞技榜
           </button>
           <button className="text-button" onClick={() => setRulesOpen(true)}>
             游戏规则
           </button>
         </div>
       </header>
-      {duelId && (
+      {activeDuel && (
         <div className="duel-banner">
           <span>⚔</span>
           <b>好友向你发起了今日同图挑战</b>
@@ -2005,7 +2126,7 @@ export default function GameClient({
               : `${marketLabel}${scenarioLabel}`}
           </span>
           <small>
-            {duelId
+            {activeDuel
               ? "好友挑战进行中，结算后对比"
               : "价格已归一化，身份结算后揭晓"}
           </small>
@@ -2783,9 +2904,21 @@ export default function GameClient({
                 </span>
               </li>
               <li>
+                <b>每周联赛</b>
+                <span>
+                  A 股与美股分开排名，每周取个人最佳 5 局累计积分；先比总分，再比完成天数与平均超额收益。
+                </span>
+              </li>
+              <li>
+                <b>同图对决</b>
+                <span>
+                  正式成绩结算后生成匿名挑战码；好友进入后看到完全相同的历史 K 线，双方完成后立即比较服务器复算得分。
+                </span>
+              </li>
+              <li>
                 <b>复盘</b>
                 <span>
-                  结算后揭晓真实股票、交易所和日期，并生成深度画像；未完成会话和情景训练成绩会同步到云端。
+                  结算后揭晓真实股票、交易所和日期，并按时间线逐笔对照判断与后续走势；未完成会话和情景训练成绩会同步到云端。
                 </span>
               </li>
             </ol>
@@ -2815,7 +2948,7 @@ export default function GameClient({
               ×
             </button>
             <small className="eyebrow">
-              PLAYER PROFILE · {marketLabel}今日同题榜
+              COMPETITION HUB · {marketLabel}竞技中心
             </small>
             <div className="player-editor">
               <span>{nickname.slice(0, 1)}</span>
@@ -2942,42 +3075,112 @@ export default function GameClient({
                 </section>
               </>
             )}
-            <div className="board-head">
-              <b>{marketLabel}今日排行榜</b>
-              <span>{scoreboard?.total || 0} 人完成</span>
+            <div className="board-tabs" role="tablist" aria-label="选择竞技榜单">
+              <button
+                role="tab"
+                aria-selected={boardTab === "daily"}
+                className={boardTab === "daily" ? "active" : ""}
+                onClick={() => setBoardTab("daily")}
+              >
+                今日同题榜
+              </button>
+              <button
+                role="tab"
+                aria-selected={boardTab === "weekly"}
+                className={boardTab === "weekly" ? "active" : ""}
+                onClick={() => setBoardTab("weekly")}
+              >
+                本周联赛
+              </button>
             </div>
-            <div className="board-list">
-              {scoreboard?.leaderboard.length ? (
-                scoreboard.leaderboard.map((item) => (
-                  <div
-                    key={`${item.rank}-${item.nickname}`}
-                    className={item.isPlayer ? "me" : ""}
-                  >
-                    <i>
-                      {item.rank <= 3
-                        ? ["🥇", "🥈", "🥉"][item.rank - 1]
-                        : item.rank}
-                    </i>
-                    <span>
-                      {item.nickname}
-                      {item.isPlayer && <em>我</em>}
-                    </span>
-                    <b>{item.score}</b>
-                    <small className={item.returnRate >= 0 ? "up" : "down"}>
-                      {item.returnRate >= 0 ? "+" : ""}
-                      {item.returnRate.toFixed(1)}%
-                    </small>
-                  </div>
-                ))
-              ) : (
-                <p className="board-empty">
-                  还没有人完成今日挑战，等你成为第一名。
+            {boardTab === "daily" ? (
+              <>
+                <div className="board-head">
+                  <b>{marketLabel}今日排行榜</b>
+                  <span>{scoreboard?.total || 0} 人完成</span>
+                </div>
+                <div className="board-list">
+                  {scoreboard?.leaderboard.length ? (
+                    scoreboard.leaderboard.map((item) => (
+                      <div
+                        key={`${item.rank}-${item.nickname}`}
+                        className={item.isPlayer ? "me" : ""}
+                      >
+                        <i>
+                          {item.rank <= 3
+                            ? ["🥇", "🥈", "🥉"][item.rank - 1]
+                            : item.rank}
+                        </i>
+                        <span>
+                          {item.nickname}
+                          {item.isPlayer && <em>我</em>}
+                        </span>
+                        <b>{item.score}</b>
+                        <small className={item.returnRate >= 0 ? "up" : "down"}>
+                          {item.returnRate >= 0 ? "+" : ""}
+                          {item.returnRate.toFixed(1)}%
+                        </small>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="board-empty">
+                      还没有人完成今日挑战，等你成为第一名。
+                    </p>
+                  )}
+                </div>
+                <p className="board-note">
+                  排名按服务器复算的首次正式成绩生成；A股与美股分榜，股票身份在结算前隐藏。
                 </p>
-              )}
-            </div>
-            <p className="board-note">
-              排名按服务器复算的首次正式成绩生成；A股与美股分榜，股票身份在结算前隐藏。
-            </p>
+              </>
+            ) : (
+              <>
+                <div className="weekly-season-card">
+                  <div>
+                    <small>WEEKLY LEAGUE · 最佳 5 局</small>
+                    <b>
+                      {scoreboard?.weekly.start.slice(5)} — {scoreboard?.weekly.end.slice(5)}
+                    </b>
+                  </div>
+                  {scoreboard?.weekly.player ? (
+                    <strong>
+                      第 {scoreboard.weekly.player.rank} 名 · {scoreboard.weekly.player.points} 分
+                    </strong>
+                  ) : (
+                    <strong>完成今日挑战即可入榜</strong>
+                  )}
+                </div>
+                <div className="board-head">
+                  <b>{marketLabel}本周联赛</b>
+                  <span>{scoreboard?.weekly.total || 0} 人参赛</span>
+                </div>
+                <div className="board-list weekly-board-list">
+                  {scoreboard?.weekly.leaderboard.length ? (
+                    scoreboard.weekly.leaderboard.map((item) => (
+                      <div
+                        key={`${item.rank}-${item.nickname}`}
+                        className={item.isPlayer ? "me" : ""}
+                      >
+                        <i>
+                          {item.rank <= 3
+                            ? ["🥇", "🥈", "🥉"][item.rank - 1]
+                            : item.rank}
+                        </i>
+                        <span>
+                          {item.nickname}
+                          {item.isPlayer && <em>我</em>}
+                          <small>{item.completedDays}/5 局 · 均分 {item.averageScore}</small>
+                        </span>
+                        <b>{item.points}</b>
+                        <small>积分</small>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="board-empty">本周联赛等待第一位参赛者。</p>
+                  )}
+                </div>
+                <p className="board-note">{scoreboard?.weekly.rule}</p>
+              </>
+            )}
           </section>
         </dialog>
       )}
@@ -3100,6 +3303,48 @@ export default function GameClient({
                   : "你的主观判断与真实后续走势会被逐笔对照，评分不再只奖励高收益。"}
               </p>
             </div>
+            <section className="decision-replay">
+              <div className="decision-replay-head">
+                <div>
+                  <small>DECISION REPLAY · 决策时间线</small>
+                  <b>把每次判断与真实后续逐笔对照</b>
+                </div>
+                <span>{decisionReplay.length} 次判断</span>
+              </div>
+              {decisionReplay.length ? (
+                <div className="decision-timeline">
+                  {decisionReplay.slice(0, replayLimit).map((item) => (
+                    <article
+                      key={item.round}
+                      className={item.matched ? "matched" : "missed"}
+                    >
+                      <i>{item.round}</i>
+                      <div>
+                        <small>{item.date} · 推进 {item.days} 日</small>
+                        <b>{item.action} · {item.order}</b>
+                        <p>{item.thesis} · 判断{OUTLOOK_LABEL[item.outlook]} · 信心 {item.confidence}/3</p>
+                      </div>
+                      <strong>
+                        {item.matched ? "命中" : "偏差"}
+                        <small className={item.move >= 0 ? "up" : "down"}>
+                          后续{OUTLOOK_LABEL[item.actual]} {item.move >= 0 ? "+" : ""}{item.move.toFixed(2)}%
+                        </small>
+                      </strong>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="decision-replay-empty">本局没有提交判断，暂无可复盘时间线。</p>
+              )}
+              {replayLimit < decisionReplay.length && (
+                <button
+                  className="replay-more"
+                  onClick={() => setReplayLimit((value) => value + 20)}
+                >
+                  继续查看后续 {Math.min(20, decisionReplay.length - replayLimit)} 次决策
+                </button>
+              )}
+            </section>
             {activeScenario && scenarioEvaluation && (
               <section
                 className={`scenario-settlement ${scenarioEvaluation.passed ? "passed" : "retry"}`}
@@ -3162,7 +3407,7 @@ export default function GameClient({
                         {scoreboard.total} 人
                       </span>
                     </div>
-                    {duelId && (
+                    {activeDuel && (
                       <div className="duel-result">
                         <small>好友对决</small>
                         {scoreboard.opponent ? (

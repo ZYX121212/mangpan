@@ -1,6 +1,6 @@
 import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
-import { ensureDatabase, getDb } from "../../../db";
-import { dailyScores, players } from "../../../db/schema";
+import { ensureDatabase, getD1Database, getDb } from "../../../db";
+import { dailyScores, duelChallenges, players } from "../../../db/schema";
 import {
   getSessionForScore,
   getTrainingProfile,
@@ -51,6 +51,107 @@ function previousDate(date: string) {
   const value = new Date(`${date}T00:00:00Z`);
   value.setUTCDate(value.getUTCDate() - 1);
   return value.toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number) {
+  const value = new Date(`${date}T00:00:00Z`);
+  value.setUTCDate(value.getUTCDate() + days);
+  return value.toISOString().slice(0, 10);
+}
+
+function weekRange(date: string) {
+  const value = new Date(`${date}T00:00:00Z`);
+  const weekday = value.getUTCDay() || 7;
+  const start = addDays(date, 1 - weekday);
+  return { start, end: addDays(start, 6), next: addDays(start, 7) };
+}
+
+type WeeklyRow = {
+  player_id: string;
+  nickname: string;
+  points: number;
+  completed_days: number;
+  average_score: number;
+  average_return: number;
+  average_excess: number;
+  position: number;
+};
+
+async function buildWeeklyLeague(
+  date: string,
+  market: MarketKind,
+  playerId?: string,
+) {
+  const range = weekRange(date);
+  const params = [
+    `${range.start}@`,
+    `${range.next}@`,
+    `%@${GAME_VERSION}@${market}`,
+  ] as const;
+  const cte = `WITH eligible AS (
+    SELECT player_id, score, return_rate, excess, created_at,
+      ROW_NUMBER() OVER (
+        PARTITION BY player_id
+        ORDER BY score DESC, created_at ASC
+      ) AS day_rank
+    FROM daily_scores INDEXED BY daily_scores_leaderboard_idx
+    WHERE challenge_date >= ? AND challenge_date < ? AND challenge_date LIKE ?
+  ), weekly AS (
+    SELECT player_id,
+      SUM(score) AS points,
+      COUNT(*) AS completed_days,
+      ROUND(AVG(score)) AS average_score,
+      AVG(return_rate) AS average_return,
+      AVG(excess) AS average_excess
+    FROM eligible
+    WHERE day_rank <= 5
+    GROUP BY player_id
+  ), ranked AS (
+    SELECT weekly.*,
+      RANK() OVER (
+        ORDER BY points DESC, completed_days DESC, average_excess DESC, player_id ASC
+      ) AS position
+    FROM weekly
+  )`;
+  const columns = `SELECT ranked.player_id, players.nickname, ranked.points,
+    ranked.completed_days, ranked.average_score, ranked.average_return,
+    ranked.average_excess, ranked.position
+    FROM ranked JOIN players ON players.id = ranked.player_id`;
+  const database = getD1Database();
+  const [topResult, player, totalRow] = await Promise.all([
+    database
+      .prepare(`${cte} ${columns} ORDER BY position ASC LIMIT 20`)
+      .bind(...params)
+      .all<WeeklyRow>(),
+    playerId
+      ? database
+          .prepare(`${cte} ${columns} WHERE ranked.player_id = ? LIMIT 1`)
+          .bind(...params, playerId)
+          .first<WeeklyRow>()
+      : Promise.resolve(null),
+    database
+      .prepare(`${cte} SELECT COUNT(*) AS total FROM ranked`)
+      .bind(...params)
+      .first<{ total: number }>(),
+  ]);
+  const format = (row: WeeklyRow) => ({
+    rank: Number(row.position),
+    nickname: row.nickname,
+    points: Number(row.points),
+    completedDays: Number(row.completed_days),
+    averageScore: Number(row.average_score),
+    averageReturn: Number(row.average_return),
+    averageExcess: Number(row.average_excess),
+    isPlayer: row.player_id === playerId,
+  });
+  return {
+    start: range.start,
+    end: range.end,
+    rule: "每周取最佳 5 局，先比总分，再比完成天数与平均超额收益",
+    total: Number(totalRow?.total || 0),
+    leaderboard: (topResult.results as WeeklyRow[]).map(format),
+    player: player ? format(player) : null,
+  };
 }
 
 function calculateStreak(dates: string[], today: string) {
@@ -114,6 +215,7 @@ async function buildScoreboard(
   market: MarketKind,
   playerId?: string,
   opponentId?: string,
+  duelCode?: string,
 ) {
   const db = getDb();
   const storageDate = scoreDate(date, market);
@@ -231,6 +333,7 @@ async function buildScoreboard(
     };
   }
 
+  const weekly = await buildWeeklyLeague(date, market, playerId);
   return {
     date,
     total,
@@ -243,6 +346,8 @@ async function buildScoreboard(
     })),
     playerScore,
     opponent,
+    duelCode: opponentId ? duelCode ?? null : null,
+    weekly,
     stats,
   };
 }
@@ -257,17 +362,36 @@ export async function GET(request: Request) {
       request,
       url.searchParams.get("playerId"),
     );
-    const opponentId = url.searchParams.get("opponentId") ?? undefined;
+    const duelCode = url.searchParams.get("duel") ?? undefined;
     if (!validDate(date))
       return Response.json({ error: "日期格式无效" }, { status: 400 });
     if (!validMarket(market))
       return Response.json({ error: "市场无效" }, { status: 400 });
     if (playerId && !validPlayerId(playerId))
       return Response.json({ error: "玩家标识无效" }, { status: 400 });
-    if (opponentId && !validPlayerId(opponentId))
-      return Response.json({ error: "挑战者标识无效" }, { status: 400 });
+    if (duelCode && !/^[A-Z0-9]{8,12}$/i.test(duelCode))
+      return Response.json({ error: "挑战码无效" }, { status: 400 });
+    let opponentId: string | undefined;
+    if (duelCode) {
+      const [duel] = await getDb()
+        .select()
+        .from(duelChallenges)
+        .where(eq(duelChallenges.code, duelCode.toUpperCase()))
+        .limit(1);
+      if (
+        !duel ||
+        duel.challengeDate !== date ||
+        duel.market !== market
+      )
+        return Response.json(
+          { error: "挑战码已过期或不属于当前市场" },
+          { status: 404 },
+        );
+      if (duel.challengerPlayerId !== playerId)
+        opponentId = duel.challengerPlayerId;
+    }
     return Response.json(
-      await buildScoreboard(date, market, playerId, opponentId),
+      await buildScoreboard(date, market, playerId, opponentId, duelCode),
     );
   } catch (error) {
     return Response.json(

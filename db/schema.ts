@@ -212,3 +212,27 @@ export const dailyProgress = sqliteTable(
     ),
   ],
 );
+
+export const duelChallenges = sqliteTable(
+  "duel_challenges",
+  {
+    code: text("code").primaryKey(),
+    challengerPlayerId: text("challenger_player_id").notNull(),
+    challengeDate: text("challenge_date").notNull(),
+    market: text("market").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("duel_challenges_player_date_market_unique").on(
+      table.challengerPlayerId,
+      table.challengeDate,
+      table.market,
+    ),
+    index("duel_challenges_date_market_idx").on(
+      table.challengeDate,
+      table.market,
+    ),
+  ],
+);

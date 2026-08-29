@@ -9,7 +9,7 @@ test("contains the complete blind chart game shell", async () => {
   ]);
   assert.match(layout, /盲盘｜真实历史 K 线交易挑战/);
   assert.match(page, /今日盲盘/);
-  assert.match(page, /今日排行/);
+  assert.match(page, /竞技榜/);
   assert.match(page, /可缩放、拖动和键盘操作的真实历史日K线图/);
   assert.match(page, /向左查看更早K线/);
   assert.match(page, /向右查看更新K线/);
@@ -57,6 +57,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /全部完成 \+60 XP/);
   assert.match(page, /错题重练/);
   assert.match(page, /先过标准/);
+  assert.match(page, /本周联赛/);
+  assert.match(page, /每周取个人最佳 5 局/);
+  assert.match(page, /匿名挑战码/);
+  assert.match(page, /DECISION REPLAY · 决策时间线/);
+  assert.match(page, /继续查看后续/);
   assert.match(page, /mangpan-active-session-/);
   assert.match(page, /mangpan-scenario-progress/);
   assert.match(page, /四维诊断/);
@@ -73,6 +78,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     scoreRoute,
     challengeRoute,
     quizRoute,
+    duelRoute,
     identity,
     sessions,
     schema,
@@ -88,12 +94,14 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     quizMigration,
     sessionIndexMigration,
     dailyProgressMigration,
+    duelMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/challenge/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/quiz/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/duels/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/request-identity.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/challenge-sessions.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -121,6 +129,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
       new URL("../drizzle/0007_silent_umar.sql", import.meta.url),
       "utf8",
     ),
+    readFile(
+      new URL("../drizzle/0008_warm_old_lace.sql", import.meta.url),
+      "utf8",
+    ),
   ]);
 
   assert.match(page, /ticker-mask/);
@@ -128,6 +140,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /成交量/);
   assert.match(page, /hoverAmplitude/);
   assert.match(page, /发起好友同图挑战/);
+  assert.match(page, /fetch\("\/api\/duels"/);
+  assert.doesNotMatch(page, /encodeURIComponent\(playerId\).*duel/);
   assert.match(page, /localStorage\.getItem\("mangpan-player-id"\)/);
   assert.match(
     scoreRoute,
@@ -150,6 +164,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(challengeRoute, /difficultyFrom/);
   assert.match(quizRoute, /answerPatternQuiz/);
   assert.match(quizRoute, /getTrainingProfile/);
+  assert.match(duelRoute, /完成并提交今日挑战后才可发起同图对决/);
+  assert.match(duelRoute, /crypto\.randomUUID/);
+  assert.match(scoreRoute, /buildWeeklyLeague/);
+  assert.match(scoreRoute, /ROW_NUMBER\(\) OVER/);
+  assert.match(scoreRoute, /每周取最佳 5 局/);
+  assert.match(scoreRoute, /duelChallenges/);
   assert.match(identity, /oai-authenticated-user-id/);
   assert.match(identity, /crypto\.subtle\.digest/);
   assert.match(sessions, /maskCandle/);
@@ -159,6 +179,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /trainingProgress/);
   assert.match(schema, /patternQuizzes/);
   assert.match(schema, /dailyProgress/);
+  assert.match(schema, /duelChallenges/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
@@ -209,6 +230,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     /game_sessions_player_active_idx/,
   );
   assert.match(dailyProgressMigration, /CREATE TABLE `daily_progress`/);
+  assert.match(duelMigration, /CREATE TABLE `duel_challenges`/);
+  assert.match(duelMigration, /duel_challenges_player_date_market_unique/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);
