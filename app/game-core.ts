@@ -11,7 +11,6 @@ import {
 } from "./game-config";
 
 export {
-  DAILY_SPRINT_DECISIONS,
   GAME_VERSION,
   INITIAL_BARS,
   INITIAL_CASH,

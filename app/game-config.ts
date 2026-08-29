@@ -1,10 +1,9 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "decision-loop-v4";
+export const GAME_VERSION = "long-cycle-v5";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;
 export const MAX_ACTIONS = 10_000;
-export const DAILY_SPRINT_DECISIONS = 12;
 
 export type MarketKind = "cn" | "us";
 export const ORDER_ALLOCATIONS = [0.25, 1 / 3, 0.5, 0.75, 1] as const;

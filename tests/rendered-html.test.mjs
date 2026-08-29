@@ -37,7 +37,8 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /本次判断/);
   assert.match(page, /判断后续走势/);
   assert.match(page, /信心校准/);
-  assert.match(page, /今日短局/);
+  assert.match(page, /今日长线挑战/);
+  assert.match(page, /不限制决策次数/);
   assert.match(page, /四维诊断/);
   assert.match(page, /完整数据：/);
   assert.match(page, /stock\.candles\.length\.toLocaleString/);
@@ -46,7 +47,22 @@ test("contains the complete blind chart game shell", async () => {
 });
 
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
-  const [page, pageRoute, scoreRoute, challengeRoute, sessions, schema, hosting, styles, config, core, challengeService, universe, marketData, analysis] = await Promise.all([
+  const [
+    page,
+    pageRoute,
+    scoreRoute,
+    challengeRoute,
+    sessions,
+    schema,
+    hosting,
+    styles,
+    config,
+    core,
+    challengeService,
+    universe,
+    marketData,
+    analysis,
+  ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
@@ -69,8 +85,14 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /hoverAmplitude/);
   assert.match(page, /发起好友同图挑战/);
   assert.match(page, /localStorage\.getItem\("mangpan-player-id"\)/);
-  assert.match(scoreRoute, /getSessionForScore\(payload\.sessionId, playerId\)/);
-  assert.match(scoreRoute, /replayChallenge\([\s\S]*challenge\.bundle\.stock,[\s\S]*challenge\.actions,[\s\S]*market/);
+  assert.match(
+    scoreRoute,
+    /getSessionForScore\(payload\.sessionId, playerId\)/,
+  );
+  assert.match(
+    scoreRoute,
+    /replayChallenge\([\s\S]*challenge\.bundle\.stock,[\s\S]*challenge\.actions,[\s\S]*market/,
+  );
   assert.match(scoreRoute, /scoreDate\(date, market\)/);
   assert.match(scoreRoute, /onConflictDoNothing/);
   assert.doesNotMatch(scoreRoute, /payload\.actions/);
@@ -89,8 +111,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /decision-loop-v4/);
-  assert.match(config, /DAILY_SPRINT_DECISIONS = 12/);
+  assert.match(config, /long-cycle-v5/);
+  assert.doesNotMatch(config, /DAILY_SPRINT_DECISIONS/);
+  assert.doesNotMatch(sessions, /今日短局已经完成/);
   assert.match(config, /initialBarsFor/);
   assert.match(core, /orderQuantity\(\{[\s\S]*kind: "buy"/);
   assert.match(challengeService, /dailyChallenges/);
@@ -103,7 +126,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.doesNotMatch(marketData, /candles\.slice\(start\)/);
   assert.doesNotMatch(marketData, /historicalEnd/);
   assert.doesNotMatch(marketData, /TOTAL_BARS/);
-  assert.match(core, /availableDays = Math\.max\(0, candles\.length - initialBars\)/);
+  assert.match(
+    core,
+    /availableDays = Math\.max\(0, candles\.length - initialBars\)/,
+  );
   assert.match(core, /calibrationScore/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);

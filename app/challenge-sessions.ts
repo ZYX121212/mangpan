@@ -8,7 +8,6 @@ import {
   snapshotId,
 } from "./challenge-service";
 import {
-  DAILY_SPRINT_DECISIONS,
   MAX_ACTIONS,
   initialBarsFor,
   isOrderAllocation,
@@ -147,7 +146,7 @@ async function insertSession(
     totalBars: bundle.stock.candles.length,
     remainingBars: bundle.stock.candles.length - initialVisibleCount,
     decisionsUsed: 0,
-    maxDecisions: mode === "daily" ? DAILY_SPRINT_DECISIONS : null,
+    maxDecisions: null,
     universeSize: bundle.universeSize,
     dataSource: bundle.dataSource,
     scenario,
@@ -184,8 +183,6 @@ export async function advanceSession(id: string, value: unknown) {
   const { session, bundle, actions } = await loadSession(id);
   if (session.finished) throw new Error("本局已经结束");
   if (actions.length >= MAX_ACTIONS) throw new Error("决策次数超出上限");
-  if (session.mode === "daily" && actions.length >= DAILY_SPRINT_DECISIONS)
-    throw new Error("今日短局已经完成");
   const action = cleanAction(value);
   if (!action) throw new Error("请完整记录方向、依据和信心");
   const remaining = Math.max(
@@ -198,9 +195,7 @@ export async function advanceSession(id: string, value: unknown) {
   const savedAction = { ...action, days: holdingDays };
   const nextActions = [...actions, savedAction];
   const nextVisibleCount = session.visibleCount + holdingDays;
-  const finished =
-    nextVisibleCount >= bundle.stock.candles.length ||
-    (session.mode === "daily" && nextActions.length >= DAILY_SPRINT_DECISIONS);
+  const finished = nextVisibleCount >= bundle.stock.candles.length;
   const updated = await getD1Database()
     .prepare(
       `UPDATE game_sessions SET visible_count = ?, actions = ?, finished = ?, updated_at = ? WHERE id = ? AND visible_count = ? AND finished = 0`,
@@ -222,7 +217,7 @@ export async function advanceSession(id: string, value: unknown) {
       .map((candle, index) => maskCandle(candle, session.visibleCount + index)),
     remainingBars: bundle.stock.candles.length - nextVisibleCount,
     decisionsUsed: nextActions.length,
-    maxDecisions: session.mode === "daily" ? DAILY_SPRINT_DECISIONS : null,
+    maxDecisions: null,
     finished,
     action: savedAction,
   };
@@ -242,7 +237,7 @@ export async function revealSession(id: string) {
 export async function getSessionForScore(id: string, playerId: string) {
   const loaded = await loadSession(id);
   if (loaded.session.mode !== "daily" || !loaded.session.finished)
-    throw new Error("仅已完成的今日短局可以上榜");
+    throw new Error("仅已完成的今日挑战可以上榜");
   if (loaded.session.playerId && loaded.session.playerId !== playerId)
     throw new Error("该挑战已经绑定其他玩家");
   if (!loaded.session.playerId) {

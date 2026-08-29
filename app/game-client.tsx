@@ -1317,13 +1317,11 @@ export default function GameClient({
         <div className="round-pill">
           <span>
             {gameMode === "daily"
-              ? `${marketLabel}今日短局`
+              ? `${marketLabel}今日长线挑战`
               : `${marketLabel}无限练习`}
           </span>
           <i />
-          {gameMode === "daily"
-            ? `${session.decisionsUsed}/${session.maxDecisions} 次决策`
-            : `已推进 ${advancedDays} 个交易日`}
+          已推进 {advancedDays} 个交易日
         </div>
         <div className="top-actions">
           <button
@@ -1465,26 +1463,15 @@ export default function GameClient({
             <span>股票交易</span>
             <small>
               {gameMode === "daily"
-                ? "今日短局 · 12 次决策"
+                ? "完整历史周期 · 随时结束"
                 : "无限练习 · 随时结束"}
             </small>
           </div>
-          <div
-            className={`horizon-track ${gameMode === "practice" ? "open-ended" : ""}`}
-          >
-            <i
-              style={
-                gameMode === "daily"
-                  ? {
-                      width: `${Math.min(100, (session.decisionsUsed / Math.max(1, session.maxDecisions || 1)) * 100)}%`,
-                    }
-                  : undefined
-              }
-            />
+          <div className="horizon-track open-ended">
+            <i />
             <span>
-              {gameMode === "daily"
-                ? `已完成 ${session.decisionsUsed}/${session.maxDecisions} 次判断`
-                : `已推进 ${advancedDays} 个交易日 · 可随时结束`}
+              已推进 {advancedDays} 个交易日 · 尚有{" "}
+              {remainingDays.toLocaleString("zh-CN")} 个交易日 · 可随时结束
             </span>
           </div>
           <div className="price-block">
@@ -1753,7 +1740,7 @@ export default function GameClient({
               </button>
               <p className="hint">
                 {gameMode === "daily"
-                  ? "今日短局共 12 次决策；服务器仅在提交判断后揭示后续行情"
+                  ? "不限制决策次数；可持续到完整历史终点，服务器只逐段揭示后续行情"
                   : "不支持限价、做空或融资；可一直决策到该段真实历史结束"}
               </p>
             </>
@@ -1887,8 +1874,7 @@ export default function GameClient({
               <li>
                 <b>周期</b>
                 <span>
-                  今日短局包含 12
-                  次决策；无限练习与情境训练不设固定上限，也可以随时提前结束。
+                  今日挑战、无限练习与情境训练都不限制决策次数，可持续到完整历史终点，也可以随时提前结束。
                 </span>
               </li>
               <li>

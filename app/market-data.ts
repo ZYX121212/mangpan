@@ -64,14 +64,11 @@ function scenarioScore(
 function prepareGameStock(
   stock: StockSample,
   seed: number,
-  poolSize: number,
   scenario: ScenarioKind = "random",
 ) {
   if (stock.candles.length < MIN_GAME_BARS) return null;
   const latestDecisionIndex = stock.candles.length - MIN_FUTURE_BARS;
-  const decisionSpan = latestDecisionIndex - INITIAL_BARS + 1;
-  let decisionIndex =
-    INITIAL_BARS + (Math.floor(seed / Math.max(1, poolSize)) % decisionSpan);
+  let decisionIndex = INITIAL_BARS;
   if (scenario !== "random") {
     const candidates: { index: number; score: number }[] = [];
     for (let index = INITIAL_BARS; index <= latestDecisionIndex; index += 5)
@@ -95,7 +92,7 @@ function bundledStock(
 ) {
   const pool = market === "cn" ? STOCK_SAMPLES : US_STOCK_SAMPLES;
   const stock = pool[seed % pool.length];
-  return prepareGameStock(stock, seed, pool.length, scenario) ?? stock;
+  return prepareGameStock(stock, seed, scenario) ?? stock;
 }
 
 function parseTencentCandles(payload: unknown, symbol: string) {
@@ -173,7 +170,7 @@ async function loadCnStock(
     assetClass: "cn",
     candles,
   } satisfies StockSample;
-  return prepareGameStock(fullStock, seed, CN_STOCK_UNIVERSE.length, scenario);
+  return prepareGameStock(fullStock, seed, scenario);
 }
 
 async function cnBundle(
