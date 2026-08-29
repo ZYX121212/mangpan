@@ -27,6 +27,9 @@ test("server-renders the blind chart game shell", async () => {
   assert.match(html, /委托买入并持有 3 天/);
   assert.match(html, /已推进 .*0.*60.*个交易日/);
   assert.match(html, /选择持有交易日数/);
+  assert.match(html, /选择股票市场/);
+  assert.match(html, />A股</);
+  assert.match(html, />美股</);
   assert.doesNotMatch(html, /Building your site|Your site is taking shape/);
 });
 
@@ -44,7 +47,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /hoverAmplitude/);
   assert.match(page, /发起好友同图挑战/);
   assert.match(page, /localStorage\.getItem\("mangpan-player-id"\)/);
-  assert.match(route, /replayChallenge\(date, payload\.actions\)/);
+  assert.match(route, /replayChallenge\(date, payload\.actions, market\)/);
+  assert.match(route, /scoreDate\(date, market\)/);
   assert.match(route, /onConflictDoNothing/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);

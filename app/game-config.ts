@@ -1,9 +1,11 @@
 export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "long-v1";
+export const GAME_VERSION = "market-v1";
 export const INITIAL_BARS = 120;
 export const HORIZON_DAYS = 60;
 export const MAX_ACTIONS = HORIZON_DAYS;
 export const TOTAL_BARS = INITIAL_BARS + HORIZON_DAYS;
+
+export type MarketKind = "cn" | "us";
 
 export type ReplayAction = {
   kind: "buy" | "sell" | "hold";

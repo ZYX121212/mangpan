@@ -1,12 +1,16 @@
 import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
 import { dailyScores, players } from "../../../db/schema";
-import { GAME_VERSION, MAX_ACTIONS, chinaDate, replayChallenge, type ReplayAction } from "../../game-core";
+import { GAME_VERSION, MAX_ACTIONS, chinaDate, replayChallenge, type MarketKind, type ReplayAction } from "../../game-core";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
 
-function scoreDate(date: string) {
-  return `${date}@${GAME_VERSION}`;
+function scoreDate(date: string, market: MarketKind) {
+  return `${date}@${GAME_VERSION}@${market}`;
+}
+
+function validMarket(value: unknown): value is MarketKind {
+  return value === "cn" || value === "us";
 }
 
 function validDate(value: string | null): value is string {
@@ -74,9 +78,9 @@ function weeklyProfile(rows: ScoreRow[]) {
   return { title: "均衡波段型", text: "你的交易频率与风险暴露比较均衡，继续积累样本才能看出稳定优势。" };
 }
 
-async function buildScoreboard(date: string, playerId?: string, opponentId?: string) {
+async function buildScoreboard(date: string, market: MarketKind, playerId?: string, opponentId?: string) {
   const db = getDb();
-  const storageDate = scoreDate(date);
+  const storageDate = scoreDate(date, market);
   const top = await db.select({
     playerId: dailyScores.playerId,
     nickname: dailyScores.nickname,
@@ -124,7 +128,7 @@ async function buildScoreboard(date: string, playerId?: string, opponentId?: str
   let stats = null;
   if (playerId) {
     const history = await db.select().from(dailyScores)
-      .where(and(eq(dailyScores.playerId, playerId), like(dailyScores.challengeDate, `%@${GAME_VERSION}`)))
+      .where(and(eq(dailyScores.playerId, playerId), like(dailyScores.challengeDate, `%@${GAME_VERSION}@${market}`)))
       .orderBy(desc(dailyScores.challengeDate)).limit(60);
     const averageScore = history.length ? Math.round(history.reduce((sum, row) => sum + row.score, 0) / history.length) : 0;
     stats = {
@@ -157,12 +161,14 @@ export async function GET(request: Request) {
     await ensureDatabase();
     const url = new URL(request.url);
     const date = url.searchParams.get("date");
+    const market = url.searchParams.get("market");
     const playerId = url.searchParams.get("playerId") ?? undefined;
     const opponentId = url.searchParams.get("opponentId") ?? undefined;
     if (!validDate(date)) return Response.json({ error: "日期格式无效" }, { status: 400 });
+    if (!validMarket(market)) return Response.json({ error: "市场无效" }, { status: 400 });
     if (playerId && !validPlayerId(playerId)) return Response.json({ error: "玩家标识无效" }, { status: 400 });
     if (opponentId && !validPlayerId(opponentId)) return Response.json({ error: "挑战者标识无效" }, { status: 400 });
-    return Response.json(await buildScoreboard(date, playerId, opponentId));
+    return Response.json(await buildScoreboard(date, market, playerId, opponentId));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "排行榜暂时不可用" }, { status: 500 });
   }
@@ -171,18 +177,20 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     await ensureDatabase();
-    const payload = await request.json() as { date?: unknown; playerId?: unknown; nickname?: unknown; actions?: unknown };
+    const payload = await request.json() as { date?: unknown; market?: unknown; playerId?: unknown; nickname?: unknown; actions?: unknown };
     if (!validDate(typeof payload.date === "string" ? payload.date : null) || payload.date !== chinaDate()) {
       return Response.json({ error: "仅可提交今日正式挑战" }, { status: 400 });
     }
+    if (!validMarket(payload.market)) return Response.json({ error: "市场无效" }, { status: 400 });
     if (!validPlayerId(payload.playerId)) return Response.json({ error: "玩家标识无效" }, { status: 400 });
     if (!validActions(payload.actions)) return Response.json({ error: "决策路径无效" }, { status: 400 });
 
     const date = payload.date;
     const playerId = payload.playerId;
     const nickname = cleanNickname(payload.nickname, playerId);
-    const result = replayChallenge(date, payload.actions);
-    const storageDate = scoreDate(date);
+    const market = payload.market;
+    const result = replayChallenge(date, payload.actions, market);
+    const storageDate = scoreDate(date, market);
     const db = getDb();
     await db.insert(players).values({ id: playerId, nickname })
       .onConflictDoUpdate({ target: players.id, set: { nickname, updatedAt: new Date().toISOString() } });
@@ -201,7 +209,7 @@ export async function POST(request: Request) {
       actionPath: JSON.stringify(payload.actions),
     }).onConflictDoNothing({ target: [dailyScores.challengeDate, dailyScores.playerId] });
 
-    return Response.json(await buildScoreboard(date, playerId));
+    return Response.json(await buildScoreboard(date, market, playerId));
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "成绩提交失败" }, { status: 500 });
   }

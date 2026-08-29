@@ -1,52 +1,63 @@
 import { STOCK_SAMPLES } from "./stock-data";
-import { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, hashText, type ReplayAction } from "./game-config";
+import { US_STOCK_SAMPLES } from "./us-stock-data";
+import { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, hashText, type MarketKind, type ReplayAction } from "./game-config";
 
-export { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, chinaDate, type ReplayAction } from "./game-config";
+export { GAME_VERSION, HORIZON_DAYS, INITIAL_BARS, INITIAL_CASH, MAX_ACTIONS, TOTAL_BARS, clamp, chinaDate, type MarketKind, type ReplayAction } from "./game-config";
 
-export function getChallenge(date: string) {
-  const seed = hashText(`mangpan-${GAME_VERSION}-${date}`);
-  const stockIndex = seed % STOCK_SAMPLES.length;
-  const maxStart = Math.max(0, STOCK_SAMPLES[stockIndex].candles.length - TOTAL_BARS);
+const MARKET_POOLS = { cn: STOCK_SAMPLES, us: US_STOCK_SAMPLES } satisfies Record<MarketKind, typeof STOCK_SAMPLES>;
+
+export function getChallenge(date: string, market: MarketKind = "cn") {
+  const pool = MARKET_POOLS[market];
+  const seed = hashText(`mangpan-${GAME_VERSION}-${market}-${date}`);
+  const stockIndex = seed % pool.length;
+  const maxStart = Math.max(0, pool[stockIndex].candles.length - TOTAL_BARS);
   return {
     stockIndex,
-    start: Math.floor(seed / STOCK_SAMPLES.length) % (maxStart + 1),
+    start: Math.floor(seed / pool.length) % (maxStart + 1),
   };
 }
 
-export function getChallengeBundle(date: string) {
-  const challenge = getChallenge(date);
-  const stock = STOCK_SAMPLES[challenge.stockIndex];
+export function getChallengeBundle(date: string, market: MarketKind = "cn") {
+  const pool = MARKET_POOLS[market];
+  const challenge = getChallenge(date, market);
+  const stock = pool[challenge.stockIndex];
   return {
     date,
+    market,
     stock: {
       code: stock.code,
       name: stock.name,
       market: stock.market,
+      assetClass: stock.assetClass,
       candles: stock.candles.slice(challenge.start, challenge.start + TOTAL_BARS),
     },
   };
 }
 
-export function getPracticeBundle(seed: string) {
-  const value = hashText(`practice-${GAME_VERSION}-${seed}`);
-  const stockIndex = value % STOCK_SAMPLES.length;
-  const stock = STOCK_SAMPLES[stockIndex];
+export function getPracticeBundle(seed: string, market: MarketKind = "cn") {
+  const pool = MARKET_POOLS[market];
+  const value = hashText(`practice-${GAME_VERSION}-${market}-${seed}`);
+  const stockIndex = value % pool.length;
+  const stock = pool[stockIndex];
   const maxStart = Math.max(0, stock.candles.length - TOTAL_BARS);
-  const start = Math.floor(value / STOCK_SAMPLES.length) % (maxStart + 1);
+  const start = Math.floor(value / pool.length) % (maxStart + 1);
   return {
     date: "practice",
+    market,
     stock: {
       code: stock.code,
       name: stock.name,
       market: stock.market,
+      assetClass: stock.assetClass,
       candles: stock.candles.slice(start, start + TOTAL_BARS),
     },
   };
 }
 
-export function replayChallenge(date: string, actions: ReplayAction[]) {
-  const challenge = getChallenge(date);
-  const stock = STOCK_SAMPLES[challenge.stockIndex];
+export function replayChallenge(date: string, actions: ReplayAction[], market: MarketKind = "cn") {
+  const pool = MARKET_POOLS[market];
+  const challenge = getChallenge(date, market);
+  const stock = pool[challenge.stockIndex];
   const factor = 100 / stock.candles[challenge.start + INITIAL_BARS - 1].close;
   const candles = stock.candles.map((candle) => ({
     ...candle,
