@@ -15,6 +15,20 @@
       "when": 1788006193027,
       "tag": "0001_greedy_talos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1788013091858,
+      "tag": "0002_known_vance_astro",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1788014021057,
+      "tag": "0003_tan_mantis",
+      "breakpoints": true
     }
   ]
 }

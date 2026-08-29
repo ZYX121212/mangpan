@@ -32,8 +32,12 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /只全市场股票池/);
   assert.match(page, /选择持有交易日数/);
   assert.match(page, /选择股票市场/);
-  assert.match(page, /无固定期限/);
+  assert.match(page, /无限练习/);
   assert.match(page, /深度分析我的画像/);
+  assert.match(page, /本次判断/);
+  assert.match(page, /判断后续走势/);
+  assert.match(page, /信心校准/);
+  assert.match(page, /今日短局/);
   assert.match(page, /四维诊断/);
   assert.match(page, /完整数据：/);
   assert.match(page, /stock\.candles\.length\.toLocaleString/);
@@ -42,9 +46,12 @@ test("contains the complete blind chart game shell", async () => {
 });
 
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
-  const [page, route, schema, hosting, styles, config, core, challengeService, universe, marketData, analysis] = await Promise.all([
+  const [page, pageRoute, scoreRoute, challengeRoute, sessions, schema, hosting, styles, config, core, challengeService, universe, marketData, analysis] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/challenge/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/challenge-sessions.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
@@ -62,9 +69,18 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /hoverAmplitude/);
   assert.match(page, /发起好友同图挑战/);
   assert.match(page, /localStorage\.getItem\("mangpan-player-id"\)/);
-  assert.match(route, /replayChallenge\(challenge\.stock, payload\.actions, market\)/);
-  assert.match(route, /scoreDate\(date, market\)/);
-  assert.match(route, /onConflictDoNothing/);
+  assert.match(scoreRoute, /getSessionForScore\(payload\.sessionId, playerId\)/);
+  assert.match(scoreRoute, /replayChallenge\([\s\S]*challenge\.bundle\.stock,[\s\S]*challenge\.actions,[\s\S]*market/);
+  assert.match(scoreRoute, /scoreDate\(date, market\)/);
+  assert.match(scoreRoute, /onConflictDoNothing/);
+  assert.doesNotMatch(scoreRoute, /payload\.actions/);
+  assert.match(pageRoute, /startDailySession/);
+  assert.doesNotMatch(pageRoute, /getDailyChallengeBundle/);
+  assert.match(challengeRoute, /advanceSession/);
+  assert.match(challengeRoute, /revealSession/);
+  assert.match(sessions, /maskCandle/);
+  assert.match(sessions, /请完整记录方向、依据和信心/);
+  assert.match(schema, /game_sessions/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
@@ -73,9 +89,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /full-history-v3/);
+  assert.match(config, /decision-loop-v4/);
+  assert.match(config, /DAILY_SPRINT_DECISIONS = 12/);
   assert.match(config, /initialBarsFor/);
-  assert.match(core, /orderQuantity\(\{ market, kind: "buy"/);
+  assert.match(core, /orderQuantity\(\{[\s\S]*kind: "buy"/);
   assert.match(challengeService, /dailyChallenges/);
   assert.match(challengeService, /onConflictDoNothing/);
   assert.match(marketData, /MIN_GAME_BARS/);
@@ -87,6 +104,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.doesNotMatch(marketData, /historicalEnd/);
   assert.doesNotMatch(marketData, /TOTAL_BARS/);
   assert.match(core, /availableDays = Math\.max\(0, candles\.length - initialBars\)/);
+  assert.match(core, /calibrationScore/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);
