@@ -42,6 +42,12 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /训练难度/);
   assert.match(page, /训练通关/);
   assert.match(page, /情景复盘/);
+  assert.match(page, /第 \{lastFeedback\.round\} 次决策反馈/);
+  assert.match(page, /最大有利/);
+  assert.match(page, /逐次决策证据/);
+  assert.match(page, /feedbackHistory/);
+  assert.match(page, /PROCESS SCORE · 过程能力/);
+  assert.match(page, /系统推荐下一局/);
   assert.match(page, /mangpan-scenario-progress/);
   assert.match(page, /四维诊断/);
   assert.match(page, /完整数据：/);
@@ -116,7 +122,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /long-cycle-v5/);
+  assert.match(config, /deliberate-practice-v6/);
   assert.doesNotMatch(config, /DAILY_SPRINT_DECISIONS/);
   assert.doesNotMatch(sessions, /今日短局已经完成/);
   assert.match(config, /initialBarsFor/);
@@ -138,6 +144,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     /availableDays = Math\.max\(0, candles\.length - initialBars\)/,
   );
   assert.match(core, /calibrationScore/);
+  assert.match(core, /riskScore \* 0\.3/);
+  assert.match(core, /executionScore \* 0\.2/);
+  assert.match(core, /performanceScore \* 0\.1/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);

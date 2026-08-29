@@ -127,6 +127,61 @@ type AdvanceResponse = {
   action: ReplayAction;
 };
 
+type DecisionFeedback = {
+  round: number;
+  matched: boolean;
+  actual: MarketOutlook;
+  move: number;
+  favorable: number;
+  adverse: number;
+  title: string;
+  lesson: string;
+};
+
+const OUTLOOK_LABEL: Record<MarketOutlook, string> = {
+  up: "上涨",
+  range: "震荡",
+  down: "下跌",
+};
+
+function evaluateDecision(
+  action: ReplayAction,
+  candles: Candle[],
+  decisionRound: number,
+): DecisionFeedback {
+  const execution = candles[0].open;
+  const close = candles.at(-1)?.close ?? execution;
+  const move = (close / execution - 1) * 100;
+  const actual: MarketOutlook =
+    move > 0.75 ? "up" : move < -0.75 ? "down" : "range";
+  const favorable =
+    (Math.max(...candles.map((candle) => candle.high)) / execution - 1) * 100;
+  const adverse =
+    (Math.min(...candles.map((candle) => candle.low)) / execution - 1) * 100;
+  const matched = action.outlook === actual;
+  let lesson = matched
+    ? "方向判断命中。继续观察这套依据能否跨行情重复，而不是因为一次命中突然放大仓位。"
+    : action.confidence === 3
+      ? "这是一次高信心误判。下次先降低试仓比例，等价格确认后再增加风险。"
+      : "方向未命中，但低中信心保留了修正空间；复盘判断依据，而不是只看盈亏。";
+  if (action.kind === "buy" && adverse < -3)
+    lesson = `买入后最大不利波动达到 ${adverse.toFixed(1)}%，入场容错偏小；可尝试分批建仓。`;
+  if (action.kind === "sell" && favorable > 3)
+    lesson = `卖出后区间内一度上涨 ${favorable.toFixed(1)}%，可比较一次清仓与分批退出。`;
+  if (action.kind === "hold" && matched)
+    lesson = "没有交易也完成了有效判断。保持仓位或空仓本身就是需要被记录的决策。";
+  return {
+    round: decisionRound,
+    matched,
+    actual,
+    move,
+    favorable,
+    adverse,
+    title: `${matched ? "判断命中" : "判断偏差"} · 后续${OUTLOOK_LABEL[actual]} ${move >= 0 ? "+" : ""}${move.toFixed(2)}%`,
+    lesson,
+  };
+}
+
 function average(data: Candle[], at: number, period: number) {
   if (at < period - 1) return null;
   let total = 0;
@@ -792,6 +847,11 @@ export default function GameClient({
     [rulesOpen, setRulesOpen] = useState(false),
     [isRevealing, setIsRevealing] = useState(false);
   const [analysisOpen, setAnalysisOpen] = useState(false);
+  const [lastFeedback, setLastFeedback] =
+    useState<DecisionFeedback | null>(null);
+  const [feedbackHistory, setFeedbackHistory] = useState<DecisionFeedback[]>(
+    [],
+  );
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [selectedDifficulty, setSelectedDifficulty] =
     useState<ScenarioDifficulty>("standard");
@@ -904,7 +964,9 @@ export default function GameClient({
       hits = 0,
       weight = 0,
       weightedHits = 0,
-      confidentMisses = 0;
+      confidentMisses = 0,
+      tradeEdgeTotal = 0,
+      tradeEdgeSamples = 0;
     for (const action of actions) {
       const days = action.days || 3;
       const execution = normalized[initialVisibleCount + offset]?.open;
@@ -927,6 +989,10 @@ export default function GameClient({
           hits++;
           weightedHits += actionWeight;
         } else if (action.confidence === 3) confidentMisses++;
+        if (action.kind === "buy" || action.kind === "sell") {
+          tradeEdgeTotal += action.kind === "buy" ? move : -move;
+          tradeEdgeSamples++;
+        }
       }
       offset += days;
     }
@@ -934,7 +1000,15 @@ export default function GameClient({
     const calibration = weight
       ? clamp((weightedHits / weight) * 100 - confidentMisses * 4, 0, 100)
       : 50;
-    return { total, hits, accuracy, calibration, confidentMisses };
+    return {
+      total,
+      hits,
+      accuracy,
+      calibration,
+      confidentMisses,
+      tradeEdge: tradeEdgeSamples ? tradeEdgeTotal / tradeEdgeSamples : 0,
+      tradeEdgeSamples,
+    };
   }, [actions, initialVisibleCount, normalized]);
   const scenarioEvaluation = useMemo(() => {
     if (!activeScenario) return null;
@@ -994,11 +1068,49 @@ export default function GameClient({
     trades,
   ]);
   const allowedTrades = Math.max(4, Math.ceil(advancedDays / 10) + 1);
+  const peakExposure = Math.max(0, ...exposureHistory);
+  const processScores = useMemo(() => {
+    const risk = clamp(100 + maxDrawdown * 6, 0, 100);
+    const calibration = decisionStats.calibration;
+    const execution = decisionStats.tradeEdgeSamples
+      ? clamp(50 + decisionStats.tradeEdge * 6, 0, 100)
+      : 50;
+    const discipline = clamp(
+      100 -
+        Math.max(0, trades - allowedTrades) * 12 -
+        Math.max(0, peakExposure - 85) * 0.6,
+      35,
+      100,
+    );
+    const performance = clamp(50 + excess * 2, 0, 100);
+    return { risk, calibration, execution, discipline, performance };
+  }, [
+    allowedTrades,
+    decisionStats.calibration,
+    decisionStats.tradeEdge,
+    decisionStats.tradeEdgeSamples,
+    excess,
+    maxDrawdown,
+    peakExposure,
+    trades,
+  ]);
   const skillScore = Math.round(
-    clamp(50 + excess * 2.5, 0, 100) * 0.4 +
-      clamp(100 + maxDrawdown * 5, 0, 100) * 0.25 +
-      clamp(100 - Math.max(0, trades - allowedTrades) * 10, 35, 100) * 0.15 +
-      decisionStats.calibration * 0.2,
+    processScores.risk * 0.3 +
+      processScores.calibration * 0.25 +
+      processScores.execution * 0.2 +
+      processScores.discipline * 0.15 +
+      processScores.performance * 0.1,
+  );
+  const weakestSkill = (
+    [
+      { key: "risk", label: "风险控制", scenario: "crash" },
+      { key: "calibration", label: "判断校准", scenario: "reversal" },
+      { key: "execution", label: "执行质量", scenario: "trend" },
+      { key: "discipline", label: "交易纪律", scenario: "volatile" },
+      { key: "performance", label: "风险调整收益", scenario: "trend" },
+    ] as const
+  ).reduce((weakest, item) =>
+    processScores[item.key] < processScores[weakest.key] ? item : weakest,
   );
   const deepProfile = useMemo(
     () =>
@@ -1193,6 +1305,8 @@ export default function GameClient({
     setFinished(false);
     setResultOpen(false);
     setAnalysisOpen(false);
+    setLastFeedback(null);
+    setFeedbackHistory([]);
     setRevealPulse(0);
     setShareStatus("");
     setScoreStatus("idle");
@@ -1303,6 +1417,11 @@ export default function GameClient({
       high: candle.high * factor,
       low: candle.low * factor,
     }));
+    const feedback = evaluateDecision(
+      advanced.action,
+      normalizedNew,
+      round + 1,
+    );
     setStock((value) => ({
       ...value,
       candles: [...value.candles, ...advanced.candles],
@@ -1376,6 +1495,8 @@ export default function GameClient({
     setEquityHistory((value) => [...value, ...pathEquities]);
     setExposureHistory((value) => [...value, ...pathExposures]);
     setRevealPulse((value) => value + 1);
+    setLastFeedback(feedback);
+    setFeedbackHistory((value) => [...value, feedback]);
     setIsRevealing(false);
     if (advanced.finished || nextEquity <= INITIAL_CASH * 0.2)
       await finishGame();
@@ -1658,6 +1779,29 @@ export default function GameClient({
               <b>当前空仓</b>
               <small>不操作也是一种有效决策</small>
             </div>
+          )}
+          {lastFeedback && !finished && (
+            <details className="decision-feedback" open>
+              <summary>
+                <span className={lastFeedback.matched ? "hit" : "miss"}>
+                  {lastFeedback.matched ? "✓" : "!"}
+                </span>
+                <div>
+                  <small>第 {lastFeedback.round} 次决策反馈</small>
+                  <b>{lastFeedback.title}</b>
+                </div>
+                <i>展开</i>
+              </summary>
+              <p>{lastFeedback.lesson}</p>
+              <div>
+                <span>
+                  最大有利 <b>+{lastFeedback.favorable.toFixed(1)}%</b>
+                </span>
+                <span>
+                  最大不利 <b>{lastFeedback.adverse.toFixed(1)}%</b>
+                </span>
+              </div>
+            </details>
           )}
           {!finished ? (
             <>
@@ -2068,7 +2212,7 @@ export default function GameClient({
               <li>
                 <b>判断</b>
                 <span>
-                  每次推进前记录看涨、震荡或看跌，并选择判断依据与信心；结算时逐笔检查是否命中。
+                  每次推进前记录看涨、震荡或看跌，并选择判断依据与信心；行情揭示后立即反馈方向、最大有利与最大不利波动。
                 </span>
               </li>
               <li>
@@ -2080,7 +2224,7 @@ export default function GameClient({
               <li>
                 <b>评分</b>
                 <span>
-                  综合超额收益、最大回撤、交易纪律与信心校准；高收益但高信心误判不会获得满分。
+                  风险控制占30%、判断校准25%、执行质量20%、交易纪律15%、风险调整收益10%；不再只奖励高收益。
                 </span>
               </li>
               <li>
@@ -2271,6 +2415,35 @@ export default function GameClient({
                 <b>{maxDrawdown.toFixed(2)}%</b>
               </div>
             </div>
+            <section className="process-score-card">
+              <div className="process-score-head">
+                <div>
+                  <small>PROCESS SCORE · 过程能力</small>
+                  <b>收益只占 10%，更奖励可重复的决策质量</b>
+                </div>
+                <strong>{skillScore}</strong>
+              </div>
+              <div className="process-score-list">
+                {(
+                  [
+                    ["风险控制", processScores.risk, "30%"],
+                    ["判断校准", processScores.calibration, "25%"],
+                    ["执行质量", processScores.execution, "20%"],
+                    ["交易纪律", processScores.discipline, "15%"],
+                    ["风险调整收益", processScores.performance, "10%"],
+                  ] as const
+                ).map(([label, value, weight]) => (
+                  <div key={label}>
+                    <span>{label}</span>
+                    <i>
+                      <em style={{ width: `${value}%` }} />
+                    </i>
+                    <b>{value.toFixed(0)}</b>
+                    <small>{weight}</small>
+                  </div>
+                ))}
+              </div>
+            </section>
             <div className="decision-result">
               <div>
                 <small>方向判断</small>
@@ -2401,6 +2574,28 @@ export default function GameClient({
               </span>
               <i>查看仓位、风险、择时与训练建议 →</i>
             </button>
+            <button
+              className="next-training-card"
+              disabled={challengeLoading}
+              onClick={() =>
+                void resetGame(
+                  "practice",
+                  market,
+                  weakestSkill.scenario,
+                  "standard",
+                )
+              }
+            >
+              <span>
+                <small>系统推荐下一局</small>
+                <b>强化{weakestSkill.label}</b>
+              </span>
+              <i>
+                {challengeLoading
+                  ? "正在匹配训练…"
+                  : `${SCENARIO_CONFIG[weakestSkill.scenario].title} · 标准 →`}
+              </i>
+            </button>
             <div className="date-reveal">
               本局走到：{stock.candles[initialVisibleCount - 1].date} —{" "}
               {stock.candles[visibleCount - 1].date} · 完整数据：
@@ -2502,6 +2697,33 @@ export default function GameClient({
                 </p>
               </div>
             </div>
+            {feedbackHistory.length > 0 && (
+              <>
+                <div className="analysis-section-head">
+                  <b>逐次决策证据</b>
+                  <span>不是只看最终盈亏</span>
+                </div>
+                <div className="feedback-history">
+                  {feedbackHistory.map((feedback) => (
+                    <article
+                      key={feedback.round}
+                      className={feedback.matched ? "hit" : "miss"}
+                    >
+                      <i>{feedback.matched ? "✓" : "!"}</i>
+                      <div>
+                        <small>第 {feedback.round} 次</small>
+                        <b>{feedback.title}</b>
+                        <p>{feedback.lesson}</p>
+                      </div>
+                      <span>
+                        MFE +{feedback.favorable.toFixed(1)}% · MAE{" "}
+                        {feedback.adverse.toFixed(1)}%
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              </>
+            )}
             <div className="analysis-section-head">
               <b>带走的 3 条经验</b>
               <span>下一局可以直接执行</span>
