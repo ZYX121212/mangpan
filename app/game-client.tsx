@@ -42,6 +42,11 @@ const delay = (ms: number) =>
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
 type GameMode = "daily" | "practice";
+const DAILY_ORDER_ALLOCATIONS = [
+  0.25,
+  0.5,
+  1,
+] as const satisfies readonly OrderAllocation[];
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{
@@ -1356,7 +1361,10 @@ export default function GameClient({
   const [outlook, setOutlook] = useState<MarketOutlook>("up");
   const [thesis, setThesis] = useState<DecisionThesis>("trend");
   const [confidence, setConfidence] = useState<ConfidenceLevel>(2);
-  const [recordView, setRecordView] = useState(true);
+  const [forecastTouched, setForecastTouched] = useState(false);
+  const [recordView, setRecordView] = useState(
+    initialMode !== "practice",
+  );
   const [trades, setTrades] = useState(0),
     [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([]);
   const [feesPaid, setFeesPaid] = useState(0);
@@ -2009,7 +2017,10 @@ export default function GameClient({
     setOutlook("up");
     setThesis("trend");
     setConfidence(2);
-    setRecordView(false);
+    setForecastTouched(false);
+    setRecordView(
+      nextSession.mode === "daily" || nextSession.scenario !== "random",
+    );
     setTrades(restored.trades);
     setFeesPaid(restored.feesPaid);
     setSlippagePaid(restored.slippagePaid);
@@ -2556,6 +2567,7 @@ export default function GameClient({
       setLastFeedback(feedback);
       setFeedbackHistory((value) => [...value, feedback]);
     }
+    if (gameMode === "daily") setForecastTouched(false);
     if (onboardingStep === 2) setOnboardingStep(3);
     setIsRevealing(false);
     if (advanced.finished || nextEquity <= INITIAL_CASH * 0.2)
@@ -2747,12 +2759,13 @@ export default function GameClient({
     isRevealing ||
     finished ||
     dailyExpired ||
+    (gameMode === "daily" && !forecastTouched) ||
     remainingDays <= 0 ||
     estimatedQuantity <= 0 ||
     Boolean(quantityError);
   return (
     <Localized locale={locale}>
-    <main className="shell" data-market={market}>
+    <main className="shell" data-market={market} data-game-mode={gameMode}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">K</span>
@@ -3329,19 +3342,30 @@ export default function GameClient({
                   卖出
                 </button>
               </div>
-              <div className="order-type-row">
-                <span>市价委托</span>
-                <small>下一交易日开盘成交</small>
-              </div>
+              {gameMode !== "daily" && (
+                <div className="order-type-row">
+                  <span>市价委托</span>
+                  <small>下一交易日开盘成交</small>
+                </div>
+              )}
               <label className="field-label">
-                {mode === "buy" ? "使用可用现金" : "卖出当前持仓"}
+                {gameMode === "daily"
+                  ? locale === "en"
+                    ? "1 · Choose action & size"
+                    : "1 · 选择行动与仓位"
+                  : mode === "buy"
+                    ? "使用可用现金"
+                    : "卖出当前持仓"}
               </label>
               <div
                 className="allocation-grid"
                 role="group"
                 aria-label="选择委托仓位"
               >
-                {ORDER_ALLOCATIONS.map((value) => (
+                {(gameMode === "daily"
+                  ? DAILY_ORDER_ALLOCATIONS
+                  : ORDER_ALLOCATIONS
+                ).map((value) => (
                   <button
                     key={value}
                     className={
@@ -3367,68 +3391,79 @@ export default function GameClient({
                   </button>
                 ))}
               </div>
-              <label
-                className="field-label quantity-label"
-                htmlFor="order-quantity"
-              >
-                <span>或按股数委托</span>
-                <small>
-                  {market === "cn"
-                    ? "A股 100 股起，按整手交易"
-                    : "美股按整数股交易"}
-                </small>
-              </label>
-              <div
-                className={`quantity-field ${orderInputMode === "quantity" ? "active" : ""} ${quantityError ? "invalid" : ""}`}
-              >
-                <button
-                  type="button"
-                  className="quantity-step"
-                  aria-label={`减少 ${lotSize} 股`}
-                  disabled={
-                    isRevealing || !quantityInput || Number(quantityInput) <= 0
-                  }
-                  onClick={() => adjustQuantity(-1)}
-                >
-                  −
-                </button>
-                <input
-                  id="order-quantity"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  placeholder={
-                    market === "cn" ? "输入股数，如 500" : "输入股数，如 25"
-                  }
-                  value={quantityInput}
-                  onFocus={() => setOrderInputMode("quantity")}
-                  onChange={(event) => {
-                    setOrderInputMode("quantity");
-                    setQuantityInput(
-                      event.target.value.replace(/\D/g, "").slice(0, 7),
-                    );
-                  }}
-                />
-                <button
-                  type="button"
-                  className="quantity-step"
-                  aria-label={`增加 ${lotSize} 股`}
-                  disabled={
-                    isRevealing ||
-                    maxQuotedQuantity <= 0 ||
-                    Number(quantityInput || 0) >= maxQuotedQuantity
-                  }
-                  onClick={() => adjustQuantity(1)}
-                >
-                  ＋
-                </button>
-                <span>股</span>
-              </div>
+              {gameMode !== "daily" && (
+                <>
+                  <label
+                    className="field-label quantity-label"
+                    htmlFor="order-quantity"
+                  >
+                    <span>或按股数委托</span>
+                    <small>
+                      {market === "cn"
+                        ? "A股 100 股起，按整手交易"
+                        : "美股按整数股交易"}
+                    </small>
+                  </label>
+                  <div
+                    className={`quantity-field ${orderInputMode === "quantity" ? "active" : ""} ${quantityError ? "invalid" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      className="quantity-step"
+                      aria-label={`减少 ${lotSize} 股`}
+                      disabled={
+                        isRevealing ||
+                        !quantityInput ||
+                        Number(quantityInput) <= 0
+                      }
+                      onClick={() => adjustQuantity(-1)}
+                    >
+                      −
+                    </button>
+                    <input
+                      id="order-quantity"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      placeholder={
+                        market === "cn" ? "输入股数，如 500" : "输入股数，如 25"
+                      }
+                      value={quantityInput}
+                      onFocus={() => setOrderInputMode("quantity")}
+                      onChange={(event) => {
+                        setOrderInputMode("quantity");
+                        setQuantityInput(
+                          event.target.value.replace(/\D/g, "").slice(0, 7),
+                        );
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="quantity-step"
+                      aria-label={`增加 ${lotSize} 股`}
+                      disabled={
+                        isRevealing ||
+                        maxQuotedQuantity <= 0 ||
+                        Number(quantityInput || 0) >= maxQuotedQuantity
+                      }
+                      onClick={() => adjustQuantity(1)}
+                    >
+                      ＋
+                    </button>
+                    <span>股</span>
+                  </div>
+                </>
+              )}
               {quantityError ? (
                 <p className="order-error">{quantityError}</p>
               ) : (
                 <div className="order-estimate">
                   <span>
-                    预计委托 <b>{shareNf.format(estimatedQuantity)} 股</b>
+                    {gameMode === "daily"
+                      ? locale === "en"
+                        ? "Position"
+                        : "预计仓位"
+                      : "预计委托"}{" "}
+                    <b>{shareNf.format(estimatedQuantity)} 股</b>
                   </span>
                   <div>
                     <strong>
@@ -3437,57 +3472,83 @@ export default function GameClient({
                       {nf.format(Math.abs(estimatedQuote.cashDelta))}
                     </strong>
                     <small>
-                      {currencySymbol}
-                      {nf.format(estimatedQuote.referenceGross)} {" "}
-                      {mode === "buy" ? "+" : "−"} 滑点 {currencySymbol}
-                      {nf.format(estimatedQuote.slippageCost)} {" "}
-                      {mode === "buy" ? "+" : "−"} 费用 {currencySymbol}
-                      {nf.format(estimatedQuote.totalFees)}
+                      {gameMode === "daily" ? (
+                        locale === "en" ? (
+                          "Market costs included automatically"
+                        ) : (
+                          "已自动计入滑点与交易费用"
+                        )
+                      ) : (
+                        <>
+                          {currencySymbol}
+                          {nf.format(estimatedQuote.referenceGross)} {" "}
+                          {mode === "buy" ? "+" : "−"} 滑点 {currencySymbol}
+                          {nf.format(estimatedQuote.slippageCost)} {" "}
+                          {mode === "buy" ? "+" : "−"} 费用 {currencySymbol}
+                          {nf.format(estimatedQuote.totalFees)}
+                        </>
+                      )}
                     </small>
                   </div>
                 </div>
               )}
-              <details className="fee-preview">
-                <summary>真实成本模型 · 2026-04 监管口径</summary>
-                <div>
-                  {market === "cn" ? (
-                    <>
-                      <span>模拟佣金 0.025%，最低 ¥5</span>
-                      <span>过户费 0.001%，买卖双向</span>
-                      <span>印花税 0.05%，仅卖出</span>
-                      <span>模拟滑点 0.02%</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>模拟券商佣金 $0</span>
-                      <span>卖出监管费 $20.60 / 百万美元</span>
-                      <span>卖出 TAF $0.000195 / 股，上限 $9.79</span>
-                      <span>模拟滑点 0.015%</span>
-                    </>
-                  )}
-                </div>
-              </details>
-              <div className={`decision-journal probability-contract ${recordView ? "active" : ""} ${onboardingStep === 1 ? "coach-focus" : ""}`}>
+              {gameMode !== "daily" && (
+                <details className="fee-preview">
+                  <summary>真实成本模型 · 2026-04 监管口径</summary>
+                  <div>
+                    {market === "cn" ? (
+                      <>
+                        <span>模拟佣金 0.025%，最低 ¥5</span>
+                        <span>过户费 0.001%，买卖双向</span>
+                        <span>印花税 0.05%，仅卖出</span>
+                        <span>模拟滑点 0.02%</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>模拟券商佣金 $0</span>
+                        <span>卖出监管费 $20.60 / 百万美元</span>
+                        <span>卖出 TAF $0.000195 / 股，上限 $9.79</span>
+                        <span>模拟滑点 0.015%</span>
+                      </>
+                    )}
+                  </div>
+                </details>
+              )}
+              <div
+                className={`decision-journal probability-contract ${recordView || gameMode === "daily" ? "active" : ""} ${gameMode === "daily" ? "daily-quick-contract" : ""} ${onboardingStep === 1 ? "coach-focus" : ""}`}
+              >
                 <div className="optional-view-head">
                   <div>
-                    <span>决策契约 <em>推进前锁定</em></span>
+                    <span>
+                      {gameMode === "daily"
+                        ? locale === "en"
+                          ? "2 · Forecast the next move"
+                          : "2 · 判断接下来走势"
+                        : "决策契约"}{" "}
+                      <em>推进前锁定</em>
+                    </span>
                     <small>
-                      {formatProbabilityForecast(
-                        probabilityForecast(outlook, confidence),
-                        locale,
-                      )}
-                      {` · ${THESIS_LABEL[thesis]}`}
+                      {gameMode === "daily" && !forecastTouched
+                        ? locale === "en"
+                          ? "Required before every reveal"
+                          : "每次揭示前必须重新判断"
+                        : `${formatProbabilityForecast(
+                            probabilityForecast(outlook, confidence),
+                            locale,
+                          )} · ${THESIS_LABEL[thesis]}`}
                     </small>
                   </div>
-                  <button
-                    type="button"
-                    aria-expanded={recordView}
-                    onClick={() => setRecordView((value) => !value)}
-                  >
-                    {recordView ? "收起" : "编辑契约"}
-                  </button>
+                  {gameMode !== "daily" && (
+                    <button
+                      type="button"
+                      aria-expanded={recordView}
+                      onClick={() => setRecordView((value) => !value)}
+                    >
+                      {recordView ? "收起" : "编辑契约"}
+                    </button>
+                  )}
                 </div>
-                {recordView && (
+                {(recordView || gameMode === "daily") && (
                   <div className="optional-view-fields">
                     <div
                       className="outlook-grid"
@@ -3497,9 +3558,15 @@ export default function GameClient({
                       {(["up", "range", "down"] as const).map((value) => (
                         <button
                           key={value}
-                          className={outlook === value ? "selected" : ""}
+                          className={
+                            outlook === value &&
+                            (gameMode !== "daily" || forecastTouched)
+                              ? "selected"
+                              : ""
+                          }
                           onClick={() => {
                             setOutlook(value);
+                            setForecastTouched(true);
                             if (onboardingStep === 1) setOnboardingStep(2);
                           }}
                         >
@@ -3516,24 +3583,38 @@ export default function GameClient({
                         </button>
                       ))}
                     </div>
-                    <div className="journal-row">
-                      <label>
-                        依据
-                        <select
-                          value={thesis}
-                          onChange={(event) =>
-                            setThesis(event.target.value as DecisionThesis)
-                          }
-                        >
-                          <option value="trend">趋势延续</option>
-                          <option value="breakout">突破确认</option>
-                          <option value="reversal">反转预期</option>
-                          <option value="volume">量价信号</option>
-                          <option value="uncertain">没有把握</option>
-                        </select>
-                      </label>
+                    <div
+                      className={
+                        gameMode === "daily"
+                          ? "daily-confidence-row"
+                          : "journal-row"
+                      }
+                    >
+                      {gameMode !== "daily" && (
+                        <label>
+                          依据
+                          <select
+                            value={thesis}
+                            onChange={(event) =>
+                              setThesis(event.target.value as DecisionThesis)
+                            }
+                          >
+                            <option value="trend">趋势延续</option>
+                            <option value="breakout">突破确认</option>
+                            <option value="reversal">反转预期</option>
+                            <option value="volume">量价信号</option>
+                            <option value="uncertain">没有把握</option>
+                          </select>
+                        </label>
+                      )}
                       <div>
-                        <span>主判断概率</span>
+                        <span>
+                          {gameMode === "daily"
+                            ? locale === "en"
+                              ? "Confidence"
+                              : "判断信心"
+                            : "主判断概率"}
+                        </span>
                         <div className="confidence-grid">
                           {([1, 2, 3] as const).map((value) => (
                             <button
@@ -3548,28 +3629,47 @@ export default function GameClient({
                       </div>
                     </div>
                     <p>
-                      概率越激进，判断错误时校准损失越大；买入、卖出和观望都会留下同样的决策证据。
+                      {gameMode === "daily"
+                        ? locale === "en"
+                          ? "Your forecast locks before the real next three trading days are revealed."
+                          : "判断锁定后，才会揭示真实的后续三个交易日。"
+                        : "概率越激进，判断错误时校准损失越大；买入、卖出和观望都会留下同样的决策证据。"}
                     </p>
                   </div>
                 )}
               </div>
-              <div className="field-label holding-label">成交后推进多久</div>
-              <div
-                className="duration-grid"
-                role="group"
-                aria-label="选择持有交易日数"
-              >
-                {([1, 3, 5] as const).map((value) => (
-                  <button
-                    key={value}
-                    className={revealDays === value ? "selected" : ""}
-                    onClick={() => setRevealDays(value)}
-                    disabled={value > remainingDays}
+              {gameMode === "daily" ? (
+                <div className="daily-reveal-rule">
+                  <span>
+                    {locale === "en" ? "3 · ACT & REVEAL" : "3 · 行动并揭示"}
+                  </span>
+                  <b>
+                    {locale === "en"
+                      ? "Next 3 trading days"
+                      : "固定推进 3 个交易日"}
+                  </b>
+                </div>
+              ) : (
+                <>
+                  <div className="field-label holding-label">成交后推进多久</div>
+                  <div
+                    className="duration-grid"
+                    role="group"
+                    aria-label="选择持有交易日数"
                   >
-                    {value} 天
-                  </button>
-                ))}
-              </div>
+                    {([1, 3, 5] as const).map((value) => (
+                      <button
+                        key={value}
+                        className={revealDays === value ? "selected" : ""}
+                        onClick={() => setRevealDays(value)}
+                        disabled={value > remainingDays}
+                      >
+                        {value} 天
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
               <button
                 className={`primary-action ${mode} ${onboardingStep === 2 ? "coach-focus" : ""}`}
                 disabled={tradeDisabled}
@@ -3577,16 +3677,29 @@ export default function GameClient({
               >
                 {isRevealing
                   ? "行情逐日推进中…"
+                  : gameMode === "daily" && !forecastTouched
+                    ? locale === "en"
+                      ? "Choose your forecast first"
+                      : "请先判断接下来走势"
                   : `市价${mode === "buy" ? "买入" : "卖出"} ${shareNf.format(estimatedQuantity)} 股 · 推进 ${Math.min(revealDays, remainingDays)} 天`}{" "}
                 {!isRevealing && <span>→</span>}
               </button>
               <button
                 className={`hold-action ${onboardingStep === 2 ? "coach-focus" : ""}`}
-                disabled={isRevealing || remainingDays <= 0 || dailyExpired}
+                disabled={
+                  isRevealing ||
+                  remainingDays <= 0 ||
+                  dailyExpired ||
+                  (gameMode === "daily" && !forecastTouched)
+                }
                 onClick={() => advance("hold")}
               >
                 {isRevealing
                   ? "逐根加载真实行情"
+                  : gameMode === "daily" && !forecastTouched
+                    ? locale === "en"
+                      ? "Forecast required before hold"
+                      : "判断后才可观望"
                   : `${shares ? "保持仓位" : "保持空仓"} ${Math.min(revealDays, remainingDays)} 天`}
               </button>
               {gameMode === "daily" ? (

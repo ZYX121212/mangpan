@@ -228,6 +228,7 @@ const THESES: DecisionThesis[] = [
   "uncertain",
 ];
 const CONFIDENCE: ConfidenceLevel[] = [1, 2, 3];
+const DAILY_ALLOCATIONS = [0.25, 0.5, 1];
 
 function maskCandle(candle: Candle, index: number): Candle {
   return { ...candle, date: `T${String(index + 1).padStart(5, "0")}` };
@@ -609,12 +610,24 @@ export async function advanceSession(
   if (actions.length >= MAX_ACTIONS) throw new Error("决策次数超出上限");
   const action = cleanAction(value);
   if (!action) throw new Error("交易指令无效，请检查委托内容");
+  if (session.mode === "daily") {
+    if (!action.outlook || !action.thesis || !action.confidence)
+      throw new Error("每日挑战须先锁定方向与信心");
+    if (
+      action.kind !== "hold" &&
+      (action.quantity !== undefined ||
+        action.allocation === undefined ||
+        !DAILY_ALLOCATIONS.includes(action.allocation))
+    )
+      throw new Error("每日挑战仅支持 25%、50% 或 100% 仓位");
+  }
   const remaining = Math.max(
     0,
     bundle.stock.candles.length - session.visibleCount,
   );
   if (!remaining) throw new Error("已经到达该段历史终点");
-  const holdingDays = Math.min(action.days || 3, remaining) as
+  const requestedDays = session.mode === "daily" ? 3 : action.days || 3;
+  const holdingDays = Math.min(requestedDays, remaining) as
     1 | 2 | 3 | 4 | 5;
   const savedAction = { ...action, days: holdingDays };
   const nextActions = [...actions, savedAction];

@@ -59,7 +59,17 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /MARKET_COLORS\[market\]/);
   assert.match(page, /color = up \? upColor : downColor/);
   assert.match(page, /color = buy \? buyColor : sellColor/);
-  assert.match(page, /<main className="shell" data-market=\{market\}>/);
+  assert.match(
+    page,
+    /<main className="shell" data-market=\{market\} data-game-mode=\{gameMode\}>/,
+  );
+  assert.match(page, /DAILY_ORDER_ALLOCATIONS = \[\s*0\.25,\s*0\.5,\s*1,/);
+  assert.match(page, /gameMode !== "daily" && \(/);
+  assert.match(page, /daily-quick-contract/);
+  assert.match(page, /forecastTouched/);
+  assert.match(page, /Required before every reveal/);
+  assert.match(page, /Choose your forecast first/);
+  assert.match(page, /Next 3 trading days/);
   assert.match(page, /market-color-key/);
   assert.match(page, /market colors: up and buy are/);
   assert.match(page, /market-up-swatch/);
@@ -381,6 +391,29 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   assert.match(styles, /\.duel-route-state/);
 });
 
+test("streams an immediate, mode-specific loading state", async () => {
+  const [component, daily, practice, training, duel, styles] =
+    await Promise.all([
+      readFile(new URL("../app/game-loading.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/daily/loading.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/practice/loading.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/training/loading.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/d/[code]/loading.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    ]);
+  assert.match(component, /Loading today’s shared mystery/);
+  assert.match(component, /Drawing a random real chart/);
+  assert.match(component, /Preparing your lesson picker/);
+  assert.match(component, /Verifying the same-chart challenge/);
+  assert.match(daily, /mode="daily"/);
+  assert.match(practice, /mode="practice"/);
+  assert.match(training, /mode="training"/);
+  assert.match(duel, /mode="duel"/);
+  assert.match(styles, /@view-transition\{navigation:auto\}/);
+  assert.match(styles, /prefers-reduced-motion:reduce/);
+  assert.match(styles, /\.game-loading-shell/);
+});
+
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
   const [
     page,
@@ -552,6 +585,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(sessions, /isProbabilityForecast/);
   assert.match(sessions, /probabilities \? \{ probabilities \} : \{\}/);
   assert.match(sessions, /交易指令无效，请检查委托内容/);
+  assert.match(sessions, /每日挑战须先锁定方向与信心/);
+  assert.match(sessions, /DAILY_ALLOCATIONS = \[0\.25, 0\.5, 1\]/);
+  assert.match(sessions, /session\.mode === "daily" \? 3 : action\.days \|\| 3/);
+  assert.match(config, /GAME_VERSION = "focused-daily-v18"/);
   assert.doesNotMatch(sessions, /请完整记录方向、依据和信心/);
   assert.match(schema, /game_sessions/);
   assert.match(schema, /trainingResults/);
@@ -593,7 +630,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
   assert.match(config, /identifies puzzle generation and scoring compatibility/);
-  assert.match(config, /duel-landing-v17/);
+  assert.match(config, /focused-daily-v18/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
