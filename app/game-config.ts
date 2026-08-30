@@ -1,5 +1,5 @@
 export const INITIAL_CASH = 1_000_000;
-export const GAME_VERSION = "mode-hub-v12";
+export const GAME_VERSION = "daily-comeback-v13";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;

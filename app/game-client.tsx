@@ -35,6 +35,25 @@ import { Localized, type Locale } from "./i18n";
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
 
+function nextDailyCountdown(now = new Date()) {
+  const chinaNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const nextMidnight = Date.UTC(
+    chinaNow.getUTCFullYear(),
+    chinaNow.getUTCMonth(),
+    chinaNow.getUTCDate() + 1,
+  );
+  const remaining = Math.max(
+    0,
+    Math.floor((nextMidnight - chinaNow.getTime()) / 1000),
+  );
+  const hours = Math.floor(remaining / 3600);
+  const minutes = Math.floor((remaining % 3600) / 60);
+  const seconds = remaining % 60;
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+}
+
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
 type GameMode = "daily" | "practice";
@@ -1355,6 +1374,9 @@ export default function GameClient({
     "idle" | "loading" | "done" | "error"
   >("idle");
   const [challengeLoading, setChallengeLoading] = useState(false);
+  const [dailyCountdown, setDailyCountdown] = useState(() =>
+    nextDailyCountdown(),
+  );
   const submissionRef = useRef(false);
   const resumeAttemptRef = useRef(new Set<MarketKind>());
   const initialUrlHandledRef = useRef(false);
@@ -1370,6 +1392,12 @@ export default function GameClient({
       ? "盲盘｜真实历史 K 线交易挑战"
       : "Blind Trading | Real Historical Market Challenge";
     return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    const update = () => setDailyCountdown(nextDailyCountdown());
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
   }, []);
   const changeLocale = (next: Locale) => {
     setLocale(next);
@@ -1418,6 +1446,8 @@ export default function GameClient({
   const activeDuel = Boolean(
     duelCode && scoreboard?.duelCode?.toUpperCase() === duelCode,
   );
+  const currentStreak = scoreboard?.stats?.streak ?? 0;
+  const completedDailyChallenges = scoreboard?.stats?.completedDays ?? 0;
   const dailyDecisionTarget =
     session.maxDecisions ?? DAILY_CHALLENGE_DECISIONS;
   const dailyDecisionsRemaining = Math.max(
@@ -3204,11 +3234,22 @@ export default function GameClient({
                     ? "Five decisions on the same mystery chart as everyone else. Lock first, then see the global crowd."
                     : "所有玩家面对同一张神秘图，完成五次决策；先锁定观点，再看全球共识。"}
                 </p>
-                <strong>
-                  {locale === "en"
-                    ? "~90 sec · streak · leaderboard"
-                    : "约 90 秒 · 连胜 · 排行榜"}
-                </strong>
+                <div className="mode-daily-status">
+                  <span>
+                    <small>{locale === "en" ? "YOUR STREAK" : "连续挑战"}</small>
+                    <b>
+                      {currentStreak
+                        ? `🔥 ${currentStreak} ${locale === "en" ? (currentStreak === 1 ? "day" : "days") : "天"}`
+                        : locale === "en"
+                          ? "Start today"
+                          : "今天开始"}
+                    </b>
+                  </span>
+                  <span>
+                    <small>{locale === "en" ? "NEXT CHART" : "下一题"}</small>
+                    <b>{dailyCountdown}</b>
+                  </span>
+                </div>
                 <i>{locale === "en" ? "Play today's chart →" : "开始今日同题 →"}</i>
               </button>
               <button
@@ -4438,6 +4479,45 @@ export default function GameClient({
                   : `${SCENARIO_CONFIG[weakestSkill.scenario].title} · 标准 →`}
               </i>
             </button>
+            {gameMode === "daily" && (
+              <section className="daily-return-loop">
+                <div className="daily-return-copy">
+                  <small>{locale === "en" ? "NEXT DAILY MYSTERY" : "下一张每日神秘图"}</small>
+                  <b>{dailyCountdown}</b>
+                  <p>
+                    {locale === "en"
+                      ? completedDailyChallenges <= 1
+                        ? "Day one is locked. Come back for a new real chart and start building your read."
+                        : `You have completed ${completedDailyChallenges} daily challenges. Keep the evidence growing tomorrow.`
+                      : completedDailyChallenges <= 1
+                        ? "首日记录已锁定。明天回来挑战新的真实行情，建立你的判断样本。"
+                        : `已完成 ${completedDailyChallenges} 次每日挑战，明天继续积累判断证据。`}
+                  </p>
+                </div>
+                <div className="streak-week" aria-label={
+                  locale === "en"
+                    ? `${currentStreak}-day streak, seven-day target`
+                    : `当前连续 ${currentStreak} 天，目标七天`
+                }>
+                  <header>
+                    <span>{locale === "en" ? "7-DAY TARGET" : "七日目标"}</span>
+                    <b>🔥 {currentStreak}</b>
+                  </header>
+                  <div aria-hidden="true">
+                    {Array.from({ length: 7 }, (_, index) => (
+                      <i
+                        key={index}
+                        className={
+                          index >= 7 - Math.min(7, currentStreak)
+                            ? "complete"
+                            : ""
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
             <div className="date-reveal">
               本局走到：{stock.candles[initialVisibleCount - 1].date} —{" "}
               {stock.candles[visibleCount - 1].date} · 完整数据：

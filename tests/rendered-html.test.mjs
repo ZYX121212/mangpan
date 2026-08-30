@@ -57,6 +57,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /chooseMode\("daily"\)/);
   assert.match(page, /chooseMode\("practice"\)/);
   assert.match(page, /chooseMode\("training"\)/);
+  assert.match(page, /nextDailyCountdown/);
+  assert.match(page, /NEXT DAILY MYSTERY/);
+  assert.match(page, /7-DAY TARGET/);
+  assert.match(page, /daily-return-loop/);
+  assert.match(page, /mode-daily-status/);
   assert.match(page, /createResultShareCard/);
   assert.match(page, /navigator\.canShare/);
   assert.match(page, /duel-comparison/);
@@ -252,7 +257,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /mode-hub-v12/);
+  assert.match(config, /daily-comeback-v13/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
