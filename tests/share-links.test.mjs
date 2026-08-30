@@ -22,10 +22,18 @@ test("accepts only known attribution sources and safely defaults to direct", () 
   assert.equal(normalizeShareSource("whatsapp"), "whatsapp");
   assert.equal(normalizeShareSource("reddit"), "reddit");
   assert.equal(normalizeShareSource("bluesky"), "bluesky");
+  assert.equal(normalizeShareSource("qr"), "qr");
   assert.equal(normalizeShareSource("WHATSAPP"), "direct");
   assert.equal(normalizeShareSource("<script>"), "direct");
   assert.equal(normalizeShareSource(["x"]), "direct");
   assert.equal(shareSourceLabel("native"), "System share");
+  assert.equal(shareSourceLabel("qr"), "Share-card QR");
+});
+
+test("tags image QR scans separately from visible share actions", () => {
+  const tagged = new URL(taggedChallengeUrl(challenge, "qr"));
+  assert.equal(tagged.pathname, "/d/ABC12345");
+  assert.equal(tagged.searchParams.get("via"), "qr");
 });
 
 test("surfaces comparison proof only when it is worth sharing", () => {

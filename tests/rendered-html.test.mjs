@@ -158,6 +158,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /crowd-replay-note/);
   assert.match(page, /Crowd edge/);
   assert.match(page, /createResultShareCard/);
+  assert.match(page, /await import\("qrcode"\)/);
+  assert.match(page, /taggedChallengeUrl\(challengeUrl, "qr"\)/);
+  assert.match(page, /context\.drawImage\(qrCanvas/);
+  assert.match(page, /challengeUrl = await prepareDuelShareUrl\(\)/);
+  assert.match(page, /scan-to-challenge QR/);
   assert.match(page, /decisionStyleFor/);
   assert.match(page, /TODAY'S DECISION STYLE/);
   assert.match(page, /decisionStyle\.nextGoal/);
@@ -990,6 +995,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(database, /ALTER TABLE duel_responses ADD COLUMN return_rate/);
   assert.match(database, /PRAGMA optimize/);
   assert.match(duelEventRoute, /EVENT_TYPES/);
+  assert.match(duelEventRoute, /"qr"/);
   assert.match(duelEventRoute, /requestPlayerId/);
   assert.match(duelEventRoute, /\.onConflictDoNothing\(\{/);
   assert.match(duelEventRoute, /duelEvents\.eventType/);

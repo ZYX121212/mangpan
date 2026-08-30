@@ -627,7 +627,24 @@ async function createResultShareCard({
       // Keep the public game address when a custom challenge URL is malformed.
     }
   }
-  context.fillText(challengeLabel, 102, 1230);
+  context.fillText(challengeLabel, 102, 1230, challengeUrl ? 770 : 860);
+  if (challengeUrl) {
+    try {
+      const qrCanvas = document.createElement("canvas");
+      const { toCanvas } = await import("qrcode");
+      await toCanvas(qrCanvas, taggedChallengeUrl(challengeUrl, "qr"), {
+        width: 82,
+        margin: 1,
+        errorCorrectionLevel: "M",
+        color: { dark: "#252721", light: "#ffffff" },
+      });
+      context.fillStyle = "#ffffff";
+      context.fillRect(906, 1162, 86, 86);
+      context.drawImage(qrCanvas, 908, 1164, 82, 82);
+    } catch {
+      // Keep the human-readable challenge URL when QR generation is unavailable.
+    }
+  }
   context.fillStyle = "#8b8c84";
   context.font = "700 16px Arial, sans-serif";
   context.fillText(
@@ -3091,7 +3108,7 @@ export default function GameClient({
     }
   };
 
-  const resultCardImage = () =>
+  const resultCardImage = (challengeUrl = duelShareUrl) =>
     createResultShareCard({
       locale,
       date: today,
@@ -3101,7 +3118,7 @@ export default function GameClient({
       risk: Math.round(processScores.risk),
       percentile: scoreboard?.playerScore?.percentile,
       marks: resultShareMarks,
-      challengeUrl: duelShareUrl || undefined,
+      challengeUrl: challengeUrl || undefined,
       decisionStyle,
       variant: resultCardVariant,
     });
@@ -3120,7 +3137,15 @@ export default function GameClient({
   const saveResultCard = async () => {
     setCardStatus(locale === "en" ? "Preparing image…" : "正在生成图片…");
     try {
-      const image = await resultCardImage();
+      let challengeUrl = duelShareUrl;
+      if (!challengeUrl) {
+        try {
+          challengeUrl = await prepareDuelShareUrl();
+        } catch {
+          // The card remains saveable with the public game address as fallback.
+        }
+      }
+      const image = await resultCardImage(challengeUrl);
       if (!image) throw new Error("image unavailable");
       downloadResultCard(image);
       setCardStatus(locale === "en" ? "Image saved" : "图片已保存");
@@ -6130,8 +6155,8 @@ export default function GameClient({
                   </span>
                   <p>
                     {locale === "en"
-                      ? "Shows your decision style, score, and calibration—not the ticker or the answer."
-                      : "展示决策风格、得分与校准，不泄露股票名或答案。"}
+                      ? "Shows your style, score, and a scan-to-challenge QR—not the ticker or the answer."
+                      : "展示风格、得分和可扫码挑战的二维码，不泄露股票名或答案。"}
                   </p>
                   <div
                     className="result-card-picker"

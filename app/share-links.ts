@@ -5,6 +5,7 @@ export type ShareChannel =
   | "telegram"
   | "reddit"
   | "bluesky"
+  | "qr"
   | "copy";
 
 export type ShareSource = ShareChannel | "direct";
@@ -16,11 +17,12 @@ const SHARE_SOURCES = new Set<ShareSource>([
   "telegram",
   "reddit",
   "bluesky",
+  "qr",
   "copy",
   "direct",
 ]);
 
-type DirectShareChannel = Exclude<ShareChannel, "native" | "copy">;
+type DirectShareChannel = Exclude<ShareChannel, "native" | "copy" | "qr">;
 
 export function normalizeShareSource(value: unknown): ShareSource {
   return typeof value === "string" && SHARE_SOURCES.has(value as ShareSource)
@@ -38,6 +40,7 @@ export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en"
           telegram: "Telegram",
           reddit: "Reddit",
           bluesky: "Bluesky",
+          qr: "分享图二维码",
           copy: "复制链接",
           direct: "直接访问",
         } as const)
@@ -48,6 +51,7 @@ export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en"
       telegram: "Telegram",
       reddit: "Reddit",
       bluesky: "Bluesky",
+      qr: "Share-card QR",
       copy: "Copied link",
       direct: "Direct",
         } as const);
