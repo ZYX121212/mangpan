@@ -1,5 +1,6 @@
 export type ActivationEventType =
   | "lobby_view"
+  | "lobby_daily_cta"
   | "guide_start"
   | "guide_forecast"
   | "guide_reveal"

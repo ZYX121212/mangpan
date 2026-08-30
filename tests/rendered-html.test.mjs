@@ -664,6 +664,13 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /trackActivationEvent\(id, "lobby_view", "lobby"\)/);
   assert.match(modeLobby, /"guide_start", "lobby"/);
   assert.match(modeLobby, /mode-lobby-grid/);
+  assert.match(modeLobby, /returning-daily-card/);
+  assert.match(modeLobby, /marketDate\(market\)/);
+  assert.match(modeLobby, /fetch\(`\/api\/scores\?\$\{query\}`/);
+  assert.match(modeLobby, /"lobby_daily_cta"/);
+  assert.match(modeLobby, /Continue today’s chart/);
+  assert.match(modeLobby, /Keep sharp in practice/);
+  assert.match(modeLobby, /dailyState\.phase === "complete"[\s\S]*`\/practice\?market=\$\{market\}`/);
   assert.doesNotMatch(page, /guided-start-card|mode-hub-backdrop/);
   assert.match(gameModePage, /marketDate\(market\)/);
   assert.match(gameModePage, /startDailySession/);
@@ -842,6 +849,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.probability-contract\{flex:0 0 auto\}/);
   assert.doesNotMatch(styles, /\.guided-start-card|\.mode-hub|\.mode-card-grid/);
   assert.match(styles, /\.first-play-actions/);
+  assert.match(styles, /\.returning-daily-card/);
   assert.match(styles, /\.first-run-coach/);
   assert.match(styles, /\.decision-reveal-card/);
   assert.match(styles, /@keyframes decision-result-in/);
@@ -986,6 +994,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelEventRoute, /\.onConflictDoNothing\(\{/);
   assert.match(duelEventRoute, /duelEvents\.eventType/);
   assert.match(activationRoute, /EVENT_TYPES/);
+  assert.match(activationRoute, /lobby_daily_cta/);
   assert.match(activationRoute, /daily_second_move/);
   assert.match(activationRoute, /practice_second_move/);
   assert.match(activationRoute, /daily_style_card_share/);
@@ -995,6 +1004,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(activationRoute, /requestPlayerId/);
   assert.match(activationRoute, /\.onConflictDoNothing\(\{/);
   assert.match(activationClient, /fetch\("\/api\/activation-events"/);
+  assert.match(activationClient, /lobby_daily_cta/);
   assert.match(activationClient, /keepalive: true/);
   assert.match(activationClient, /daily_style_card_share/);
   assert.match(activationClient, /daily_score_card_share/);

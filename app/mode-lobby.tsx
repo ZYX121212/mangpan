@@ -4,9 +4,19 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { trackActivationEvent } from "./activation-events";
 import type { Locale } from "./i18n";
-import type { MarketKind } from "./game-config";
+import {
+  marketCountdown,
+  marketDate,
+  type MarketKind,
+} from "./game-config";
 
 const ONBOARDING_STORAGE_KEY = "mangpan-guided-first-chart-v1";
+
+type DailyLobbyState = {
+  phase: "loading" | "ready" | "active" | "complete";
+  score: number | null;
+  streak: number;
+};
 
 function ensureLocalPlayerId() {
   const existing = localStorage.getItem("mangpan-player-id");
@@ -89,6 +99,14 @@ export default function ModeLobby() {
   const [market, setMarket] = useState<MarketKind>("us");
   const [playerId, setPlayerId] = useState("");
   const [isNewPlayer, setIsNewPlayer] = useState(true);
+  const [dailyState, setDailyState] = useState<DailyLobbyState>({
+    phase: "loading",
+    score: null,
+    streak: 0,
+  });
+  const [dailyCountdown, setDailyCountdown] = useState(() =>
+    marketCountdown("us"),
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -111,6 +129,67 @@ export default function ModeLobby() {
     return () => window.clearTimeout(timer);
   }, []);
 
+  useEffect(() => {
+    const update = () => setDailyCountdown(marketCountdown(market));
+    update();
+    const timer = window.setInterval(update, 1000);
+    return () => window.clearInterval(timer);
+  }, [market]);
+
+  useEffect(() => {
+    if (!playerId) return;
+    const controller = new AbortController();
+    let cancelled = false;
+    const hasActiveSession = Boolean(
+      localStorage.getItem(`mangpan-active-session-${market}`),
+    );
+    queueMicrotask(() => {
+      if (!cancelled)
+        setDailyState({
+          phase: hasActiveSession ? "active" : "loading",
+          score: null,
+          streak: 0,
+        });
+    });
+    const query = new URLSearchParams({
+      date: marketDate(market),
+      market,
+      playerId,
+    });
+    fetch(`/api/scores?${query}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("daily status unavailable");
+        return (await response.json()) as {
+          playerScore?: { score: number } | null;
+          stats?: { streak?: number } | null;
+        };
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        setDailyState({
+          phase: payload.playerScore
+            ? "complete"
+            : hasActiveSession
+              ? "active"
+              : "ready",
+          score: payload.playerScore?.score ?? null,
+          streak: payload.stats?.streak ?? 0,
+        });
+      })
+      .catch((error) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setDailyState({
+          phase: hasActiveSession ? "active" : "ready",
+          score: null,
+          streak: 0,
+        });
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [market, playerId]);
+
   const chooseLocale = (next: Locale) => {
     setLocale(next);
     localStorage.setItem("mangpan-locale", next);
@@ -123,6 +202,18 @@ export default function ModeLobby() {
   const startFirstChart = () => {
     trackActivationEvent(playerId || ensureLocalPlayerId(), "guide_start", "lobby");
   };
+  const openDailyReturn = () => {
+    trackActivationEvent(
+      playerId || ensureLocalPlayerId(),
+      "lobby_daily_cta",
+      "lobby",
+    );
+  };
+
+  const dailyReturnHref =
+    dailyState.phase === "complete"
+      ? `/practice?market=${market}`
+      : `/daily?market=${market}`;
 
   return (
     <main className="mode-lobby-page">
@@ -201,6 +292,84 @@ export default function ModeLobby() {
               {locale === "en" ? "I know the game · browse modes" : "我已经会玩 · 浏览模式"}
             </button>
           </div>
+        )}
+        {!isNewPlayer && (
+          <section className={`returning-daily-card ${dailyState.phase}`}>
+            <div>
+              <small>
+                {dailyState.phase === "complete"
+                  ? locale === "en"
+                    ? "TODAY COMPLETE"
+                    : "今日挑战已完成"
+                  : dailyState.phase === "active"
+                    ? locale === "en"
+                      ? "RUN IN PROGRESS"
+                      : "今日对局进行中"
+                    : locale === "en"
+                      ? "TODAY’S SHARED PUZZLE"
+                      : "今日全球同题"}
+              </small>
+              <b>
+                {dailyState.phase === "complete"
+                  ? locale === "en"
+                    ? `Score ${dailyState.score ?? "—"} is locked.`
+                    : `今日 ${dailyState.score ?? "—"} 分已锁定。`
+                  : dailyState.phase === "active"
+                    ? locale === "en"
+                      ? "Your hidden chart is waiting."
+                      : "你的隐藏行情仍在等待完成。"
+                    : dailyState.streak
+                      ? locale === "en"
+                        ? `Protect your ${dailyState.streak}-day streak.`
+                        : `守住你的 ${dailyState.streak} 天连续纪录。`
+                      : locale === "en"
+                        ? "Make today’s market call."
+                        : "完成今天的市场判断。"}
+              </b>
+              <span>
+                {dailyState.phase === "complete"
+                  ? locale === "en"
+                    ? "Your streak is safe. Keep your read sharp without changing today’s ranked result."
+                    : "连续纪录已经安全；可以继续练习，不会改变今日排名成绩。"
+                  : dailyState.phase === "active"
+                    ? locale === "en"
+                      ? "Your progress is saved on this device. Continue exactly where you stopped."
+                      : "当前进度已保存在这台设备上，可以从上次的位置继续。"
+                    : locale === "en"
+                      ? "Five decisions on the same mystery chart as everyone else. About 90 seconds."
+                      : "与全球玩家面对同一张神秘图，完成五次决策，约 90 秒。"}
+              </span>
+            </div>
+            <aside>
+              <small>
+                {dailyState.phase === "complete"
+                  ? locale === "en"
+                    ? "NEXT PUZZLE"
+                    : "距离下一题"
+                  : locale === "en"
+                    ? "CURRENT STREAK"
+                    : "当前连续"}
+              </small>
+              <strong>
+                {dailyState.phase === "complete"
+                  ? dailyCountdown
+                  : `🔥 ${dailyState.streak}`}
+              </strong>
+            </aside>
+            <Link href={dailyReturnHref} onClick={openDailyReturn}>
+              {dailyState.phase === "complete"
+                ? locale === "en"
+                  ? "Keep sharp in practice →"
+                  : "进入自由练习 →"
+                : dailyState.phase === "active"
+                  ? locale === "en"
+                    ? "Continue today’s chart →"
+                    : "继续今日对局 →"
+                  : locale === "en"
+                    ? "Play today’s chart →"
+                    : "开始今日挑战 →"}
+            </Link>
+          </section>
         )}
       </section>
 
