@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./order-estimate.css";
@@ -48,10 +48,29 @@ export const metadata: Metadata = {
       "One hidden historical chart. Five decisions. Challenge a friend on the exact same market.",
     images: ["/og.png"],
   },
+  manifest: "/manifest.webmanifest",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: [
+      {
+        url: "/icons/favicon-32.png",
+        sizes: "32x32",
+        type: "image/png",
+      },
+    ],
+    shortcut: "/icons/favicon-32.png",
+    apple: [
+      {
+        url: "/icons/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
   },
+};
+
+export const viewport: Viewport = {
+  colorScheme: "light",
+  themeColor: "#252721",
 };
 
 export default function RootLayout({

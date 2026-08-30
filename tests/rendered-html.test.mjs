@@ -45,6 +45,10 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(layout, /Blind Trading \| Can You Read the Market Better\?/);
   assert.match(layout, /Challenge friends on the exact same market/);
   assert.match(layout, /images: \["\/og\.png"\]/);
+  assert.match(layout, /manifest: "\/manifest\.webmanifest"/);
+  assert.match(layout, /\/icons\/favicon-32\.png/);
+  assert.match(layout, /\/icons\/apple-touch-icon\.png/);
+  assert.match(layout, /themeColor: "#252721"/);
   assert.match(layout, /<html lang="en">/);
   assert.match(page, /今日盲盘/);
   assert.match(page, /竞技榜/);
@@ -111,6 +115,12 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /NEXT DAILY MYSTERY/);
   assert.match(page, /7-DAY TARGET/);
   assert.match(page, /daily-return-loop/);
+  assert.match(page, /beforeinstallprompt/);
+  assert.match(page, /appinstalled/);
+  assert.match(page, /installGame/);
+  assert.match(page, /install-return-card/);
+  assert.match(page, /KEEP YOUR STREAK CLOSE/);
+  assert.match(page, /Add to home screen/);
   assert.match(page, /mode-daily-status/);
   assert.match(page, /YOU VS THE CROWD/);
   assert.match(page, /crowd-result-card/);
@@ -186,6 +196,43 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(i18n, /Decision Contract/);
   assert.doesNotMatch(page, /最多推进 60/);
   assert.doesNotMatch(page, /Building your site|Your site is taking shape/);
+});
+
+test("ships an installable, branded web app manifest", async () => {
+  const [manifest, styles, icon192, icon512, appleIcon, favicon] =
+    await Promise.all([
+      readFile(new URL("../app/manifest.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+      readFile(new URL("../public/icons/icon-192.png", import.meta.url)),
+      readFile(new URL("../public/icons/icon-512.png", import.meta.url)),
+      readFile(
+        new URL("../public/icons/apple-touch-icon.png", import.meta.url),
+      ),
+      readFile(new URL("../public/icons/favicon-32.png", import.meta.url)),
+    ]);
+
+  assert.match(manifest, /name: "Blind Trading — Daily Market Challenge"/);
+  assert.match(manifest, /short_name: "Blind Trade"/);
+  assert.match(manifest, /start_url: "\/"/);
+  assert.match(manifest, /display: "standalone"/);
+  assert.match(manifest, /background_color: "#f7f5f0"/);
+  assert.match(manifest, /theme_color: "#252721"/);
+  assert.match(manifest, /\/icons\/icon-192\.png/);
+  assert.match(manifest, /\/icons\/icon-512\.png/);
+  assert.match(manifest, /purpose: "any maskable"/);
+  assert.match(styles, /\.install-return-card/);
+  assert.match(styles, /\.install-app-mark/);
+
+  for (const [icon, size] of [
+    [icon192, 192],
+    [icon512, 512],
+    [appleIcon, 180],
+    [favicon, 32],
+  ]) {
+    assert.equal(icon.subarray(1, 4).toString(), "PNG");
+    assert.equal(icon.readUInt32BE(16), size);
+    assert.equal(icon.readUInt32BE(20), size);
+  }
 });
 
 test("keeps the English launch surface free of uncovered static Chinese copy", async () => {

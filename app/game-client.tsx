@@ -57,6 +57,13 @@ function nextDailyCountdown(now = new Date()) {
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
 type GameMode = "daily" | "practice";
+type InstallPromptEvent = Event & {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{
+    outcome: "accepted" | "dismissed";
+    platform: string;
+  }>;
+};
 type ScenarioKind = "random" | "trend" | "reversal" | "crash" | "volatile";
 type ScenarioDifficulty = "starter" | "standard" | "expert";
 const SCENARIO_CONFIG = {
@@ -1392,6 +1399,9 @@ export default function GameClient({
     [shareStatus, setShareStatus] = useState("");
   const [cardStatus, setCardStatus] = useState("");
   const [duelRoomShareStatus, setDuelRoomShareStatus] = useState("");
+  const [installPrompt, setInstallPrompt] =
+    useState<InstallPromptEvent | null>(null);
+  const [installStatus, setInstallStatus] = useState("");
   const [actions, setActions] = useState<ReplayAction[]>([]),
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
@@ -1424,6 +1434,19 @@ export default function GameClient({
       ? "盲盘｜真实历史 K 线交易挑战"
       : "Blind Trading | Real Historical Market Challenge";
     return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    const captureInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as InstallPromptEvent);
+    };
+    const clearInstallPrompt = () => setInstallPrompt(null);
+    window.addEventListener("beforeinstallprompt", captureInstallPrompt);
+    window.addEventListener("appinstalled", clearInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", captureInstallPrompt);
+      window.removeEventListener("appinstalled", clearInstallPrompt);
+    };
   }, []);
   useEffect(() => {
     const update = () => setDailyCountdown(nextDailyCountdown());
@@ -2585,6 +2608,22 @@ export default function GameClient({
             ? "Could not share. Try again."
             : "生成失败，请稍后重试",
       );
+    }
+  };
+
+  const installGame = async () => {
+    if (!installPrompt) return;
+    setInstallStatus(
+      locale === "en" ? "Opening install…" : "正在打开安装…",
+    );
+    try {
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+    } catch {
+      // Some browsers can withdraw an install prompt after it was captured.
+    } finally {
+      setInstallPrompt(null);
+      setInstallStatus("");
     }
   };
 
@@ -5149,6 +5188,40 @@ export default function GameClient({
                 </div>
               </section>
             )}
+            {gameMode === "daily" &&
+              scoreStatus === "done" &&
+              installPrompt && (
+                <section className="install-return-card">
+                  <span className="install-app-mark" aria-hidden="true">
+                    K
+                  </span>
+                  <div>
+                    <small>
+                      {locale === "en"
+                        ? "KEEP YOUR STREAK CLOSE"
+                        : "把连续挑战放在手边"}
+                    </small>
+                    <b>
+                      {locale === "en"
+                        ? "Install Blind Trading"
+                        : "安装盲盘挑战"}
+                    </b>
+                    <p>
+                      {locale === "en"
+                        ? "Open tomorrow’s mystery from your home screen—no app store, no extra account."
+                        : "明天从主屏幕直接打开新谜题，无需应用商店，也无需额外账号。"}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={installStatus.includes("…")}
+                    onClick={() => void installGame()}
+                  >
+                    {installStatus ||
+                      (locale === "en" ? "Add to home screen" : "添加到主屏幕")}
+                  </button>
+                </section>
+              )}
             <div className="date-reveal">
               本局走到：{stock.candles[initialVisibleCount - 1].date} —{" "}
               {stock.candles[visibleCount - 1].date} · 完整数据：
