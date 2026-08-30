@@ -1,5 +1,5 @@
 export const INITIAL_CASH = 1_000_000;
-export const GAME_VERSION = "realistic-execution-v8";
+export const GAME_VERSION = "probability-contract-v9";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;
@@ -12,6 +12,7 @@ export type MarketOutlook = "up" | "range" | "down";
 export type DecisionThesis =
   "trend" | "breakout" | "reversal" | "volume" | "uncertain";
 export type ConfidenceLevel = 1 | 2 | 3;
+export type ProbabilityForecast = Record<MarketOutlook, number>;
 
 export type ReplayAction = {
   kind: "buy" | "sell" | "hold";
@@ -21,7 +22,63 @@ export type ReplayAction = {
   outlook?: MarketOutlook;
   thesis?: DecisionThesis;
   confidence?: ConfidenceLevel;
+  probabilities?: ProbabilityForecast;
 };
+
+const FORECAST_OUTCOMES = ["up", "range", "down"] as const;
+
+export function probabilityForecast(
+  outlook: MarketOutlook,
+  confidence: ConfidenceLevel,
+): ProbabilityForecast {
+  const dominant = confidence === 3 ? 80 : confidence === 2 ? 65 : 50;
+  const remainder = (100 - dominant) / 2;
+  return {
+    up: outlook === "up" ? dominant : remainder,
+    range: outlook === "range" ? dominant : remainder,
+    down: outlook === "down" ? dominant : remainder,
+  };
+}
+
+export function isProbabilityForecast(
+  value: unknown,
+): value is ProbabilityForecast {
+  if (!value || typeof value !== "object") return false;
+  const forecast = value as Partial<ProbabilityForecast>;
+  const values = FORECAST_OUTCOMES.map((outcome) => forecast[outcome]);
+  return (
+    values.every(
+      (probability) =>
+        typeof probability === "number" &&
+        Number.isFinite(probability) &&
+        probability >= 0 &&
+        probability <= 100,
+    ) &&
+    Math.abs(values.reduce((sum, probability) => sum + probability!, 0) - 100) <
+      0.001
+  );
+}
+
+export function forecastForAction(
+  action: Pick<ReplayAction, "outlook" | "confidence" | "probabilities">,
+) {
+  if (isProbabilityForecast(action.probabilities)) return action.probabilities;
+  if (action.outlook && action.confidence)
+    return probabilityForecast(action.outlook, action.confidence);
+  return null;
+}
+
+export function probabilityCalibrationScore(
+  forecast: ProbabilityForecast,
+  actual: MarketOutlook,
+) {
+  const brier = FORECAST_OUTCOMES.reduce((sum, outcome) => {
+    const probability = forecast[outcome] / 100;
+    const observed = outcome === actual ? 1 : 0;
+    return sum + (probability - observed) ** 2;
+  }, 0);
+  return Math.round(clamp(100 - brier * 50, 0, 100) * 100) / 100;
+}
 
 export function isOrderAllocation(value: unknown): value is OrderAllocation {
   return (

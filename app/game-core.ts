@@ -3,9 +3,11 @@ import {
   INITIAL_CASH,
   MAX_ACTIONS,
   clamp,
+  forecastForAction,
   initialBarsFor,
   isOrderAllocation,
   orderQuantity,
+  probabilityCalibrationScore,
   transactionQuote,
   type MarketKind,
   type ReplayAction,
@@ -47,8 +49,9 @@ export function replayChallenge(
   let advancedDays = 0;
   const availableDays = Math.max(0, candles.length - initialBars);
   const equityHistory = [INITIAL_CASH];
-  let predictionWeight = 0;
+  let predictionCount = 0;
   let predictionHits = 0;
+  let calibrationTotal = 0;
   let confidentMisses = 0;
   let tradeEdgeTotal = 0;
   let tradeEdgeSamples = 0;
@@ -70,13 +73,13 @@ export function replayChallenge(
     const outcomeClose = candles[executionIndex + holdingDays - 1]?.close;
     const outcomeReturn =
       outcomeClose != null ? (outcomeClose / execution - 1) * 100 : 0;
-    if (outcomeClose != null && action.outlook && action.confidence) {
+    const forecast = forecastForAction(action);
+    if (outcomeClose != null && action.outlook && action.confidence && forecast) {
       const actual =
         outcomeReturn > 0.75 ? "up" : outcomeReturn < -0.75 ? "down" : "range";
-      const weight =
-        action.confidence === 3 ? 2 : action.confidence === 2 ? 1.5 : 1;
-      predictionWeight += weight;
-      if (action.outlook === actual) predictionHits += weight;
+      predictionCount++;
+      calibrationTotal += probabilityCalibrationScore(forecast, actual);
+      if (action.outlook === actual) predictionHits++;
       else if (action.confidence === 3) confidentMisses++;
     }
 
@@ -167,14 +170,12 @@ export function replayChallenge(
     maxDrawdown = Math.min(maxDrawdown, (value / peak - 1) * 100);
   }
   const allowedTrades = Math.max(4, Math.ceil(advancedDays / 10) + 1);
-  const directionAccuracy = predictionWeight
-    ? (predictionHits / predictionWeight) * 100
+  const directionAccuracy = predictionCount
+    ? (predictionHits / predictionCount) * 100
     : 50;
-  const calibrationScore = clamp(
-    directionAccuracy - confidentMisses * 4,
-    0,
-    100,
-  );
+  const calibrationScore = predictionCount
+    ? calibrationTotal / predictionCount
+    : 50;
   const riskScore = clamp(100 + maxDrawdown * 6, 0, 100);
   const executionScore = tradeEdgeSamples
     ? clamp(50 + (tradeEdgeTotal / tradeEdgeSamples) * 6, 0, 100)
@@ -189,10 +190,10 @@ export function replayChallenge(
   const performanceScore = clamp(50 + excess * 2, 0, 100);
   const score = Math.round(
     riskScore * 0.3 +
-      calibrationScore * 0.25 +
-      executionScore * 0.2 +
-      disciplineScore * 0.15 +
-      performanceScore * 0.1,
+      calibrationScore * 0.3 +
+      executionScore * 0.1 +
+      disciplineScore * 0.25 +
+      performanceScore * 0.05,
   );
 
   return {
@@ -226,9 +227,9 @@ export function evaluateScenarioPass(
 ) {
   if (scenario === "random") return false;
   const target = {
-    starter: { days: 20, drawdown: -15, accuracy: 35, excess: -3 },
-    standard: { days: 40, drawdown: -10, accuracy: 45, excess: 0 },
-    expert: { days: 60, drawdown: -7, accuracy: 55, excess: 3 },
+    starter: { days: 20, drawdown: -15, calibration: 35, excess: -3 },
+    standard: { days: 40, drawdown: -10, calibration: 45, excess: 0 },
+    expert: { days: 60, drawdown: -7, calibration: 55, excess: 3 },
   }[difficulty];
   const focusPassed =
     scenario === "reversal"
@@ -240,7 +241,7 @@ export function evaluateScenarioPass(
     result.advancedDays >= target.days &&
     result.maxDrawdown >= target.drawdown &&
     result.rounds >= 3 &&
-    result.directionAccuracy >= target.accuracy &&
+    result.calibrationScore >= target.calibration &&
     focusPassed
   );
 }

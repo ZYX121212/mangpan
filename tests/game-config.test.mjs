@@ -3,9 +3,25 @@ import test from "node:test";
 
 import {
   INITIAL_CASH,
+  probabilityCalibrationScore,
+  probabilityForecast,
   orderQuantity,
   transactionQuote,
 } from "../app/game-config.ts";
+
+test("probability contract rewards calibration and penalizes confident errors", () => {
+  const cautious = probabilityForecast("up", 1);
+  const strong = probabilityForecast("up", 3);
+
+  assert.deepEqual(cautious, { up: 50, range: 25, down: 25 });
+  assert.deepEqual(strong, { up: 80, range: 10, down: 10 });
+  assert.equal(probabilityCalibrationScore(strong, "up"), 97);
+  assert.equal(probabilityCalibrationScore(strong, "down"), 27);
+  assert.ok(
+    probabilityCalibrationScore(cautious, "down") >
+      probabilityCalibrationScore(strong, "down"),
+  );
+});
 
 test("A-share full-position quote includes transparent slippage and fees", () => {
   const quantity = orderQuantity({

@@ -80,7 +80,7 @@ type WeeklyRow = {
   average_return: number;
   average_excess: number;
   activity_days: number;
-  benchmark_wins: number;
+  contract_games: number;
   risk_controlled: number;
   position: number;
 };
@@ -135,7 +135,7 @@ async function buildWeeklyLeague(
     `%@${GAME_VERSION}@${market}`,
   ] as const;
   const cte = `WITH eligible AS (
-    SELECT player_id, score, return_rate, excess, max_drawdown, trades, created_at,
+    SELECT player_id, score, return_rate, excess, max_drawdown, trades, action_path, created_at,
       ROW_NUMBER() OVER (
         PARTITION BY player_id
         ORDER BY score DESC, created_at ASC
@@ -145,7 +145,9 @@ async function buildWeeklyLeague(
   ), activity AS (
     SELECT player_id,
       COUNT(*) AS activity_days,
-      SUM(CASE WHEN excess > 0 THEN 1 ELSE 0 END) AS benchmark_wins,
+      SUM(CASE WHEN json_array_length(action_path) >= 3
+        AND json_type(action_path, '$[0].probabilities') = 'object'
+        THEN 1 ELSE 0 END) AS contract_games,
       SUM(CASE WHEN max_drawdown >= -5 AND trades > 0 THEN 1 ELSE 0 END) AS risk_controlled
     FROM eligible
     GROUP BY player_id
@@ -160,7 +162,7 @@ async function buildWeeklyLeague(
     WHERE day_rank <= 5
     GROUP BY player_id
   ), ranked AS (
-    SELECT weekly.*, activity.activity_days, activity.benchmark_wins,
+    SELECT weekly.*, activity.activity_days, activity.contract_games,
       activity.risk_controlled,
       RANK() OVER (
         ORDER BY points DESC, completed_days DESC, average_excess DESC, weekly.player_id ASC
@@ -169,7 +171,7 @@ async function buildWeeklyLeague(
   )`;
   const columns = `SELECT ranked.player_id, players.nickname, ranked.points,
     ranked.completed_days, ranked.average_score, ranked.average_return,
-    ranked.average_excess, ranked.activity_days, ranked.benchmark_wins,
+    ranked.average_excess, ranked.activity_days, ranked.contract_games,
     ranked.risk_controlled, ranked.position
     FROM ranked JOIN players ON players.id = ranked.player_id`;
   const database = getD1Database();
@@ -200,11 +202,11 @@ async function buildWeeklyLeague(
     isPlayer: row.player_id === playerId,
   });
   const games = Math.min(3, Number(player?.activity_days || 0));
-  const benchmarkWins = Math.min(2, Number(player?.benchmark_wins || 0));
+  const contractGames = Math.min(2, Number(player?.contract_games || 0));
   const riskControlled = Math.min(1, Number(player?.risk_controlled || 0));
   const completed =
     Number(games >= 3) +
-    Number(benchmarkWins >= 2) +
+    Number(contractGames >= 2) +
     Number(riskControlled >= 1);
   if (playerId && completed === 3) {
     await getDb()
@@ -249,7 +251,7 @@ async function buildWeeklyLeague(
     player: player ? format(player) : null,
     mission: {
       games,
-      benchmarkWins,
+      contractGames,
       riskControlled,
       completed,
       rewardXp: Number(currentReward?.reward_xp || 0),

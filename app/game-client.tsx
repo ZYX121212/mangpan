@@ -13,15 +13,19 @@ import {
   INITIAL_CASH,
   ORDER_ALLOCATIONS,
   clamp,
+  forecastForAction,
   initialBarsFor,
   lotSizeFor,
   orderQuantity,
+  probabilityCalibrationScore,
+  probabilityForecast,
   transactionQuote,
   type ConfidenceLevel,
   type DecisionThesis,
   type MarketKind,
   type MarketOutlook,
   type OrderAllocation,
+  type ProbabilityForecast,
   type ReplayAction,
 } from "./game-config";
 import { buildTradeAnalysis } from "./trade-analysis";
@@ -66,9 +70,9 @@ const SCENARIO_CONFIG = {
   },
 } as const;
 const DIFFICULTY_CONFIG = {
-  starter: { label: "入门", days: 20, drawdown: -15, accuracy: 35, excess: -3 },
-  standard: { label: "标准", days: 40, drawdown: -10, accuracy: 45, excess: 0 },
-  expert: { label: "专家", days: 60, drawdown: -7, accuracy: 55, excess: 3 },
+  starter: { label: "入门", days: 20, drawdown: -15, calibration: 35, excess: -3 },
+  standard: { label: "标准", days: 40, drawdown: -10, calibration: 45, excess: 0 },
+  expert: { label: "专家", days: 60, drawdown: -7, calibration: 55, excess: 3 },
 } as const;
 type TradeMarker = {
   index: number;
@@ -122,7 +126,7 @@ type Scoreboard = {
     player: WeeklyScore | null;
     mission: {
       games: number;
-      benchmarkWins: number;
+      contractGames: number;
       riskControlled: number;
       completed: number;
       rewardXp: number;
@@ -245,6 +249,7 @@ type DecisionFeedback = {
   adverse: number;
   title: string;
   lesson: string;
+  calibration: number;
 };
 
 type DecisionReplayItem = {
@@ -255,6 +260,7 @@ type DecisionReplayItem = {
   thesis?: string;
   confidence?: ConfidenceLevel;
   outlook?: MarketOutlook;
+  probabilities?: ProbabilityForecast;
   actual: MarketOutlook;
   move: number;
   matched: boolean | null;
@@ -281,6 +287,17 @@ const THESIS_LABEL: Record<DecisionThesis, string> = {
   uncertain: "信号不足",
 };
 
+function formatProbabilityForecast(
+  forecast: ProbabilityForecast,
+  locale: Locale = "zh",
+) {
+  const display = (value: number) =>
+    Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
+  return locale === "en"
+    ? `Up ${display(forecast.up)} · Range ${display(forecast.range)} · Down ${display(forecast.down)}`
+    : `涨 ${display(forecast.up)} · 震 ${display(forecast.range)} · 跌 ${display(forecast.down)}`;
+}
+
 function evaluateDecision(
   action: RecordedReplayAction,
   candles: Candle[],
@@ -296,6 +313,8 @@ function evaluateDecision(
   const adverse =
     (Math.min(...candles.map((candle) => candle.low)) / execution - 1) * 100;
   const matched = action.outlook === actual;
+  const forecast = forecastForAction(action)!;
+  const calibration = probabilityCalibrationScore(forecast, actual);
   let lesson = matched
     ? "方向判断命中。继续观察这套依据能否跨行情重复，而不是因为一次命中突然放大仓位。"
     : action.confidence === 3
@@ -314,8 +333,9 @@ function evaluateDecision(
     move,
     favorable,
     adverse,
-    title: `${matched ? "判断命中" : "判断偏差"} · 后续${OUTLOOK_LABEL[actual]} ${move >= 0 ? "+" : ""}${move.toFixed(2)}%`,
+    title: `${matched ? "判断命中" : "判断偏差"} · 校准 ${calibration.toFixed(0)} · 后续${OUTLOOK_LABEL[actual]} ${move >= 0 ? "+" : ""}${move.toFixed(2)}%`,
     lesson,
+    calibration,
   };
 }
 
@@ -367,6 +387,7 @@ function buildDecisionReplay(
       thesis: recordedView ? THESIS_LABEL[action.thesis] : undefined,
       confidence: recordedView ? action.confidence : undefined,
       outlook: recordedView ? action.outlook : undefined,
+      probabilities: recordedView ? forecastForAction(action) ?? undefined : undefined,
       actual,
       move,
       matched: recordedView ? action.outlook === actual : null,
@@ -1179,7 +1200,7 @@ export default function GameClient({
   const [outlook, setOutlook] = useState<MarketOutlook>("up");
   const [thesis, setThesis] = useState<DecisionThesis>("trend");
   const [confidence, setConfidence] = useState<ConfidenceLevel>(2);
-  const [recordView, setRecordView] = useState(false);
+  const [recordView, setRecordView] = useState(true);
   const [trades, setTrades] = useState(0),
     [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([]);
   const [feesPaid, setFeesPaid] = useState(0);
@@ -1369,8 +1390,7 @@ export default function GameClient({
     let offset = 0,
       total = 0,
       hits = 0,
-      weight = 0,
-      weightedHits = 0,
+      calibrationTotal = 0,
       confidentMisses = 0,
       tradeEdgeTotal = 0,
       tradeEdgeSamples = 0;
@@ -1384,13 +1404,11 @@ export default function GameClient({
         const actual = move > 0.75 ? "up" : move < -0.75 ? "down" : "range";
         if (hasRecordedView(action)) {
           const matched = action.outlook === actual;
-          const actionWeight =
-            action.confidence === 3 ? 2 : action.confidence === 2 ? 1.5 : 1;
+          const forecast = forecastForAction(action)!;
           total++;
-          weight += actionWeight;
+          calibrationTotal += probabilityCalibrationScore(forecast, actual);
           if (matched) {
             hits++;
-            weightedHits += actionWeight;
           } else if (action.confidence === 3) confidentMisses++;
         }
         if (action.kind === "buy" || action.kind === "sell") {
@@ -1408,8 +1426,8 @@ export default function GameClient({
       offset += days;
     }
     const accuracy = total ? (hits / total) * 100 : 0;
-    const calibration = weight
-      ? clamp((weightedHits / weight) * 100 - confidentMisses * 4, 0, 100)
+    const calibration = total
+      ? calibrationTotal / total
       : 50;
     return {
       total,
@@ -1425,10 +1443,6 @@ export default function GameClient({
     () => buildDecisionReplay(actions, stock, normalized, initialVisibleCount),
     [actions, initialVisibleCount, normalized, stock],
   );
-  const latestRecordedView = useMemo(
-    () => actions.findLast(hasRecordedView) ?? null,
-    [actions],
-  );
   const scenarioEvaluation = useMemo(() => {
     if (!activeScenario) return null;
     const durationCheck = {
@@ -1442,12 +1456,12 @@ export default function GameClient({
       value: `${maxDrawdown.toFixed(1)}%`,
     };
     const accuracyCheck = {
-      label: `方向命中率达到 ${activeDifficulty.accuracy}%`,
+      label: `概率校准达到 ${activeDifficulty.calibration}`,
       passed:
         decisionStats.total >= 3 &&
-        decisionStats.accuracy >= activeDifficulty.accuracy,
+        decisionStats.calibration >= activeDifficulty.calibration,
       value: decisionStats.total
-        ? `${decisionStats.accuracy.toFixed(0)}%`
+        ? decisionStats.calibration.toFixed(0)
         : "无样本",
     };
     const frequency = (trades / Math.max(1, advancedDays)) * 20;
@@ -1515,15 +1529,15 @@ export default function GameClient({
   ]);
   const skillScore = Math.round(
     processScores.risk * 0.3 +
-      processScores.calibration * 0.25 +
-      processScores.execution * 0.2 +
-      processScores.discipline * 0.15 +
-      processScores.performance * 0.1,
+      processScores.calibration * 0.3 +
+      processScores.execution * 0.1 +
+      processScores.discipline * 0.25 +
+      processScores.performance * 0.05,
   );
   const weakestSkill = (
     [
       { key: "risk", label: "风险控制", scenario: "crash" },
-      { key: "calibration", label: "判断校准", scenario: "reversal" },
+      { key: "calibration", label: "概率校准", scenario: "reversal" },
       { key: "execution", label: "执行质量", scenario: "trend" },
       { key: "discipline", label: "交易纪律", scenario: "volatile" },
       { key: "performance", label: "风险调整收益", scenario: "trend" },
@@ -1826,18 +1840,18 @@ export default function GameClient({
     }
   };
 
-  const nextChart = async () => {
+  const switchStock = async () => {
     if (challengeLoading || isRevealing || finished) return;
     if (
       (gameMode === "daily" || actions.length > 0) &&
       !window.confirm(
         gameMode === "daily"
           ? locale === "en"
-            ? "Leave today's challenge? You can keep practicing, but today's leaderboard score will be forfeited."
-            : "离开今日挑战？你可以继续练习，但今天将不能再提交排行榜成绩。"
+            ? "Switch stocks? This will end today's challenge and start a random practice run. Today's leaderboard score will be forfeited."
+            : "更换股票将结束今日挑战并转入随机练习，今天将不能再提交排行榜成绩。继续吗？"
           : locale === "en"
-            ? "Skip this chart? This run will not count toward scores, XP, or training progress."
-            : "跳过这张图？本局不会计分，也不会获得 XP 或训练进度。",
+            ? "Switch stocks? This run will not count toward scores, XP, or training progress."
+            : "换一只股票？本次练习不会计分，也不会获得 XP 或训练进度。",
       )
     )
       return;
@@ -1998,7 +2012,12 @@ export default function GameClient({
     const holdingDays = Math.min(revealDays, remainingDays);
     const requestedQuantity =
       orderInputMode === "quantity" ? enteredQuantity : undefined;
-    const recordedView = recordView ? { outlook, thesis, confidence } : {};
+    const recordedView = {
+      outlook,
+      thesis,
+      confidence,
+      probabilities: probabilityForecast(outlook, confidence),
+    };
     const replayAction: ReplayAction =
       action === "hold"
         ? {
@@ -2043,7 +2062,6 @@ export default function GameClient({
     const feedback = hasRecordedView(advanced.action)
       ? evaluateDecision(advanced.action, normalizedNew, round + 1)
       : null;
-    setRecordView(false);
     setStock((value) => ({
       ...value,
       candles: [...value.candles, ...advanced.candles],
@@ -2671,14 +2689,16 @@ export default function GameClient({
                   )}
                 </div>
               </details>
-              <div className={`decision-journal optional ${recordView ? "active" : ""}`}>
+              <div className={`decision-journal probability-contract ${recordView ? "active" : ""}`}>
                 <div className="optional-view-head">
                   <div>
-                    <span>观点记录 <em>可选</em></span>
+                    <span>决策契约 <em>推进前锁定</em></span>
                     <small>
-                      {latestRecordedView
-                        ? `上次：${OUTLOOK_LABEL[latestRecordedView.outlook]} · ${THESIS_LABEL[latestRecordedView.thesis]} · ${latestRecordedView.confidence === 1 ? "低" : latestRecordedView.confidence === 2 ? "中" : "高"}信心`
-                        : "买卖或持有都可直接推进，不要求每天预测"}
+                      {formatProbabilityForecast(
+                        probabilityForecast(outlook, confidence),
+                        locale,
+                      )}
+                      {` · ${THESIS_LABEL[thesis]}`}
                     </small>
                   </div>
                   <button
@@ -2686,7 +2706,7 @@ export default function GameClient({
                     aria-expanded={recordView}
                     onClick={() => setRecordView((value) => !value)}
                   >
-                    {recordView ? "取消本次观点" : latestRecordedView ? "更新观点" : "记录观点"}
+                    {recordView ? "收起" : "编辑契约"}
                   </button>
                 </div>
                 {recordView && (
@@ -2702,11 +2722,16 @@ export default function GameClient({
                           className={outlook === value ? "selected" : ""}
                           onClick={() => setOutlook(value)}
                         >
-                          {value === "up"
-                            ? "看涨"
-                            : value === "range"
-                              ? "震荡"
-                              : "看跌"}
+                          <span>
+                            {value === "up"
+                              ? "看涨"
+                              : value === "range"
+                                ? "震荡"
+                                : "看跌"}
+                          </span>
+                          <small>
+                            {probabilityForecast(value, confidence)[value]}%
+                          </small>
                         </button>
                       ))}
                     </div>
@@ -2727,7 +2752,7 @@ export default function GameClient({
                         </select>
                       </label>
                       <div>
-                        <span>信心</span>
+                        <span>主判断概率</span>
                         <div className="confidence-grid">
                           {([1, 2, 3] as const).map((value) => (
                             <button
@@ -2735,16 +2760,14 @@ export default function GameClient({
                               className={confidence === value ? "selected" : ""}
                               onClick={() => setConfidence(value)}
                             >
-                              {value === 1 ? "低" : value === 2 ? "中" : "高"}
+                              {value === 1 ? "50%" : value === 2 ? "65%" : "80%"}
                             </button>
                           ))}
                         </div>
                       </div>
                     </div>
                     <p>
-                      {activeScenario
-                        ? "情景课的判断校准项需累计至少 3 个主动观点；未记录的推进不计入命中率。"
-                        : "只有主动记录的观点才参与命中率与信心校准；未记录的推进不扣分。"}
+                      概率越激进，判断错误时校准损失越大；买入、卖出和观望都会留下同样的决策证据。
                     </p>
                   </div>
                 )}
@@ -2804,13 +2827,11 @@ export default function GameClient({
                     gameMode === "daily" ? "standard" : session.difficulty,
                   )
                 }
-                onClick={() => void nextChart()}
+                onClick={() => void switchStock()}
               >
                 {challengeLoading
                   ? "正在切换股票…"
-                  : gameMode === "daily"
-                    ? "离开今日挑战 · 随机练习"
-                    : "换一只股票 →"}
+                  : "换一只股票 →"}
               </button>
               <button className="finish-action" onClick={finishGame}>
                 提前结束并揭晓股票
@@ -2883,7 +2904,7 @@ export default function GameClient({
                 </div>
                 <div className={dailyMission.days >= 15 ? "done" : ""}>
                   <i>{dailyMission.days >= 15 ? "✓" : "02"}</i>
-                  <span>累计推进 15 个交易日</span>
+                  <span>完成 15 日概率决策训练</span>
                   <b>{dailyMission.days}/15</b>
                 </div>
                 <div className={dailyMission.training >= 1 ? "done" : ""}>
@@ -3179,7 +3200,7 @@ export default function GameClient({
               <li>
                 <b>判断</b>
                 <span>
-                  每次推进前记录看涨、震荡或看跌，并选择判断依据与信心；行情揭示后立即反馈方向、最大有利与最大不利波动。
+                  每次推进前锁定涨、震、跌概率与判断依据；概率越激进，误判时校准损失越大，观望同样是有效决策。
                 </span>
               </li>
               <li>
@@ -3197,19 +3218,19 @@ export default function GameClient({
               <li>
                 <b>每日任务</b>
                 <span>
-                  每日完成 1 道盲测、推进 15 个交易日并完成 1 局情景训练，可获得 60 XP；误判会自动进入错题重练。
+                  每日完成 1 道盲测、15 日概率决策和 1 局情景训练，可获得 60 XP；误判会自动进入错题重练。
                 </span>
               </li>
               <li>
                 <b>评分</b>
                 <span>
-                  风险控制占30%、判断校准25%、执行质量20%、交易纪律15%、风险调整收益10%；不再只奖励高收益。
+                  风险控制30%、概率校准30%、交易纪律25%、执行质量10%、风险调整收益5%；收益不再主导评分。
                 </span>
               </li>
               <li>
                 <b>每周联赛</b>
                 <span>
-                  A 股与美股分开排名，每周取个人最佳 5 局累计积分；完成 3 局、2 局跑赢基准和 1 局低回撤目标可获得 120 XP。
+                  A 股与美股分开排名，每周取个人最佳 5 局累计积分；完成 3 局、2 局概率契约和 1 局低回撤目标可获得 120 XP。
                 </span>
               </li>
               <li>
@@ -3533,10 +3554,10 @@ export default function GameClient({
                       <span>完成 3 局正式挑战</span>
                       <b>{scoreboard?.weekly.mission.games || 0}/3</b>
                     </div>
-                    <div className={(scoreboard?.weekly.mission.benchmarkWins || 0) >= 2 ? "done" : ""}>
-                      <i>{(scoreboard?.weekly.mission.benchmarkWins || 0) >= 2 ? "✓" : "02"}</i>
-                      <span>2 局跑赢同期股票</span>
-                      <b>{scoreboard?.weekly.mission.benchmarkWins || 0}/2</b>
+                <div className={(scoreboard?.weekly.mission.contractGames || 0) >= 2 ? "done" : ""}>
+                      <i>{(scoreboard?.weekly.mission.contractGames || 0) >= 2 ? "✓" : "02"}</i>
+                      <span>2 局完成至少 3 次概率契约</span>
+                      <b>{scoreboard?.weekly.mission.contractGames || 0}/2</b>
                     </div>
                     <div className={(scoreboard?.weekly.mission.riskControlled || 0) >= 1 ? "done" : ""}>
                       <i>{(scoreboard?.weekly.mission.riskControlled || 0) >= 1 ? "✓" : "03"}</i>
@@ -3675,18 +3696,18 @@ export default function GameClient({
               <div className="process-score-head">
                 <div>
                   <small>PROCESS SCORE · 过程能力</small>
-                  <b>收益只占 10%，更奖励可重复的决策质量</b>
+                    <b>收益只占 5%，优先奖励校准、风控与守计划</b>
                 </div>
                 <strong>{skillScore}</strong>
               </div>
               <div className="process-score-list">
                 {(
                   [
-                    ["风险控制", processScores.risk, "30%"],
-                    ["判断校准", processScores.calibration, "25%"],
-                    ["执行质量", processScores.execution, "20%"],
-                    ["交易纪律", processScores.discipline, "15%"],
-                    ["风险调整收益", processScores.performance, "10%"],
+                      ["风险控制", processScores.risk, "30%"],
+                      ["概率校准", processScores.calibration, "30%"],
+                      ["执行质量", processScores.execution, "10%"],
+                      ["交易纪律", processScores.discipline, "25%"],
+                      ["风险调整收益", processScores.performance, "5%"],
                   ] as const
                 ).map(([label, value, weight]) => (
                   <div key={label}>
@@ -3695,7 +3716,7 @@ export default function GameClient({
                       <em style={{ width: `${value}%` }} />
                     </i>
                     <b>
-                      {label === "判断校准" && !decisionStats.total
+                        {label === "概率校准" && !decisionStats.total
                         ? "—"
                         : value.toFixed(0)}
                     </b>
@@ -3707,7 +3728,7 @@ export default function GameClient({
             <div className="decision-result">
               <header>
                 <small>DECISION QUALITY · 判断质量</small>
-                <b>观点记录与信心校准</b>
+                <b>概率契约与结果校准</b>
               </header>
               <div>
                 <small>方向判断</small>
@@ -3726,7 +3747,7 @@ export default function GameClient({
                 </b>
               </div>
               <div>
-                <small>信心校准</small>
+                  <small>平均校准</small>
                 <b>
                   {decisionStats.total
                     ? decisionStats.calibration.toFixed(0)
@@ -3735,10 +3756,10 @@ export default function GameClient({
               </div>
               <p>
                 {!decisionStats.total
-                  ? "本局没有主动记录方向观点，因此不做命中率评分；交易执行与风险画像仍正常分析。"
+                  ? "这是旧版记录，缺少概率契约；交易执行与风险画像仍正常分析。"
                   : decisionStats.confidentMisses
                   ? `有 ${decisionStats.confidentMisses} 次高信心误判；下局先降低仓位，再等待走势确认。`
-                  : "只有主动记录的观点会与真实后续逐笔对照，不会把普通持有误算成方向预测。"}
+                  : "每次推进的概率都会与真实后续逐笔对照；观望与买卖接受同一套校准检验。"}
               </p>
             </div>
             </div>
@@ -3746,10 +3767,10 @@ export default function GameClient({
               <div className="decision-replay-head">
                 <div>
                   <small>DECISION REPLAY · 决策时间线</small>
-                  <b>交易推进与主动观点分开复盘</b>
+                  <b>每次推进都留下可检验的决策证据</b>
                 </div>
                 <span>
-                  {decisionReplay.length} 次推进 · {decisionStats.total} 个观点
+                  {decisionReplay.length} 次推进 · {decisionStats.total} 份契约
                 </span>
               </div>
               {decisionReplay.length ? (
@@ -3772,7 +3793,7 @@ export default function GameClient({
                         <p>
                           {item.matched == null
                             ? "未记录方向观点 · 本次不参与判断评分"
-                            : `${item.thesis} · 判断${OUTLOOK_LABEL[item.outlook!]} · 信心 ${item.confidence}/3`}
+                            : `${item.thesis} · ${item.probabilities ? formatProbabilityForecast(item.probabilities, locale) : `判断${OUTLOOK_LABEL[item.outlook!]} · 信心 ${item.confidence}/3`}`}
                         </p>
                       </div>
                       <strong>
@@ -4043,24 +4064,24 @@ export default function GameClient({
               ))}
             </div>
             <div className="analysis-section-head">
-              <b>判断校准</b>
-              <span>观点 × 信心 × 后续真实走势</span>
+              <b>概率校准</b>
+              <span>涨 / 震荡 / 跌概率 × 后续真实走势</span>
             </div>
             <div className="calibration-card">
               <strong>
                 {decisionStats.total
-                  ? `${decisionStats.accuracy.toFixed(0)}%`
+                  ? decisionStats.calibration.toFixed(0)
                   : "—"}
               </strong>
               <div>
                 <b>
                   {decisionStats.total
                     ? `${decisionStats.hits} / ${decisionStats.total} 次方向命中`
-                    : "本局未主动记录方向观点"}
+                    : "旧版记录缺少概率契约"}
                 </b>
                 <p>
                   {!decisionStats.total
-                    ? "这不会影响交易、持有和风险画像；需要训练判断校准时再主动记录即可。"
+                    ? "旧版记录仍保留交易、持有和风险画像，但不纳入概率校准。"
                     : decisionStats.total < 4
                     ? "样本仍少，继续记录判断后才能形成稳定画像。"
                     : decisionStats.calibration >= 70

@@ -18,6 +18,7 @@ import {
   hashText,
   initialBarsFor,
   isOrderAllocation,
+  isProbabilityForecast,
   type ConfidenceLevel,
   type DecisionThesis,
   type MarketKind,
@@ -205,13 +206,20 @@ function cleanAction(value: unknown): ReplayAction | null {
     input.confidence && CONFIDENCE.includes(input.confidence)
       ? input.confidence
       : undefined;
+  const probabilities = isProbabilityForecast(input.probabilities)
+    ? input.probabilities
+    : undefined;
   const hasAnyView =
     input.outlook !== undefined ||
     input.thesis !== undefined ||
-    input.confidence !== undefined;
+    input.confidence !== undefined ||
+    input.probabilities !== undefined;
+  if (input.probabilities !== undefined && !probabilities) return null;
   if (hasAnyView && (!outlook || !thesis || !confidence)) return null;
   const recordedView =
-    outlook && thesis && confidence ? { outlook, thesis, confidence } : {};
+    outlook && thesis && confidence
+      ? { outlook, thesis, confidence, ...(probabilities ? { probabilities } : {}) }
+      : {};
   if (input.kind === "hold")
     return { kind: "hold", days, ...recordedView };
   const hasAllocation = input.allocation !== undefined;
