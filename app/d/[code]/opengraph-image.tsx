@@ -21,6 +21,7 @@ export default async function DuelOpenGraphImage({
   const challenger = invite ? safeNickname(invite.challengerNickname) : "A friend";
   const market = invite?.market === "cn" ? "CHINA A-SHARE" : "U.S. STOCK";
   const answers = invite?.responseCount ?? 0;
+  const chainRound = (invite?.chainDepth ?? 0) + 1;
 
   return new ImageResponse(
     <div
@@ -89,7 +90,7 @@ export default async function DuelOpenGraphImage({
               letterSpacing: 3,
             }}
           >
-            FRIEND DUEL · {market}
+            CHALLENGE CHAIN · ROUND {chainRound} · {market}
           </div>
           <div
             style={{

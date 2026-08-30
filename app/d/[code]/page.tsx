@@ -53,7 +53,10 @@ export async function generateMetadata({
   const roomProof = invite.responseCount
     ? `${invite.responseCount} ${invite.responseCount === 1 ? "player has" : "players have"} answered. `
     : "";
-  const description = `${roomProof}The same hidden historical ${market} chart. Five decisions. No ticker, no future, no sign-up.`;
+  const chainProof = invite.chainDepth
+    ? `Challenge chain round ${invite.chainDepth + 1}. `
+    : "";
+  const description = `${chainProof}${roomProof}The same hidden historical ${market} chart. Five decisions. No ticker, no future, no sign-up.`;
   const path = `/d/${invite.code}`;
   const imagePath = `${path}/opengraph-image`;
   return {
@@ -125,7 +128,12 @@ export default async function DuelPage({
     <GameClient
       initialChallenge={challenge}
       initialIdentity={playerId ? { playerId, cloud: true } : null}
-      initialDuel={{ code: invite.code, date: invite.date, source }}
+      initialDuel={{
+        code: invite.code,
+        date: invite.date,
+        source,
+        chainDepth: invite.chainDepth,
+      }}
       initialMode="daily"
     />
   );

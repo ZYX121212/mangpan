@@ -12,6 +12,7 @@ export type PublicDuelInvite = {
   challengerNickname: string;
   targetScore: number;
   responseCount: number;
+  chainDepth: number;
 };
 
 function validCode(value: string) {
@@ -51,6 +52,7 @@ export const getPublicDuelInvite = cache(
       challengerNickname: duel.challengerNickname,
       targetScore: duel.targetScore,
       responseCount,
+      chainDepth: duel.chainDepth,
     };
   },
 );

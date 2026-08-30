@@ -12,6 +12,12 @@ import {
   getTrainingProfile,
 } from "../../challenge-sessions";
 import {
+  ensureDuelRoom,
+  findPlayerDuelRoom,
+  publicShareDuelRoom,
+  type ShareDuelRoom,
+} from "../../duel-service";
+import {
   GAME_VERSION,
   marketDate,
   replayChallenge,
@@ -35,6 +41,7 @@ type DuelRoom = {
   responseCount: number;
   bestNickname: string | null;
   bestScore: number | null;
+  rematchCount: number;
   sources: { source: ShareSource; count: number }[];
 };
 
@@ -64,6 +71,20 @@ function duelResponseSummary(
     rank,
     percentile:
       total <= 1 ? 100 : Math.round(((total - rank) / (total - 1)) * 100),
+  };
+}
+
+function duelChallengerSummary(
+  duel: typeof duelChallenges.$inferSelect,
+): ScoreSummary {
+  return {
+    nickname: duel.challengerNickname,
+    score: duel.targetScore,
+    returnRate: duel.targetReturnRate,
+    excess: duel.targetExcess,
+    maxDrawdown: duel.targetMaxDrawdown,
+    rank: 1,
+    percentile: 100,
   };
 }
 
@@ -347,6 +368,7 @@ async function buildScoreboard(
   duelRoom?: DuelRoom | null,
   playerOverride?: ScoreSummary | null,
   opponentOverride?: ScoreSummary | null,
+  shareDuel?: ShareDuelRoom | null,
   storageDateOverride?: string,
 ) {
   const db = getDb();
@@ -559,6 +581,7 @@ async function buildScoreboard(
     opponent,
     duelCode: duelRoom ? duelCode ?? null : null,
     duelRoom: duelRoom ?? null,
+    shareDuel: shareDuel ?? null,
     weekly,
     stats,
   };
@@ -584,7 +607,14 @@ async function resolveDuelContext(
     !duel.challengeId.endsWith(`@${market}`)
   )
     return null;
-  const [[{ total }], [best], sourceRows, [respondent]] = await Promise.all([
+  const [
+    [{ total }],
+    [best],
+    sourceRows,
+    [respondent],
+    [{ rematchCount }],
+    shareRoom,
+  ] = await Promise.all([
     db
       .select({ total: count() })
       .from(duelResponses)
@@ -616,6 +646,13 @@ async function resolveDuelContext(
           )
           .limit(1)
       : Promise.resolve([] as DuelResponseRow[]),
+    db
+      .select({ rematchCount: count() })
+      .from(duelChallenges)
+      .where(eq(duelChallenges.parentCode, duel.code)),
+    playerId
+      ? findPlayerDuelRoom(playerId, duel.challengeId)
+      : Promise.resolve(null),
   ]);
   const isHost = duel.challengerPlayerId === playerId;
   let respondentScore: ScoreSummary | null = null;
@@ -653,14 +690,19 @@ async function resolveDuelContext(
       : duel.challengerPlayerId !== playerId
         ? duel.challengerPlayerId
         : undefined,
-    playerOverride: respondentScore,
-    opponentOverride:
-      isHost && best ? duelResponseSummary(best, 1, total) : null,
+    playerOverride: isHost ? duelChallengerSummary(duel) : respondentScore,
+    opponentOverride: isHost
+      ? best
+        ? duelResponseSummary(best, 1, total)
+        : null
+      : duelChallengerSummary(duel),
+    shareDuel: shareRoom ? publicShareDuelRoom(shareRoom) : null,
     room: {
       isHost,
       responseCount: total,
       bestNickname: best?.nickname ?? null,
       bestScore: best?.score ?? null,
+      rematchCount,
       sources: sourceRows
         .map((row) => ({
           source: normalizeShareSource(row.source),
@@ -711,6 +753,7 @@ export async function GET(request: Request) {
         duelContext?.room,
         duelContext?.playerOverride,
         duelContext?.opponentOverride,
+        duelContext?.shareDuel,
         duelContext?.duel.challengeId,
       ),
     );
@@ -863,6 +906,30 @@ export async function POST(request: Request) {
               duelResponses.respondentPlayerId,
             ],
           });
+      const [lockedResponse] = await db
+        .select()
+        .from(duelResponses)
+        .where(
+          and(
+            eq(duelResponses.duelCode, duelContext.duel.code),
+            eq(duelResponses.respondentPlayerId, playerId),
+          ),
+        )
+        .limit(1);
+      if (lockedResponse)
+        await ensureDuelRoom({
+          playerId,
+          date,
+          market,
+          challengeId: duelContext.duel.challengeId,
+          nickname: lockedResponse.nickname,
+          score: lockedResponse.score,
+          returnRate: lockedResponse.returnRate,
+          excess: lockedResponse.excess,
+          maxDrawdown: lockedResponse.maxDrawdown,
+          parentCode: duelContext.duel.code,
+          parentDepth: duelContext.duel.chainDepth,
+        });
       duelContext = await resolveDuelContext(
         duelContext.duel.code,
         date,
@@ -881,6 +948,7 @@ export async function POST(request: Request) {
         duelContext?.room,
         duelContext?.playerOverride,
         duelContext?.opponentOverride,
+        duelContext?.shareDuel,
         duelContext?.duel.challengeId,
       ),
     );

@@ -1,6 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
-import { dailyScores, duelChallenges } from "../../../db/schema";
+import { dailyScores } from "../../../db/schema";
+import { ensureDuelRoom } from "../../duel-service";
 import { GAME_VERSION, marketDate, type MarketKind } from "../../game-core";
 import { requestPlayerId } from "../../request-identity";
 
@@ -16,23 +17,6 @@ function validMarket(value: unknown): value is MarketKind {
 
 function scoreDate(date: string, market: MarketKind) {
   return `${date}@${GAME_VERSION}@${market}`;
-}
-
-async function existingDuel(
-  playerId: string,
-  challengeId: string,
-) {
-  const [row] = await getDb()
-    .select()
-    .from(duelChallenges)
-    .where(
-      and(
-        eq(duelChallenges.challengerPlayerId, playerId),
-        eq(duelChallenges.challengeId, challengeId),
-      ),
-    )
-    .limit(1);
-  return row ?? null;
 }
 
 export async function POST(request: Request) {
@@ -65,7 +49,13 @@ export async function POST(request: Request) {
 
     const challengeId = scoreDate(payload.date, payload.market);
     const [score] = await getDb()
-      .select({ nickname: dailyScores.nickname, score: dailyScores.score })
+      .select({
+        nickname: dailyScores.nickname,
+        score: dailyScores.score,
+        returnRate: dailyScores.returnRate,
+        excess: dailyScores.excess,
+        maxDrawdown: dailyScores.maxDrawdown,
+      })
       .from(dailyScores)
       .where(
         and(
@@ -80,24 +70,17 @@ export async function POST(request: Request) {
         { status: 409, headers },
       );
 
-    let duel = await existingDuel(playerId, challengeId);
-    for (let attempt = 0; !duel && attempt < 4; attempt++) {
-      const code = crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase();
-      await getDb()
-        .insert(duelChallenges)
-        .values({
-          code,
-          challengerPlayerId: playerId,
-          challengeDate: payload.date,
-          market: payload.market,
-          challengeId,
-          challengerNickname: score.nickname,
-          targetScore: score.score,
-        })
-        .onConflictDoNothing();
-      duel = await existingDuel(playerId, challengeId);
-    }
-    if (!duel) throw new Error("挑战码创建失败");
+    const duel = await ensureDuelRoom({
+      playerId,
+      date: payload.date,
+      market: payload.market,
+      challengeId,
+      nickname: score.nickname,
+      score: score.score,
+      returnRate: score.returnRate,
+      excess: score.excess,
+      maxDrawdown: score.maxDrawdown,
+    });
     return Response.json(
       {
         code: duel.code,

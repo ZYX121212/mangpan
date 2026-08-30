@@ -165,6 +165,11 @@ export function ensureDatabase() {
         challenge_id TEXT NOT NULL DEFAULT '',
         challenger_nickname TEXT NOT NULL DEFAULT '',
         target_score INTEGER NOT NULL DEFAULT 0,
+        target_return_rate REAL NOT NULL DEFAULT 0,
+        target_excess REAL NOT NULL DEFAULT 0,
+        target_max_drawdown REAL NOT NULL DEFAULT 0,
+        parent_code TEXT,
+        chain_depth INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
       database.prepare(
@@ -253,6 +258,26 @@ export function ensureDatabase() {
           "target_score",
           "ALTER TABLE duel_challenges ADD COLUMN target_score INTEGER NOT NULL DEFAULT 0",
         ],
+        [
+          "target_return_rate",
+          "ALTER TABLE duel_challenges ADD COLUMN target_return_rate REAL NOT NULL DEFAULT 0",
+        ],
+        [
+          "target_excess",
+          "ALTER TABLE duel_challenges ADD COLUMN target_excess REAL NOT NULL DEFAULT 0",
+        ],
+        [
+          "target_max_drawdown",
+          "ALTER TABLE duel_challenges ADD COLUMN target_max_drawdown REAL NOT NULL DEFAULT 0",
+        ],
+        [
+          "parent_code",
+          "ALTER TABLE duel_challenges ADD COLUMN parent_code TEXT",
+        ],
+        [
+          "chain_depth",
+          "ALTER TABLE duel_challenges ADD COLUMN chain_depth INTEGER NOT NULL DEFAULT 0",
+        ],
       ] as const) {
         if (
           !duelChallengeColumns.results.some((column) => column.name === name)
@@ -264,6 +289,27 @@ export function ensureDatabase() {
         .prepare(`UPDATE duel_challenges
           SET challenge_id = challenge_date || '@focused-daily-v18@' || market
           WHERE challenge_id = ''`)
+        .run();
+      await database
+        .prepare(`UPDATE duel_challenges
+          SET target_return_rate = COALESCE((
+                SELECT return_rate FROM daily_scores
+                WHERE challenge_date = duel_challenges.challenge_id
+                  AND player_id = duel_challenges.challenger_player_id
+                LIMIT 1
+              ), target_return_rate),
+              target_excess = COALESCE((
+                SELECT excess FROM daily_scores
+                WHERE challenge_date = duel_challenges.challenge_id
+                  AND player_id = duel_challenges.challenger_player_id
+                LIMIT 1
+              ), target_excess),
+              target_max_drawdown = COALESCE((
+                SELECT max_drawdown FROM daily_scores
+                WHERE challenge_date = duel_challenges.challenge_id
+                  AND player_id = duel_challenges.challenger_player_id
+                LIMIT 1
+              ), target_max_drawdown)`)
         .run();
       await database
         .prepare(`UPDATE duel_challenges
@@ -287,6 +333,11 @@ export function ensureDatabase() {
       await database
         .prepare(
           "CREATE UNIQUE INDEX IF NOT EXISTS duel_challenges_player_challenge_unique ON duel_challenges (challenger_player_id, challenge_id)",
+        )
+        .run();
+      await database
+        .prepare(
+          "CREATE INDEX IF NOT EXISTS duel_challenges_parent_idx ON duel_challenges (parent_code)",
         )
         .run();
       return result;

@@ -223,6 +223,11 @@ export const duelChallenges = sqliteTable(
     challengeId: text("challenge_id").notNull().default(""),
     challengerNickname: text("challenger_nickname").notNull().default(""),
     targetScore: integer("target_score").notNull().default(0),
+    targetReturnRate: real("target_return_rate").notNull().default(0),
+    targetExcess: real("target_excess").notNull().default(0),
+    targetMaxDrawdown: real("target_max_drawdown").notNull().default(0),
+    parentCode: text("parent_code"),
+    chainDepth: integer("chain_depth").notNull().default(0),
     createdAt: text("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
@@ -236,6 +241,7 @@ export const duelChallenges = sqliteTable(
       table.challengeDate,
       table.market,
     ),
+    index("duel_challenges_parent_idx").on(table.parentCode),
   ],
 );
 

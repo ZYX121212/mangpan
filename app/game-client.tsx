@@ -142,11 +142,17 @@ type Scoreboard = {
   playerScore: RankedScore | null;
   opponent: RankedScore | null;
   duelCode: string | null;
+  shareDuel: null | {
+    code: string;
+    parentCode: string | null;
+    chainDepth: number;
+  };
   duelRoom: null | {
     isHost: boolean;
     responseCount: number;
     bestNickname: string | null;
     bestScore: number | null;
+    rematchCount: number;
     sources: { source: ShareSource; count: number }[];
   };
   weekly: {
@@ -1345,7 +1351,12 @@ export default function GameClient({
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
-  initialDuel?: { code: string; date: string; source: ShareSource };
+  initialDuel?: {
+    code: string;
+    date: string;
+    source: ShareSource;
+    chainDepth: number;
+  };
   initialMode?: "daily" | "practice" | "training";
 }) {
   const [locale, setLocale] = useState<Locale>("en");
@@ -2019,8 +2030,9 @@ export default function GameClient({
   const prepareDuelShareUrl = useCallback(async () => {
     if (gameMode !== "daily") return location.href;
     if (duelShareUrl) return duelShareUrl;
-    if (duelCode) {
-      const url = `${location.origin}/d/${encodeURIComponent(duelCode)}`;
+    const shareCode = scoreboard?.shareDuel?.code ?? duelCode;
+    if (shareCode) {
+      const url = `${location.origin}/d/${encodeURIComponent(shareCode)}`;
       setDuelShareUrl(url);
       setShareSetupStatus("ready");
       return url;
@@ -2048,7 +2060,15 @@ export default function GameClient({
       });
     duelSharePromiseRef.current = request;
     return request;
-  }, [duelCode, duelShareUrl, gameMode, market, playerId, today]);
+  }, [
+    duelCode,
+    duelShareUrl,
+    gameMode,
+    market,
+    playerId,
+    scoreboard?.shareDuel?.code,
+    today,
+  ]);
 
   useEffect(() => {
     if (
@@ -2668,6 +2688,12 @@ export default function GameClient({
       locale === "en"
         ? "Blind Trading Daily · Mystery Market Challenge"
         : "盲盘每日挑战｜神秘历史行情";
+    const chainLabel =
+      activeDuel && scoreboard?.shareDuel
+        ? locale === "en"
+          ? ` · CHAIN R${scoreboard.shareDuel.chainDepth + 1}`
+          : ` · 接力第 ${scoreboard.shareDuel.chainDepth + 1} 轮`
+        : "";
     const crowdLine = crowdComparison.rounds
       ? locale === "en"
         ? `Crowd edge ${crowdComparison.beatCrowd} · Contrarian wins ${crowdComparison.contrarianWins}/${crowdComparison.contrarianCalls}`
@@ -2675,12 +2701,12 @@ export default function GameClient({
       : "";
     const text =
       locale === "en"
-        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
-        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
+        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
+        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
     const compactText =
       locale === "en"
-        ? `I scored ${skillScore} in Blind Trading ${sequence} Same hidden chart, five calls. Can you beat me?`
-        : `我在盲盘挑战得到 ${skillScore} 分 ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
+        ? `I scored ${skillScore} in Blind Trading${chainLabel} ${sequence} Same hidden chart, five calls. Can you beat me?`
+        : `我在盲盘挑战得到 ${skillScore} 分${chainLabel} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
     return { compactText, text, title };
   };
 
@@ -2804,9 +2830,12 @@ export default function GameClient({
   };
 
   const shareDuelRoom = async () => {
-    if (!duelCode || !scoreboard?.playerScore) return;
-    const shareUrl = `${location.origin}/d/${encodeURIComponent(duelCode)}`;
-    const responses = scoreboard.duelRoom?.responseCount ?? 0;
+    const shareCode = scoreboard?.shareDuel?.code ?? duelCode;
+    if (!shareCode || !scoreboard?.playerScore) return;
+    const shareUrl = `${location.origin}/d/${encodeURIComponent(shareCode)}`;
+    const responses = scoreboard.duelRoom?.isHost
+      ? scoreboard.duelRoom.responseCount
+      : 0;
     const title =
       locale === "en"
         ? `${nickname} scored ${scoreboard.playerScore.score} in Blind Trading`
@@ -3947,6 +3976,10 @@ export default function GameClient({
                       <b>{scoreboard.duelRoom.responseCount}</b>
                     </article>
                     <article>
+                      <small>{locale === "en" ? "REMATCHES" : "发起接力"}</small>
+                      <b>{scoreboard.duelRoom.rematchCount}</b>
+                    </article>
+                    <article>
                       <small>{locale === "en" ? "ROOM CODE" : "擂台码"}</small>
                       <b>{duelCode}</b>
                     </article>
@@ -3978,7 +4011,9 @@ export default function GameClient({
                 <>
                   <header>
                     <small>
-                      {locale === "en" ? "PRIVATE SAME-CHART DUEL" : "好友同图对决"}
+                      {locale === "en"
+                        ? `CHALLENGE CHAIN · ROUND ${(initialDuel?.chainDepth ?? 0) + 1}`
+                        : `好友挑战接力 · 第 ${(initialDuel?.chainDepth ?? 0) + 1} 轮`}
                     </small>
                     <span>
                       {scoreboard.duelRoom?.responseCount
@@ -5699,9 +5734,13 @@ export default function GameClient({
                         ? locale === "en"
                           ? "Challenge link needs a retry below"
                           : "挑战链接需要在下方重试"
-                        : locale === "en"
-                          ? "Send directly"
-                          : "直接发送"}
+                        : activeDuel && scoreboard?.shareDuel
+                          ? locale === "en"
+                            ? `Your score challenge is ready · Round ${scoreboard.shareDuel.chainDepth + 1}`
+                            : `你的成绩挑战已就绪 · 第 ${scoreboard.shareDuel.chainDepth + 1} 轮`
+                          : locale === "en"
+                            ? "Send directly"
+                            : "直接发送"}
                   </span>
                   <div>
                     <a
@@ -5754,8 +5793,8 @@ export default function GameClient({
                           : `继续分享擂台 · ${scoreboard.duelRoom.responseCount} 人已完成`
                         : activeDuel && scoreboard?.opponent
                           ? locale === "en"
-                            ? `Send result back to ${scoreboard.opponent.nickname}`
-                            : `把结果发回给 ${scoreboard.opponent.nickname}`
+                            ? `Challenge friends to beat my ${scoreboard.playerScore?.score ?? skillScore}`
+                            : `让好友挑战我的 ${scoreboard.playerScore?.score ?? skillScore} 分`
                           : "发起好友同图挑战"
                       : "正在准备挑战卡…"
                     : "分享战绩")}
