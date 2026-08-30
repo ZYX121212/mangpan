@@ -728,7 +728,17 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /Make one market call/);
   assert.match(modeLobby, /trackActivationEvent\(id, "lobby_view", "lobby"\)/);
   assert.match(modeLobby, /"guide_start", "lobby"/);
-  assert.match(modeLobby, /mode-lobby-grid/);
+  assert.match(modeLobby, /mode-lobby-groups/);
+  assert.match(modeLobby, /MODE_FAMILIES/);
+  assert.match(modeLobby, /Play solo/);
+  assert.match(modeLobby, /Build a skill/);
+  assert.match(modeLobby, /Play together/);
+  assert.match(modeLobby, /data-mode-family/);
+  assert.match(modeLobby, /"lobby_mode_daily"/);
+  assert.match(modeLobby, /"lobby_mode_practice"/);
+  assert.match(modeLobby, /"lobby_mode_training"/);
+  assert.match(modeLobby, /"lobby_mode_duel"/);
+  assert.match(modeLobby, /"lobby_mode_crew"/);
   assert.match(modeLobby, /returning-daily-card/);
   assert.match(modeLobby, /marketDate\(market\)/);
   assert.match(modeLobby, /fetch\(`\/api\/scores\?\$\{query\}`/);
@@ -770,6 +780,16 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /BEAT TODAY/);
   assert.match(activationRoute, /crew_first_invite_share/);
   assert.match(activationClient, /crew_first_invite_share/);
+  for (const event of [
+    "lobby_mode_daily",
+    "lobby_mode_practice",
+    "lobby_mode_training",
+    "lobby_mode_duel",
+    "lobby_mode_crew",
+  ]) {
+    assert.match(activationRoute, new RegExp(event));
+    assert.match(activationClient, new RegExp(event));
+  }
   assert.match(activationRoute, /crew_result_return/);
   assert.match(activationClient, /crew_result_return/);
   assert.match(styles, /\.crew-activation-gate/);

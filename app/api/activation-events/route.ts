@@ -5,6 +5,11 @@ import { requestPlayerId } from "../../request-identity";
 export type ActivationEventType =
   | "lobby_view"
   | "lobby_daily_cta"
+  | "lobby_mode_daily"
+  | "lobby_mode_practice"
+  | "lobby_mode_training"
+  | "lobby_mode_duel"
+  | "lobby_mode_crew"
   | "guide_start"
   | "guide_forecast"
   | "guide_reveal"
@@ -26,6 +31,11 @@ export type ActivationSource = "lobby" | "direct" | "duel" | "crew";
 const EVENT_TYPES = new Set<ActivationEventType>([
   "lobby_view",
   "lobby_daily_cta",
+  "lobby_mode_daily",
+  "lobby_mode_practice",
+  "lobby_mode_training",
+  "lobby_mode_duel",
+  "lobby_mode_crew",
   "guide_start",
   "guide_forecast",
   "guide_reveal",

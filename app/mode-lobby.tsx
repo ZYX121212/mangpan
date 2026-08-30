@@ -39,6 +39,8 @@ const MODES = [
     meta: { en: "Ranked · about 90 sec", zh: "计入排名 · 约 90 秒" },
     action: { en: "Play today’s chart", zh: "挑战今日题目" },
     tone: "daily",
+    family: "solo",
+    event: "lobby_mode_daily",
   },
   {
     number: "02",
@@ -52,6 +54,8 @@ const MODES = [
     meta: { en: "Unlimited · unranked", zh: "不限次数 · 不排名" },
     action: { en: "Start practicing", zh: "进入自由练习" },
     tone: "practice",
+    family: "solo",
+    event: "lobby_mode_practice",
   },
   {
     number: "03",
@@ -65,6 +69,8 @@ const MODES = [
     meta: { en: "12 lessons · adaptive review", zh: "12 课 · 错因重练" },
     action: { en: "Choose a lesson", zh: "选择训练课程" },
     tone: "training",
+    family: "training",
+    event: "lobby_mode_training",
   },
   {
     number: "04",
@@ -78,6 +84,8 @@ const MODES = [
     meta: { en: "Verified · spoiler-free", zh: "服务器复算 · 不剧透" },
     action: { en: "Enter a duel", zh: "进入好友对决" },
     tone: "duel",
+    family: "social",
+    event: "lobby_mode_duel",
   },
   {
     number: "05",
@@ -91,6 +99,38 @@ const MODES = [
     meta: { en: "2–5 friends · daily", zh: "2–5 人 · 每日共同完成" },
     action: { en: "Open crew streaks", zh: "进入小队模式" },
     tone: "crew",
+    family: "social",
+    event: "lobby_mode_crew",
+  },
+] as const;
+
+const MODE_FAMILIES = [
+  {
+    key: "solo",
+    number: "A",
+    title: { en: "Play solo", zh: "单人游玩" },
+    description: {
+      en: "Compete once today or explore without pressure.",
+      zh: "完成今日竞技，或无压力自由探索。",
+    },
+  },
+  {
+    key: "training",
+    number: "B",
+    title: { en: "Build a skill", zh: "专项提升" },
+    description: {
+      en: "Choose one weakness and train it deliberately.",
+      zh: "选择一个薄弱点，进行针对性训练。",
+    },
+  },
+  {
+    key: "social",
+    number: "C",
+    title: { en: "Play together", zh: "和朋友一起" },
+    description: {
+      en: "Challenge one friend or keep a crew streak alive.",
+      zh: "挑战一位好友，或共同守住小队连续纪录。",
+    },
   },
 ] as const;
 
@@ -206,6 +246,13 @@ export default function ModeLobby() {
     trackActivationEvent(
       playerId || ensureLocalPlayerId(),
       "lobby_daily_cta",
+      "lobby",
+    );
+  };
+  const openMode = (eventType: (typeof MODES)[number]["event"]) => {
+    trackActivationEvent(
+      playerId || ensureLocalPlayerId(),
+      eventType,
       "lobby",
     );
   };
@@ -373,24 +420,46 @@ export default function ModeLobby() {
         )}
       </section>
 
-      <section id="game-modes" className="mode-lobby-grid" aria-label="Game modes">
-        {MODES.map((mode) => (
-          <Link
-            className={`mode-lobby-card ${mode.tone}`}
-            href={`${mode.href}?market=${market}`}
-            key={mode.href}
+      <section
+        id="game-modes"
+        className="mode-lobby-groups"
+        aria-label={locale === "en" ? "Game modes by goal" : "按目标选择玩法"}
+      >
+        {MODE_FAMILIES.map((family) => (
+          <section
+            className={`mode-family ${family.key}`}
+            data-mode-family={family.key}
+            key={family.key}
           >
-            <header>
-              <span>{mode.number}</span>
-              <small>{mode.eyebrow[locale]}</small>
+            <header className="mode-family-heading">
+              <span>{family.number}</span>
+              <div>
+                <h2>{family.title[locale]}</h2>
+                <p>{family.description[locale]}</p>
+              </div>
             </header>
-            <h2>{mode.title[locale]}</h2>
-            <p>{mode.description[locale]}</p>
-            <footer>
-              <small>{mode.meta[locale]}</small>
-              <b>{mode.action[locale]} →</b>
-            </footer>
-          </Link>
+            <div className="mode-family-cards">
+              {MODES.filter((mode) => mode.family === family.key).map((mode) => (
+                <Link
+                  className={`mode-lobby-card ${mode.tone}`}
+                  href={`${mode.href}?market=${market}`}
+                  key={mode.href}
+                  onClick={() => openMode(mode.event)}
+                >
+                  <header>
+                    <span>{mode.number}</span>
+                    <small>{mode.eyebrow[locale]}</small>
+                  </header>
+                  <h3>{mode.title[locale]}</h3>
+                  <p>{mode.description[locale]}</p>
+                  <footer>
+                    <small>{mode.meta[locale]}</small>
+                    <b>{mode.action[locale]} →</b>
+                  </footer>
+                </Link>
+              ))}
+            </div>
+          </section>
         ))}
       </section>
 

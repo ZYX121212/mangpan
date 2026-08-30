@@ -229,3 +229,26 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 
 /* Earned comparison proof is the share hook; lower-percentile players keep a positive style-first card. */
 .result-comparison-proof{max-width:100%;margin-top:7px;padding:5px 7px;display:inline-flex;overflow:hidden;border-radius:999px;background:#e5eee2;color:#426047;font:850 7px ui-monospace,SFMono-Regular,Menlo,monospace;font-style:normal;letter-spacing:.09em;text-overflow:ellipsis;text-transform:uppercase;white-space:nowrap}
+
+/* Separate modes by player intent before showing individual routes. */
+.mode-lobby-groups{min-height:0;flex:1;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(230px,.72fr) minmax(0,1.1fr);gap:12px;align-items:stretch}
+.mode-family{min-width:0;padding:11px;border:1px solid #d9d4ca;border-radius:18px;background:rgba(255,255,255,.36)}
+.mode-family-heading{min-height:52px;padding:1px 4px 11px;display:grid;grid-template-columns:24px minmax(0,1fr);gap:8px;align-items:start}
+.mode-family-heading>span{width:21px;height:21px;display:grid;place-items:center;border:1px solid #cbc6bb;border-radius:6px;color:#8c887f;font:800 7px ui-monospace,SFMono-Regular,Menlo,monospace}
+.mode-family-heading h2{margin:0;font-size:13px;letter-spacing:-.025em}
+.mode-family-heading p{margin:3px 0 0;color:#858279;font-size:8px;line-height:1.4}
+.mode-family-cards{height:calc(100% - 52px);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.mode-family.training .mode-family-cards{grid-template-columns:1fr}
+.mode-family .mode-lobby-card{grid-column:auto;min-height:215px;padding:16px;border-radius:13px;box-shadow:0 10px 26px rgba(37,36,30,.03)}
+.mode-family .mode-lobby-card:hover{transform:translateY(-3px);box-shadow:0 16px 36px rgba(37,36,30,.09)}
+.mode-family .mode-lobby-card:focus-visible{outline:2px solid #30332c;outline-offset:3px}
+.mode-family .mode-lobby-card>header{gap:10px}
+.mode-family .mode-lobby-card>header>span{font-size:10px}
+.mode-family .mode-lobby-card>header>small{font-size:6px;letter-spacing:.11em}
+.mode-family .mode-lobby-card h3{margin:clamp(20px,3vh,30px) 0 8px;font-size:clamp(18px,1.45vw,23px);line-height:1.03;letter-spacing:-.035em}
+.mode-family .mode-lobby-card p{font-size:9px;line-height:1.52}
+.mode-family .mode-lobby-card>footer{padding-top:16px}
+.mode-family .mode-lobby-card>footer small{margin-bottom:7px;font-size:6px;letter-spacing:.06em}
+.mode-family .mode-lobby-card>footer b{font-size:9px}
+@media(max-width:1100px){.mode-lobby-groups{grid-template-columns:1fr}.mode-family-cards,.mode-family.training .mode-family-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.mode-family.training .mode-lobby-card{grid-column:1/-1}.mode-family .mode-lobby-card{min-height:205px}}
+@media(max-width:560px){.mode-family-cards,.mode-family.training .mode-family-cards{grid-template-columns:1fr}.mode-family.training .mode-lobby-card{grid-column:auto}.mode-family .mode-lobby-card{min-height:190px;padding:17px}.mode-family .mode-lobby-card h3{margin-top:24px}}
