@@ -160,6 +160,9 @@ export default function ModeLobby() {
     const timer = window.setTimeout(() => {
       const savedLocale = localStorage.getItem("mangpan-locale");
       const savedMarket = localStorage.getItem("mangpan-market");
+      const resolvedMarket: MarketKind = savedMarket === "cn" ? "cn" : "us";
+      const browseModes =
+        new URLSearchParams(location.search).get("modes") === "1";
       const id = ensureLocalPlayerId();
       const hasPriorActivity = Boolean(
         localStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
@@ -173,10 +176,12 @@ export default function ModeLobby() {
         localStorage.getItem("mangpan-player-name"),
       );
       if (savedLocale === "zh") setLocale("zh");
-      if (savedMarket === "cn") setMarket("cn");
+      if (resolvedMarket === "cn") setMarket("cn");
       setPlayerId(id);
-      setIsNewPlayer(!hasPriorActivity);
+      setIsNewPlayer(!hasPriorActivity && !browseModes);
       trackActivationEvent(id, "lobby_view", "lobby");
+      const firstChartHref = `/practice?market=${resolvedMarket}&guide=1`;
+      if (!hasPriorActivity && !browseModes) router.prefetch(firstChartHref);
       void getWebGameLaunchContext().then((context) => {
         if (cancelled) return;
         if (context.locale) {
@@ -188,6 +193,8 @@ export default function ModeLobby() {
           router.replace(`/d/${encodeURIComponent(context.duelCode)}`);
         } else if (context.crewCode) {
           router.replace(`/c/${encodeURIComponent(context.crewCode)}`);
+        } else if (!hasPriorActivity && !browseModes) {
+          router.replace(firstChartHref);
         }
       });
     }, 0);
@@ -267,9 +274,6 @@ export default function ModeLobby() {
     setMarket(next);
     localStorage.setItem("mangpan-market", next);
   };
-  const startFirstChart = () => {
-    trackActivationEvent(playerId || ensureLocalPlayerId(), "guide_start", "lobby");
-  };
   const openDailyReturn = () => {
     trackActivationEvent(
       playerId || ensureLocalPlayerId(),
@@ -342,14 +346,13 @@ export default function ModeLobby() {
               ? "Make one forecast on a hidden piece of real market history, then reveal the answer. Learn the complete loop by playing—not by reading a tutorial."
               : "在一段隐藏身份的真实历史行情上做一次判断，再揭晓答案。先玩懂核心循环，不用先读教程。"
             : locale === "en"
-              ? "Daily competition, free exploration, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm."
-              : "每日竞技、自由探索、专项训练、好友对决和小队连续挑战各自独立，不再把不同目标堆进同一局。"}
+              ? "Daily competition, five-market runs, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm."
+              : "每日竞技、五关闯关、专项训练、好友对决和小队连续挑战各自独立，不再把不同目标堆进同一局。"}
         </p>
         {isNewPlayer && (
           <div className="first-play-actions">
             <Link
               href={`/practice?market=${market}&guide=1`}
-              onClick={startFirstChart}
             >
               <span>{locale === "en" ? "Make one market call" : "先做一次判断"}</span>
               <small>{locale === "en" ? "Guided · unranked · real history" : "有引导 · 不排名 · 真实历史"}</small>

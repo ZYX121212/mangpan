@@ -61,7 +61,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /color = buy \? buyColor : sellColor/);
   assert.match(
     page,
-    /<main[\s\S]*className="shell"[\s\S]*data-market=\{market\}[\s\S]*data-game-mode=\{gameMode\}[\s\S]*data-entry-mode=\{initialMode\}/,
+    /<main[\s\S]*className=\{`shell \$\{guidedRunActive \? "guided-first-play" : ""\}`\}[\s\S]*data-market=\{market\}[\s\S]*data-game-mode=\{gameMode\}[\s\S]*data-entry-mode=\{initialMode\}/,
   );
   assert.match(page, /DAILY_ORDER_ALLOCATIONS = \[\s*0\.25,\s*0\.5,\s*1,/);
   assert.match(page, /gameMode !== "daily" && \(/);
@@ -811,7 +811,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /\/practice\?market=\$\{market\}&guide=1/);
   assert.match(modeLobby, /Make one market call/);
   assert.match(modeLobby, /trackActivationEvent\(id, "lobby_view", "lobby"\)/);
-  assert.match(modeLobby, /"guide_start", "lobby"/);
+  assert.match(modeLobby, /router\.prefetch\(firstChartHref\)/);
+  assert.match(modeLobby, /router\.replace\(firstChartHref\)/);
   assert.match(modeLobby, /mode-lobby-groups/);
   assert.match(modeLobby, /MODE_FAMILIES/);
   assert.match(modeLobby, /Play solo/);

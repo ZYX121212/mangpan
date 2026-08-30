@@ -11,6 +11,8 @@ export type ActivationEventType =
   | "guide_start"
   | "guide_forecast"
   | "guide_reveal"
+  | "guide_complete"
+  | "guide_daily_continue"
   | "keyboard_first_action"
   | "decision_continue"
   | "daily_first_move"

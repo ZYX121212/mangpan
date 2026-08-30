@@ -1629,7 +1629,7 @@ export default function GameClient({
     initialChallenge.crowdForecasts ?? [],
   );
   const [onboardingStep, setOnboardingStep] =
-    useState<OnboardingStep>(0);
+    useState<OnboardingStep>(initialGuide ? 1 : 0);
   const [guidedRunActive, setGuidedRunActive] = useState(initialGuide);
   const [trainingOpen, setTrainingOpen] = useState(
     initialMode === "training",
@@ -1689,6 +1689,7 @@ export default function GameClient({
   const resumeAttemptRef = useRef(new Set<MarketKind>());
   const marketRunProgressLoadedRef = useRef(false);
   const marketRunStartTrackedRef = useRef(false);
+  const guideCompleteTrackedRef = useRef(false);
   const initialUrlHandledRef = useRef(false);
   const challengeRequestCacheRef = useRef(
     new Map<string, Promise<ChallengeSession>>(),
@@ -1907,7 +1908,8 @@ export default function GameClient({
   const marketRunAverage = marketRunProgress.scores.length
     ? Math.round(marketRunScore / marketRunProgress.scores.length)
     : 0;
-  const requiresForecast = gameMode === "daily" || isMarketRun;
+  const requiresForecast =
+    gameMode === "daily" || isMarketRun || guidedRunActive;
   const crowdForecast = crowdHistory.at(-1) ?? null;
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
@@ -2901,7 +2903,20 @@ export default function GameClient({
     );
   };
 
-  const completeOnboarding = () => {
+  const completeOnboarding = (completed: boolean) => {
+    if (
+      completed &&
+      playerId &&
+      guidedRunActive &&
+      !guideCompleteTrackedRef.current
+    ) {
+      guideCompleteTrackedRef.current = true;
+      trackActivationEvent(
+        playerId,
+        "guide_complete",
+        initialDuel ? "duel" : initialGuide ? "lobby" : "direct",
+      );
+    }
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "complete");
     setOnboardingStep(0);
     setGuidedRunActive(false);
@@ -2917,7 +2932,14 @@ export default function GameClient({
   };
 
   const enterDailyAfterGuide = async () => {
-    completeOnboarding();
+    if (playerId) {
+      trackActivationEvent(
+        playerId,
+        "guide_daily_continue",
+        initialGuide ? "lobby" : "direct",
+      );
+    }
+    completeOnboarding(true);
     history.replaceState(null, "", `/daily?market=${market}`);
     await resetGame("daily", market, "random", "standard");
   };
@@ -3686,10 +3708,11 @@ export default function GameClient({
   return (
     <Localized locale={locale}>
     <main
-      className="shell"
+      className={`shell ${guidedRunActive ? "guided-first-play" : ""}`}
       data-market={market}
       data-game-mode={gameMode}
       data-entry-mode={initialMode}
+      data-onboarding-step={onboardingStep || undefined}
     >
       <header className="topbar">
         <div className="brand">
@@ -3698,7 +3721,7 @@ export default function GameClient({
         </div>
         <Link
           className="mode-entry"
-          href="/"
+          href={initialGuide ? "/?modes=1" : "/"}
           aria-label={locale === "en" ? "Back to game modes" : "返回玩法大厅"}
         >
           <small>{locale === "en" ? "MODE" : "模式"}</small>
@@ -4011,11 +4034,34 @@ export default function GameClient({
                       ? "The new candles are real history. One result is evidence, not a strategy—keep testing your read across different charts."
                       : "新出现的 K 线来自真实历史。一次结果只是证据，不是策略；继续跨行情验证你的判断。"}
             </p>
+            {onboardingStep === 3 && lastFeedback && (
+              <div
+                className={`first-run-verdict ${lastFeedback.matched ? "matched" : "surprised"}`}
+              >
+                <span>
+                  {lastFeedback.matched
+                    ? locale === "en"
+                      ? "READ CONFIRMED"
+                      : "判断命中"
+                    : locale === "en"
+                      ? "NEW EVIDENCE"
+                      : "出现新证据"}
+                </span>
+                <b>
+                  {locale === "en"
+                    ? `${OUTLOOK_LABEL_EN[lastFeedback.forecast]} → ${OUTLOOK_LABEL_EN[lastFeedback.actual]}`
+                    : `${OUTLOOK_LABEL[lastFeedback.forecast]} → ${OUTLOOK_LABEL[lastFeedback.actual]}`}
+                </b>
+              </div>
+            )}
           </div>
           {onboardingStep === 3 ? (
             initialDuel ? (
               <div className="first-run-coach-actions">
-                <button className="coach-primary" onClick={completeOnboarding}>
+                <button
+                  className="coach-primary"
+                  onClick={() => completeOnboarding(true)}
+                >
                   {locale === "en" ? "Continue the duel →" : "继续完成对决 →"}
                 </button>
               </div>
@@ -4034,7 +4080,10 @@ export default function GameClient({
                       ? "Play today's global challenge →"
                       : "进入今日全球挑战 →"}
                 </button>
-                <button className="coach-secondary" onClick={completeOnboarding}>
+                <button
+                  className="coach-secondary"
+                  onClick={() => completeOnboarding(true)}
+                >
                   {locale === "en" ? "Keep practicing" : "继续自由练习"}
                 </button>
               </div>
@@ -4042,7 +4091,7 @@ export default function GameClient({
           ) : (
             <button
               className="coach-secondary"
-              onClick={completeOnboarding}
+              onClick={() => completeOnboarding(false)}
             >
               {locale === "en" ? "Skip guide" : "跳过引导"}
             </button>
@@ -4695,7 +4744,7 @@ export default function GameClient({
                           }
                           className={
                             outlook === value &&
-                            (gameMode !== "daily" || forecastTouched)
+                            (!requiresForecast || forecastTouched)
                               ? "selected"
                               : ""
                           }
