@@ -1,4 +1,4 @@
-import type { StockSample } from "./stock-data";
+import type { StockSample } from "./stock-types";
 import {
   INITIAL_CASH,
   MAX_ACTIONS,

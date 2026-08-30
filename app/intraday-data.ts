@@ -1,4 +1,4 @@
-import type { Candle, StockSample } from "./stock-data";
+import type { Candle, StockSample } from "./stock-types";
 
 export type IntradayInterval = "5m" | "15m";
 

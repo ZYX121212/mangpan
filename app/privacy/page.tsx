@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import LegalPage from "../legal-page";
 
 export const metadata: Metadata = {
-  title: "Privacy | Blind Chart",
-  description: "How Blind Chart handles account, gameplay, and device data.",
+  title: "Privacy | Blind Trading",
+  description: "How Blind Trading handles account, gameplay, and device data.",
 };
 
 export default function PrivacyPage() {
@@ -12,10 +12,10 @@ export default function PrivacyPage() {
       <section>
         <h2>What we collect</h2>
         <p>
-          Blind Chart stores the player name you choose, gameplay decisions,
+          Blind Trading stores the player name you choose, gameplay decisions,
           scores, training progress, challenge participation, and related
           timestamps. If you use Sign in with ChatGPT, the hosting platform
-          provides an account identifier so progress can sync; Blind Chart stores
+          provides an account identifier so progress can sync; Blind Trading stores
           a one-way derived player identifier rather than the original account ID.
         </p>
       </section>

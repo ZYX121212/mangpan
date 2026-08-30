@@ -8,8 +8,11 @@ import {
   hashText,
   type MarketKind,
 } from "./game-config";
-import { STOCK_SAMPLES, type Candle, type StockSample } from "./stock-data";
-import { US_STOCK_SAMPLES } from "./us-stock-data";
+import {
+  MARKET_UNIVERSE_SIZE,
+  type Candle,
+  type StockSample,
+} from "./stock-types";
 
 export type ChallengeBundle = {
   date: string;
@@ -99,13 +102,16 @@ function prepareGameStock(
   return { ...stock, initialVisibleCount: decisionIndex } as StockSample;
 }
 
-function bundledStock(
+async function bundledStock(
   seed: number,
   market: MarketKind,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
 ) {
-  const pool = market === "cn" ? STOCK_SAMPLES : US_STOCK_SAMPLES;
+  const pool =
+    market === "cn"
+      ? (await import("./stock-data")).STOCK_SAMPLES
+      : (await import("./us-stock-data")).US_STOCK_SAMPLES;
   const stock = pool[seed % pool.length];
   return prepareGameStock(stock, seed, scenario, difficulty) ?? stock;
 }
@@ -223,7 +229,7 @@ async function cnBundle(
   return {
     date,
     market: "cn",
-    stock: bundledStock(seed, "cn", scenario, difficulty),
+    stock: await bundledStock(seed, "cn", scenario, difficulty),
     universeSize: CN_STOCK_UNIVERSE.length,
     dataSource: "embedded-fallback",
   } satisfies ChallengeBundle;
@@ -238,8 +244,8 @@ export async function getChallengeBundle(
   return {
     date,
     market,
-    stock: bundledStock(seed, market),
-    universeSize: US_STOCK_SAMPLES.length,
+    stock: await bundledStock(seed, market),
+    universeSize: MARKET_UNIVERSE_SIZE.us,
     dataSource: "embedded-fallback",
   } satisfies ChallengeBundle;
 }
@@ -261,14 +267,13 @@ export async function getPracticeBundle(
   return {
     date: "practice",
     market,
-    stock: bundledStock(seed, market, scenario, difficulty),
-    universeSize: US_STOCK_SAMPLES.length,
+    stock: await bundledStock(seed, market, scenario, difficulty),
+    universeSize: MARKET_UNIVERSE_SIZE.us,
     dataSource: "embedded-fallback",
   } satisfies ChallengeBundle;
 }
 
 export const MARKET_COUNTS = {
-  cn: CN_STOCK_UNIVERSE.length,
-  us: US_STOCK_SAMPLES.length,
+  ...MARKET_UNIVERSE_SIZE,
 } as const;
 export const REQUIRED_CANDLES = MIN_GAME_BARS;

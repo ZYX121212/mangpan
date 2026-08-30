@@ -8,7 +8,7 @@ test("contains the complete blind chart game shell", async () => {
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(layout, /Blind Chart \| Real Historical Trading Challenge/);
+  assert.match(layout, /Blind Trading \| Real Historical Market Challenge/);
   assert.match(layout, /<html lang="en">/);
   assert.match(page, /今日盲盘/);
   assert.match(page, /竞技榜/);
@@ -43,7 +43,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /信心校准/);
   assert.match(page, /今日长线挑战/);
   assert.match(page, /不限制决策次数/);
-  assert.match(page, /下一张图 →/);
+  assert.match(page, /下一局 →/);
   assert.match(page, /离开今日挑战 · 随机练习/);
   assert.match(page, /window\.confirm/);
   assert.match(page, /method: "DELETE"/);
@@ -85,9 +85,9 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /mangpan-locale/);
   assert.match(page, /changeLocale\("en"\)/);
   assert.match(page, /useState<Locale>\("en"\)/);
-  assert.match(page, /useState<MarketKind>\("us"\)/);
+  assert.match(page, /useState<MarketKind>\(initialChallenge\.market\)/);
   assert.match(page, /document\.documentElement\.lang/);
-  assert.match(i18n, /Blind Chart \| Real Historical Candlestick Challenge/);
+  assert.match(i18n, /Blind Trading \| Real Historical Market Challenge/);
   assert.match(i18n, /Only recorded views count toward accuracy/);
   assert.doesNotMatch(page, /最多推进 60/);
   assert.doesNotMatch(page, /Building your site|Your site is taking shape/);

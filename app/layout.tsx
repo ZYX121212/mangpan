@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mangpan-kline-game.hiayun.chatgpt.site"),
-  title: "Blind Chart | Real Historical Trading Challenge",
+  title: "Blind Trading | Real Historical Market Challenge",
   description:
     "Trade real historical candlestick charts without seeing the ticker, date, or future price action. Practice decisions, risk, and execution.",
   keywords: [
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   openGraph: {
-    title: "Blind Chart | Trade the chart, not the ticker",
+    title: "Blind Trading | Trade the setup, not the ticker",
     description:
       "Make trading decisions on real historical charts with the ticker, dates, and future price action hidden.",
     type: "website",
@@ -37,13 +37,13 @@ export const metadata: Metadata = {
         url: "/og.png",
         width: 1672,
         height: 941,
-        alt: "Blind Chart — Trade the chart, not the ticker",
+        alt: "Blind Trading — Trade the setup, not the ticker",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Blind Chart | Trade the chart, not the ticker",
+    title: "Blind Trading | Trade the setup, not the ticker",
     description:
       "A trading decision game built from real historical candlestick charts.",
     images: ["/og.png"],

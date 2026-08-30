@@ -3,7 +3,11 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- dialog backdrops only close when the backdrop itself is pressed */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Candle, StockSample } from "./stock-data";
+import {
+  MARKET_UNIVERSE_SIZE,
+  type Candle,
+  type StockSample,
+} from "./stock-types";
 import {
   INITIAL_BARS,
   INITIAL_CASH,
@@ -222,7 +226,6 @@ type ChallengeSession = {
   actions: ReplayAction[];
   resumed?: boolean;
 };
-type InitialChallenges = Record<MarketKind, ChallengeSession>;
 type AdvanceResponse = {
   candles: Candle[];
   remainingBars: number;
@@ -508,6 +511,8 @@ function CandleChart({
   locale: Locale;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const drawRef = useRef<() => void>(() => undefined);
+  const drawFrameRef = useRef<number | null>(null);
   const dragRef = useRef<{
     pointerId: number;
     startX: number;
@@ -525,6 +530,13 @@ function CandleChart({
   const [viewSize, setViewSize] = useState(INITIAL_BARS);
   const [rightOffset, setRightOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const scheduleDraw = useCallback(() => {
+    if (drawFrameRef.current != null) return;
+    drawFrameRef.current = window.requestAnimationFrame(() => {
+      drawFrameRef.current = null;
+      drawRef.current();
+    });
+  }, []);
   const maxView = data.length,
     effectiveView = Math.min(viewSize, data.length);
   const maxOffset = Math.max(0, data.length - effectiveView);
@@ -576,8 +588,10 @@ function CandleChart({
       const rect = canvas.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
+      const pixelWidth = Math.round(rect.width * dpr);
+      const pixelHeight = Math.round(rect.height * dpr);
+      if (canvas.width !== pixelWidth) canvas.width = pixelWidth;
+      if (canvas.height !== pixelHeight) canvas.height = pixelHeight;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -769,11 +783,30 @@ function CandleChart({
         ctx.textAlign = "left";
       }
     };
-    draw();
-    const observer = new ResizeObserver(draw);
+    drawRef.current = draw;
+    scheduleDraw();
+  }, [
+    data,
+    effectiveView,
+    hover,
+    locale,
+    markers,
+    scheduleDraw,
+    viewEnd,
+    viewStart,
+  ]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const observer = new ResizeObserver(scheduleDraw);
     observer.observe(canvas);
-    return () => observer.disconnect();
-  }, [data, effectiveView, hover, locale, markers, viewEnd, viewStart]);
+    return () => {
+      observer.disconnect();
+      if (drawFrameRef.current != null)
+        window.cancelAnimationFrame(drawFrameRef.current);
+    };
+  }, [scheduleDraw]);
 
   const hoverIndex = hover ? viewStart + hover.index : -1;
   const hoverCandle = hoverIndex >= 0 ? data[hoverIndex] : null;
@@ -1119,20 +1152,20 @@ function CandleChart({
 }
 
 export default function GameClient({
-  initialChallenges,
+  initialChallenge,
   initialIdentity,
 }: {
-  initialChallenges: InitialChallenges;
+  initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
 }) {
-  const today = initialChallenges.us.date;
+  const today = initialChallenge.date;
   const [locale, setLocale] = useState<Locale>("en");
-  const [market, setMarket] = useState<MarketKind>("us");
+  const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
   const [gameMode, setGameMode] = useState<GameMode>("daily");
-  const [session, setSession] = useState(initialChallenges.us);
-  const [stock, setStock] = useState(initialChallenges.us.stock);
+  const [session, setSession] = useState(initialChallenge);
+  const [stock, setStock] = useState(initialChallenge.stock);
   const [visibleCount, setVisibleCount] = useState(() =>
-      initialBarsFor(initialChallenges.us.stock),
+      initialBarsFor(initialChallenge.stock),
     ),
     [round, setRound] = useState(0);
   const [cash, setCash] = useState(INITIAL_CASH),
@@ -1195,6 +1228,9 @@ export default function GameClient({
   const submissionRef = useRef(false);
   const resumeAttemptRef = useRef(new Set<MarketKind>());
   const initialUrlHandledRef = useRef(false);
+  const challengeRequestCacheRef = useRef(
+    new Map<string, Promise<ChallengeSession>>(),
+  );
   useEffect(() => {
     const saved = localStorage.getItem("mangpan-locale");
     const detected: Locale = saved === "zh" ? "zh" : "en";
@@ -1202,7 +1238,7 @@ export default function GameClient({
     document.documentElement.lang = detected === "zh" ? "zh-CN" : "en";
     document.title = detected === "zh"
       ? "盲盘｜真实历史 K 线交易挑战"
-      : "Blind Chart | Real Historical Candlestick Challenge";
+      : "Blind Trading | Real Historical Market Challenge";
     return () => window.clearTimeout(timer);
   }, []);
   const changeLocale = (next: Locale) => {
@@ -1211,7 +1247,7 @@ export default function GameClient({
     document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
     document.title = next === "zh"
       ? "盲盘｜真实历史 K 线交易挑战"
-      : "Blind Chart | Real Historical Candlestick Challenge";
+      : "Blind Trading | Real Historical Market Challenge";
   };
   const numberLocale = locale === "en" ? "en-US" : "zh-CN";
   const nf = useMemo(
@@ -1545,27 +1581,17 @@ export default function GameClient({
     }
     const params = new URLSearchParams(location.search);
     const challenger = params.get("duel") || "";
-    const requestedMarket: MarketKind =
-      params.get("market") === "us" ? "us" : "cn";
     queueMicrotask(() => {
       if (
         params.get("date") === today &&
         /^[A-Z0-9]{8,12}$/i.test(challenger)
       )
         setDuelCode(challenger.toUpperCase());
-      if (requestedMarket === "us") {
-        setMarket(requestedMarket);
-        setSession(initialChallenges[requestedMarket]);
-        setStock(initialChallenges[requestedMarket].stock);
-        setVisibleCount(
-          initialBarsFor(initialChallenges[requestedMarket].stock),
-        );
-      }
       setPlayerId(id);
       setNickname(storedNickname);
       setScenarioProgress(storedProgress);
     });
-  }, [initialChallenges, initialIdentity, today]);
+  }, [initialIdentity, today]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -1692,6 +1718,67 @@ export default function GameClient({
     );
   }, []);
 
+  const challengeRequest = (
+    nextMode: GameMode,
+    nextMarket: MarketKind,
+    scenario: ScenarioKind,
+    difficulty: ScenarioDifficulty,
+  ) => {
+    const key = `${nextMode}:${nextMarket}:${scenario}:${difficulty}`;
+    const cached = challengeRequestCacheRef.current.get(key);
+    if (cached) return { key, request: cached };
+    const query = new URLSearchParams({
+      mode: nextMode,
+      seed: crypto.randomUUID(),
+      market: nextMarket,
+      scenario,
+      difficulty,
+      playerId,
+    });
+    const request = fetch(`/api/challenge?${query}`).then(async (response) => {
+      if (!response.ok) throw new Error("challenge load failed");
+      return (await response.json()) as ChallengeSession;
+    });
+    challengeRequestCacheRef.current.set(key, request);
+    request.catch(() => {
+      if (challengeRequestCacheRef.current.get(key) === request)
+        challengeRequestCacheRef.current.delete(key);
+    });
+    return { key, request };
+  };
+
+  const takeChallenge = async (
+    nextMode: GameMode,
+    nextMarket: MarketKind,
+    scenario: ScenarioKind,
+    difficulty: ScenarioDifficulty,
+  ) => {
+    const pending = challengeRequest(
+      nextMode,
+      nextMarket,
+      scenario,
+      difficulty,
+    );
+    try {
+      return await pending.request;
+    } finally {
+      if (
+        challengeRequestCacheRef.current.get(pending.key) === pending.request
+      )
+        challengeRequestCacheRef.current.delete(pending.key);
+    }
+  };
+
+  const prefetchChallenge = (
+    nextMode: GameMode,
+    nextMarket: MarketKind,
+    scenario: ScenarioKind = "random",
+    difficulty: ScenarioDifficulty = "standard",
+  ) => {
+    if (!playerId || challengeLoading) return;
+    void challengeRequest(nextMode, nextMarket, scenario, difficulty).request;
+  };
+
   useEffect(() => {
     if (!playerId || resumeAttemptRef.current.has(market)) return;
     resumeAttemptRef.current.add(market);
@@ -1730,12 +1817,9 @@ export default function GameClient({
   ) => {
     setChallengeLoading(true);
     try {
-      const seed = crypto.randomUUID();
-      const response = await fetch(
-        `/api/challenge?mode=${nextMode}&seed=${encodeURIComponent(seed)}&market=${nextMarket}&scenario=${scenario}&difficulty=${difficulty}&playerId=${encodeURIComponent(playerId)}`,
+      resetSession(
+        await takeChallenge(nextMode, nextMarket, scenario, difficulty),
       );
-      if (!response.ok) throw new Error("challenge load failed");
-      resetSession((await response.json()) as ChallengeSession);
       setTrainingOpen(false);
     } finally {
       setChallengeLoading(false);
@@ -1759,7 +1843,7 @@ export default function GameClient({
       return;
     setChallengeLoading(true);
     try {
-      const abandoned = await fetch("/api/challenge", {
+      const abandoned = fetch("/api/challenge", {
         method: "DELETE",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -1767,22 +1851,22 @@ export default function GameClient({
           playerId,
         }),
       });
-      if (!abandoned.ok) throw new Error("challenge abandon failed");
       localStorage.removeItem(`mangpan-active-session-${market}`);
       const nextScenario = gameMode === "daily" ? "random" : session.scenario;
       const nextDifficulty =
         gameMode === "daily" ? "standard" : session.difficulty;
-      const query = new URLSearchParams({
-        mode: "practice",
-        seed: crypto.randomUUID(),
+      const nextSession = takeChallenge(
+        "practice",
         market,
-        scenario: nextScenario,
-        difficulty: nextDifficulty,
-        playerId,
-      });
-      const response = await fetch(`/api/challenge?${query}`);
-      if (!response.ok) throw new Error("challenge load failed");
-      resetSession((await response.json()) as ChallengeSession);
+        nextScenario,
+        nextDifficulty,
+      );
+      const [abandonedResponse, loadedSession] = await Promise.all([
+        abandoned,
+        nextSession,
+      ]);
+      if (!abandonedResponse.ok) throw new Error("challenge abandon failed");
+      resetSession(loadedSession);
       setTrainingOpen(false);
       setDuelCode("");
       history.replaceState(null, "", location.pathname);
@@ -1793,7 +1877,6 @@ export default function GameClient({
 
   const changeMarket = (nextMarket: MarketKind) => {
     if (nextMarket === market || challengeLoading || isRevealing) return;
-    setMarket(nextMarket);
     setDuelCode("");
     void resetGame(gameMode, nextMarket, session.scenario, session.difficulty);
     history.replaceState(null, "", location.pathname);
@@ -2132,6 +2215,14 @@ export default function GameClient({
           <button
             className={market === "cn" ? "active" : ""}
             disabled={challengeLoading || isRevealing}
+            onPointerEnter={() =>
+              market !== "cn" &&
+              prefetchChallenge(gameMode, "cn", session.scenario, session.difficulty)
+            }
+            onFocus={() =>
+              market !== "cn" &&
+              prefetchChallenge(gameMode, "cn", session.scenario, session.difficulty)
+            }
             onClick={() => changeMarket("cn")}
           >
             A股
@@ -2145,6 +2236,14 @@ export default function GameClient({
           <button
             className={market === "us" ? "active" : ""}
             disabled={challengeLoading || isRevealing}
+            onPointerEnter={() =>
+              market !== "us" &&
+              prefetchChallenge(gameMode, "us", session.scenario, session.difficulty)
+            }
+            onFocus={() =>
+              market !== "us" &&
+              prefetchChallenge(gameMode, "us", session.scenario, session.difficulty)
+            }
             onClick={() => changeMarket("us")}
           >
             美股
@@ -2689,13 +2788,29 @@ export default function GameClient({
               <button
                 className="next-chart-action"
                 disabled={challengeLoading || isRevealing}
+                onPointerEnter={() =>
+                  prefetchChallenge(
+                    "practice",
+                    market,
+                    gameMode === "daily" ? "random" : session.scenario,
+                    gameMode === "daily" ? "standard" : session.difficulty,
+                  )
+                }
+                onFocus={() =>
+                  prefetchChallenge(
+                    "practice",
+                    market,
+                    gameMode === "daily" ? "random" : session.scenario,
+                    gameMode === "daily" ? "standard" : session.difficulty,
+                  )
+                }
                 onClick={() => void nextChart()}
               >
                 {challengeLoading
-                  ? "正在切换下一张图…"
+                  ? "正在开始下一局…"
                   : gameMode === "daily"
                     ? "离开今日挑战 · 随机练习"
-                    : "下一张图 →"}
+                    : "下一局 →"}
               </button>
               <button className="finish-action" onClick={finishGame}>
                 提前结束并揭晓股票
@@ -2722,8 +2837,8 @@ export default function GameClient({
       </section>
       <footer className="source-note">
         <span>
-          A股 {initialChallenges.cn.universeSize.toLocaleString(numberLocale)}{" "}
-          只全市场股票池 · 美股 {initialChallenges.us.universeSize} 只 ·
+          A股 {MARKET_UNIVERSE_SIZE.cn.toLocaleString(numberLocale)}{" "}
+          只全市场股票池 · 美股 {MARKET_UNIVERSE_SIZE.us} 只 ·
           每局按需加载真实日线 · 不构成投资建议
         </span>
         <nav aria-label="Legal">
@@ -3017,7 +3132,7 @@ export default function GameClient({
                 <b>市场</b>
                 <span>
                   可随时选择 A 股或美股；A 股从{" "}
-                  {initialChallenges.cn.universeSize.toLocaleString(numberLocale)}{" "}
+                  {MARKET_UNIVERSE_SIZE.cn.toLocaleString(numberLocale)}{" "}
                   只全市场股票池中抽取。
                 </span>
               </li>
@@ -3469,6 +3584,8 @@ export default function GameClient({
       {resultOpen && (
         <div className="modal-backdrop result-backdrop">
           <section className="result-modal">
+            <header className="result-heading">
+              <div>
             <small className="eyebrow">
               {gameMode === "daily"
                 ? `${marketLabel}今日盲盘 #${today.slice(5).replace("-", "")}`
@@ -3479,6 +3596,17 @@ export default function GameClient({
             <p className="stock-code">
               {stock.market} · {stock.code}
             </p>
+              </div>
+              <button
+                className="result-close"
+                onClick={() => setResultOpen(false)}
+                aria-label="关闭战绩并返回复盘 K 线"
+              >
+                <span aria-hidden="true">←</span>
+                返回 K 线
+              </button>
+            </header>
+            <div className="result-overview">
             <div
               className={`result-hero ${returnRate >= 0 ? "positive" : "negative"}`}
             >
@@ -3488,15 +3616,16 @@ export default function GameClient({
                 {returnRate.toFixed(2)}%
               </strong>
               <small>
-                {currencySymbol}
-                {nf.format(INITIAL_CASH)} → {currencySymbol}
-                {nf.format(equity)}
+                期初 {currencySymbol}{nf.format(INITIAL_CASH)}
+                <i aria-hidden="true">→</i>
+                期末 {currencySymbol}{nf.format(equity)}
               </small>
             </div>
             <div className="result-grid">
               <div>
                 <small>操盘评分</small>
                 <b>{skillScore}</b>
+                <span>决策过程</span>
               </div>
               <div>
                 <small>股票同期</small>
@@ -3504,18 +3633,22 @@ export default function GameClient({
                   {benchmark >= 0 ? "+" : ""}
                   {benchmark.toFixed(2)}%
                 </b>
+                <span>买入并持有</span>
               </div>
               <div>
                 <small>超额收益</small>
-                <b>
+                <b className={excess >= 0 ? "up" : "down"}>
                   {excess >= 0 ? "+" : ""}
                   {excess.toFixed(2)}%
                 </b>
+                <span>相对同期</span>
               </div>
               <div>
                 <small>最大回撤</small>
                 <b>{maxDrawdown.toFixed(2)}%</b>
+                <span>峰值至谷底</span>
               </div>
+            </div>
             </div>
             <div className="execution-cost-result">
               <div>
@@ -3532,8 +3665,12 @@ export default function GameClient({
                   {nf.format(slippagePaid)}
                 </b>
               </div>
-              <p>已计入现金与最终收益；佣金和滑点属于透明的训练假设。</p>
+              <p>
+                <strong>成本已计入最终收益</strong>
+                佣金和滑点均采用透明的训练假设
+              </p>
             </div>
+            <div className="result-analysis-grid">
             <section className="process-score-card">
               <div className="process-score-head">
                 <div>
@@ -3568,6 +3705,10 @@ export default function GameClient({
               </div>
             </section>
             <div className="decision-result">
+              <header>
+                <small>DECISION QUALITY · 判断质量</small>
+                <b>观点记录与信心校准</b>
+              </header>
               <div>
                 <small>方向判断</small>
                 <b>
@@ -3599,6 +3740,7 @@ export default function GameClient({
                   ? `有 ${decisionStats.confidentMisses} 次高信心误判；下局先降低仓位，再等待走势确认。`
                   : "只有主动记录的观点会与真实后续逐笔对照，不会把普通持有误算成方向预测。"}
               </p>
+            </div>
             </div>
             <section className="decision-replay">
               <div className="decision-replay-head">
@@ -3770,6 +3912,22 @@ export default function GameClient({
             <button
               className="next-training-card"
               disabled={challengeLoading}
+              onPointerEnter={() =>
+                prefetchChallenge(
+                  "practice",
+                  market,
+                  weakestSkill.scenario,
+                  "standard",
+                )
+              }
+              onFocus={() =>
+                prefetchChallenge(
+                  "practice",
+                  market,
+                  weakestSkill.scenario,
+                  "standard",
+                )
+              }
               onClick={() =>
                 void resetGame(
                   "practice",
@@ -3805,6 +3963,18 @@ export default function GameClient({
               <button
                 className="hold-action"
                 disabled={challengeLoading}
+                onPointerEnter={() =>
+                  prefetchChallenge(
+                    gameMode === "daily" ? "practice" : "daily",
+                    market,
+                  )
+                }
+                onFocus={() =>
+                  prefetchChallenge(
+                    gameMode === "daily" ? "practice" : "daily",
+                    market,
+                  )
+                }
                 onClick={() =>
                   void resetGame(gameMode === "daily" ? "practice" : "daily")
                 }

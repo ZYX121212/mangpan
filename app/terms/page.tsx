@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import LegalPage from "../legal-page";
 
 export const metadata: Metadata = {
-  title: "Terms | Blind Chart",
-  description: "Terms for using the Blind Chart trading decision game.",
+  title: "Terms | Blind Trading",
+  description: "Terms for using the Blind Trading decision game.",
 };
 
 export default function TermsPage() {
@@ -12,7 +12,7 @@ export default function TermsPage() {
       <section>
         <h2>Educational use only</h2>
         <p>
-          Blind Chart is a decision-training game based on historical market data.
+          Blind Trading is a decision-training game based on historical market data.
           It does not provide investment advice, recommendations, brokerage
           services, or assurances about future performance. Historical results do
           not predict future results.

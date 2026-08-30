@@ -1,4 +1,4 @@
-import type { Candle } from "./stock-data";
+import type { Candle } from "./stock-types";
 
 export type AnalysisMarker = {
   index: number;

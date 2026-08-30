@@ -30,7 +30,7 @@ import type {
   ScenarioDifficulty,
   ScenarioKind,
 } from "./market-data";
-import type { Candle, StockSample } from "./stock-data";
+import type { Candle, StockSample } from "./stock-types";
 
 export type GameMode = "daily" | "practice";
 export type PublicChallengeSession = {

@@ -12,9 +12,9 @@ import {
 export type Locale = "zh" | "en";
 
 const ENGLISH: Record<string, string> = {
-  "盲盘｜真实历史 K 线交易挑战": "Blind Chart | Real Historical Candlestick Challenge",
-  "盲盘｜真实历史K线挑战": "Blind Chart | Real Historical Candlestick Challenge",
-  "盲盘": "Blind Chart",
+  "盲盘｜真实历史 K 线交易挑战": "Blind Trading | Real Historical Market Challenge",
+  "盲盘｜真实历史K线挑战": "Blind Trading | Real Historical Market Challenge",
+  "盲盘": "Blind Trading",
   "盲盘客": "Blind Trader",
   "A股": "China A-shares",
   "美股": "U.S. Stocks",
@@ -137,9 +137,9 @@ const ENGLISH: Record<string, string> = {
   "保持空仓": "Stay in Cash",
   "推进": "Advance",
   "提前结束并揭晓股票": "End Early & Reveal Stock",
-  "正在切换下一张图…": "Loading next chart…",
+  "正在开始下一局…": "Loading next challenge…",
   "离开今日挑战 · 随机练习": "Leave Daily Challenge · Start Practice",
-  "下一张图 →": "Next Chart →",
+  "下一局 →": "Next Challenge →",
   "不限制决策次数；可持续到完整历史终点，服务器只逐段揭示后续行情": "No decision limit. Continue to the end of the historical period; future data is revealed only in stages.",
   "不支持限价、做空或融资；可一直决策到该段真实历史结束": "Limit orders, shorting, and margin are unavailable. Continue until this historical period ends.",
   "本局已结束": "Session Complete",

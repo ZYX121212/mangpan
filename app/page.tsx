@@ -6,17 +6,19 @@ import { opaquePlayerId } from "./request-identity";
 
 export const dynamic = "force-dynamic";
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams?: Promise<{ market?: string }>;
+}) {
   const date = chinaDate();
+  const market = (await searchParams)?.market === "cn" ? "cn" : "us";
   const user = await getChatGPTUser();
   const playerId = user ? await opaquePlayerId(user.userId) : undefined;
-  const [cn, us] = await Promise.all([
-    startDailySession(date, "cn", playerId),
-    startDailySession(date, "us", playerId),
-  ]);
+  const challenge = await startDailySession(date, market, playerId);
   return (
     <GameClient
-      initialChallenges={{ cn, us }}
+      initialChallenge={challenge}
       initialIdentity={playerId ? { playerId, cloud: true } : null}
     />
   );
