@@ -691,7 +691,14 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(crewLobby, /trackActivationEvent\(playerId, "crew_create", "crew"\)/);
   assert.match(crewRoom, /TODAY’S COMMITMENT/);
   assert.match(crewRoom, /Join Crew Streak/);
+  assert.match(crewRoom, /CREW NOT ACTIVE YET/);
+  assert.match(crewRoom, /Invite first teammate/);
+  assert.match(crewRoom, /crew\.memberCount === 1/);
+  assert.match(crewRoom, /crew_first_invite_share/);
   assert.match(crewRoom, /crew_invite_share/);
+  assert.match(activationRoute, /crew_first_invite_share/);
+  assert.match(activationClient, /crew_first_invite_share/);
+  assert.match(styles, /\.crew-activation-gate/);
   assert.match(crewRoute, /opengraph-image/);
   assert.match(crewApi, /createCrew/);
   assert.match(crewApi, /joinCrew/);

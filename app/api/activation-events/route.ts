@@ -16,6 +16,7 @@ export type ActivationEventType =
   | "crew_view"
   | "crew_create"
   | "crew_join"
+  | "crew_first_invite_share"
   | "crew_invite_share"
   | "crew_daily_checkin";
 export type ActivationSource = "lobby" | "direct" | "duel" | "crew";
@@ -34,6 +35,7 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "crew_view",
   "crew_create",
   "crew_join",
+  "crew_first_invite_share",
   "crew_invite_share",
   "crew_daily_checkin",
 ]);

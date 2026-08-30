@@ -21,8 +21,11 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
   const [nickname, setNickname] = useState("");
   const [status, setStatus] = useState("");
   const remaining = useMemo(
-    () => crew.members.filter((member) => !member.completedToday),
+    () => crew.members.filter((member) => !member.completedToday && !member.isViewer),
     [crew.members],
+  );
+  const viewerCompletedToday = crew.members.some(
+    (member) => member.isViewer && member.completedToday,
   );
 
   useEffect(() => {
@@ -77,7 +80,15 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
       if (navigator.share) await navigator.share({ title: `${crew.name} · Crew Streak`, text, url });
       else await navigator.clipboard.writeText(`${text}\n${url}`);
       setStatus(locale === "en" ? (kind === "nudge" ? "Reminder shared" : "Invite shared") : kind === "nudge" ? "提醒已分享" : "邀请已分享");
-      if (playerId) trackActivationEvent(playerId, "crew_invite_share", "crew");
+      if (playerId) {
+        trackActivationEvent(
+          playerId,
+          kind === "invite" && crew.memberCount === 1
+            ? "crew_first_invite_share"
+            : "crew_invite_share",
+          "crew",
+        );
+      }
     } catch {
       setStatus(locale === "en" ? "Share cancelled" : "已取消分享");
     }
@@ -132,13 +143,25 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
             <div><small>PRIVATE CREW INVITE</small><h2>{locale === "en" ? "Take one of the open seats" : "加入这支小队"}</h2><p>{locale === "en" ? "Your score stays yours. Only today’s completion status is shared with the crew." : "分数仍属于你自己，小队只共享每日完成状态。"}</p></div>
             <button disabled={crew.memberCount >= crew.capacity || status.includes("…")} onClick={() => void join()}>{crew.memberCount >= crew.capacity ? (locale === "en" ? "Crew full" : "小队已满") : (locale === "en" ? "Join Crew Streak →" : "加入小队 →")}</button>
           </div>
+        ) : crew.memberCount === 1 ? (
+          <div className="crew-activation-gate">
+            <div>
+              <small>CREW NOT ACTIVE YET</small>
+              <h2>{locale === "en" ? "Invite one teammate to light the flame" : "邀请一位队友，点燃共同火焰"}</h2>
+              <p>{locale === "en" ? "A Crew Streak starts with two people. Your first invite is the only step left." : "共同连续纪录至少需要两个人。现在只差发出第一份邀请。"}</p>
+            </div>
+            <div>
+              <button onClick={() => void share("invite")}>{locale === "en" ? "Invite first teammate →" : "邀请首位队友 →"}</button>
+              <Link href={`/daily?market=${crew.market}`}>{viewerCompletedToday ? (locale === "en" ? "Review today’s result while you wait →" : "等待时查看今日结果 →") : (locale === "en" ? "Play today’s chart while you wait →" : "等待时完成今日盲盘 →")}</Link>
+            </div>
+          </div>
         ) : (
           <div className="crew-member-actions">
-            <Link href={`/daily?market=${crew.market}`}>{crew.members.some((member) => member.isViewer && member.completedToday) ? (locale === "en" ? "Review today’s result →" : "查看今日结果 →") : (locale === "en" ? "Play today’s chart →" : "完成今日盲盘 →")}</Link>
+            <Link href={`/daily?market=${crew.market}`}>{viewerCompletedToday ? (locale === "en" ? "Review today’s result →" : "查看今日结果 →") : (locale === "en" ? "Play today’s chart →" : "完成今日盲盘 →")}</Link>
             {remaining.length > 0 && <button onClick={() => void share("nudge")}>{locale === "en" ? `Nudge ${remaining.length} waiting →` : `提醒 ${remaining.length} 位待完成人员 →`}</button>}
           </div>
         )}
-        <button className="crew-invite-button" onClick={() => void share("invite")}>{locale === "en" ? "Invite another friend" : "邀请更多好友"}</button>
+        {crew.isMember && crew.memberCount > 1 && <button className="crew-invite-button" onClick={() => void share("invite")}>{locale === "en" ? "Invite another friend" : "邀请更多好友"}</button>}
         {status && <p className="crew-form-status" role="status">{status}</p>}
       </section>
 
