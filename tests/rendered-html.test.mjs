@@ -133,7 +133,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /guided-start-card/);
   assert.match(page, /startGuidedChart/);
   assert.match(page, /await chooseMode\("practice"\)/);
-  assert.match(page, /GUIDED FIRST CHART · STEP/);
+  assert.match(page, /GUIDED FIRST CHART/);
   assert.match(page, /onboardingStep === 1/);
   assert.match(page, /onboardingStep === 2/);
   assert.match(page, /setOnboardingStep\(3\)/);
@@ -1011,6 +1011,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(activationClient, /daily_score_card_share/);
   assert.match(page, /"guide_forecast"/);
   assert.match(page, /"guide_reveal"/);
+  assert.match(page, /duelGuidePending/);
+  assert.match(page, /acceptDuelInvite/);
+  assert.match(page, /initialDuel \? "duel" : initialGuide \? "lobby" : "direct"/);
+  assert.match(page, /GUIDED DUEL/);
+  assert.match(page, /Continue the duel/);
+  assert.match(page, /继续完成对决/);
   assert.match(page, /"daily_first_move"/);
   assert.match(page, /"daily_complete"/);
   assert.match(page, /"daily_second_move"/);

@@ -1628,6 +1628,7 @@ export default function GameClient({
     [duelCode, setDuelCode] = useState("");
   const [duelJoinInput, setDuelJoinInput] = useState("");
   const [duelInviteOpen, setDuelInviteOpen] = useState(false);
+  const [duelGuidePending, setDuelGuidePending] = useState(false);
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
     [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [crewResult, setCrewResult] = useState<CrewSummary | null>(null);
@@ -2187,6 +2188,7 @@ export default function GameClient({
       ) {
         setDuelCode(challenger.toUpperCase());
         setDuelJoinInput(challenger.toUpperCase());
+        setDuelGuidePending(!onboardingComplete);
         setDuelInviteOpen(true);
         setModeHubOpen(false);
       }
@@ -2248,27 +2250,27 @@ export default function GameClient({
     trackActivationEvent(
       playerId,
       "guide_start",
-      initialGuide ? "lobby" : "direct",
+      initialDuel ? "duel" : initialGuide ? "lobby" : "direct",
     );
-  }, [guidedRunActive, initialGuide, playerId]);
+  }, [guidedRunActive, initialDuel, initialGuide, playerId]);
 
   useEffect(() => {
     if (!playerId || !guidedRunActive || !forecastTouched) return;
     trackActivationEvent(
       playerId,
       "guide_forecast",
-      initialGuide ? "lobby" : "direct",
+      initialDuel ? "duel" : initialGuide ? "lobby" : "direct",
     );
-  }, [forecastTouched, guidedRunActive, initialGuide, playerId]);
+  }, [forecastTouched, guidedRunActive, initialDuel, initialGuide, playerId]);
 
   useEffect(() => {
     if (!playerId || !guidedRunActive || !actions.length) return;
     trackActivationEvent(
       playerId,
       "guide_reveal",
-      initialGuide ? "lobby" : "direct",
+      initialDuel ? "duel" : initialGuide ? "lobby" : "direct",
     );
-  }, [actions.length, guidedRunActive, initialGuide, playerId]);
+  }, [actions.length, guidedRunActive, initialDuel, initialGuide, playerId]);
 
   useEffect(() => {
     if (!playerId || gameMode !== "daily" || !actions.length) return;
@@ -2708,6 +2710,16 @@ export default function GameClient({
     completeOnboarding();
     history.replaceState(null, "", `/daily?market=${market}`);
     await resetGame("daily", market, "random", "standard");
+  };
+
+  const acceptDuelInvite = () => {
+    setDuelInviteOpen(false);
+    if (!duelGuidePending) return;
+    setDuelGuidePending(false);
+    setRecordView(true);
+    setRevealDays(3);
+    setOnboardingStep(1);
+    setGuidedRunActive(true);
   };
 
   const joinDuel = async () => {
@@ -3570,8 +3582,8 @@ export default function GameClient({
           <div>
             <small>
               {locale === "en"
-                ? `GUIDED FIRST CHART · STEP ${onboardingStep}/3`
-                : `首次引导局 · 第 ${onboardingStep}/3 步`}
+                ? `${initialDuel ? "GUIDED DUEL" : "GUIDED FIRST CHART"} · STEP ${onboardingStep}/3`
+                : `${initialDuel ? "好友对决引导" : "首次引导局"} · 第 ${onboardingStep}/3 步`}
             </small>
             <b>
               {onboardingStep === 1
@@ -3582,9 +3594,13 @@ export default function GameClient({
                   ? locale === "en"
                     ? "Choose an action and reveal three real days"
                     : "选择行动，揭示接下来三个真实交易日"
-                  : locale === "en"
-                    ? "That is the whole loop"
-                    : "核心循环已经完成"}
+                  : initialDuel
+                    ? locale === "en"
+                      ? "You know the loop—four decisions left"
+                      : "你已掌握循环，还剩四次决策"
+                    : locale === "en"
+                      ? "That is the whole loop"
+                      : "核心循环已经完成"}
             </b>
             <p>
               {onboardingStep === 1
@@ -3595,30 +3611,42 @@ export default function GameClient({
                   ? locale === "en"
                     ? "Buy, sell, or stay in cash. Your forecast is scored separately from profit, so a lucky trade cannot fake a good read."
                     : "买入、卖出或保持空仓。判断与收益分开评分，一次幸运交易不能冒充好判断。"
-                  : locale === "en"
-                    ? "The new candles are real history. One result is evidence, not a strategy—keep testing your read across different charts."
-                    : "新出现的 K 线来自真实历史。一次结果只是证据，不是策略；继续跨行情验证你的判断。"}
+                  : initialDuel
+                    ? locale === "en"
+                      ? `Keep reading the same hidden chart. Your final score will be compared with ${scoreboard?.opponent?.nickname ?? "your friend"}.`
+                      : `继续判断同一张隐藏行情。完成后，你的总分将与${scoreboard?.opponent?.nickname ?? "好友"}直接比较。`
+                    : locale === "en"
+                      ? "The new candles are real history. One result is evidence, not a strategy—keep testing your read across different charts."
+                      : "新出现的 K 线来自真实历史。一次结果只是证据，不是策略；继续跨行情验证你的判断。"}
             </p>
           </div>
           {onboardingStep === 3 ? (
-            <div className="first-run-coach-actions">
-              <button
-                className="coach-primary"
-                disabled={challengeLoading}
-                onClick={() => void enterDailyAfterGuide()}
-              >
-                {challengeLoading
-                  ? locale === "en"
-                    ? "Loading today's chart…"
-                    : "正在加载今日题目…"
-                  : locale === "en"
-                    ? "Play today's global challenge →"
-                    : "进入今日全球挑战 →"}
-              </button>
-              <button className="coach-secondary" onClick={completeOnboarding}>
-                {locale === "en" ? "Keep practicing" : "继续自由练习"}
-              </button>
-            </div>
+            initialDuel ? (
+              <div className="first-run-coach-actions">
+                <button className="coach-primary" onClick={completeOnboarding}>
+                  {locale === "en" ? "Continue the duel →" : "继续完成对决 →"}
+                </button>
+              </div>
+            ) : (
+              <div className="first-run-coach-actions">
+                <button
+                  className="coach-primary"
+                  disabled={challengeLoading}
+                  onClick={() => void enterDailyAfterGuide()}
+                >
+                  {challengeLoading
+                    ? locale === "en"
+                      ? "Loading today's chart…"
+                      : "正在加载今日题目…"
+                    : locale === "en"
+                      ? "Play today's global challenge →"
+                      : "进入今日全球挑战 →"}
+                </button>
+                <button className="coach-secondary" onClick={completeOnboarding}>
+                  {locale === "en" ? "Keep practicing" : "继续自由练习"}
+                </button>
+              </div>
+            )
           ) : (
             <button
               className="coach-secondary"
@@ -4679,7 +4707,7 @@ export default function GameClient({
                       : "对方交易、收益和股票身份都会隐藏到你完成挑战；无需注册。"}
                   </p>
                   <div className="duel-invite-actions">
-                    <button className="duel-accept" onClick={() => setDuelInviteOpen(false)}>
+                    <button className="duel-accept" onClick={acceptDuelInvite}>
                       {locale === "en"
                         ? `Accept · beat ${scoreboard.opponent.score} →`
                         : `接受挑战 · 超过 ${scoreboard.opponent.score} 分 →`}
