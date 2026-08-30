@@ -6,7 +6,9 @@ export type ActivationEventType =
   | "daily_first_move"
   | "daily_second_move"
   | "practice_second_move"
-  | "daily_complete";
+  | "daily_complete"
+  | "daily_score_card_share"
+  | "daily_style_card_share";
 export type ActivationSource = "lobby" | "direct" | "duel";
 
 export function trackActivationEvent(

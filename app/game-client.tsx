@@ -358,6 +358,7 @@ type RecordedReplayAction = ReplayAction &
   Required<Pick<ReplayAction, "outlook" | "thesis" | "confidence">>;
 
 type OnboardingStep = 0 | 1 | 2 | 3;
+type ResultCardVariant = "style" | "score";
 
 const ONBOARDING_STORAGE_KEY = "mangpan-guided-first-chart-v1";
 
@@ -394,6 +395,34 @@ function formatProbabilityForecast(
     : `涨 ${display(forecast.up)} · 震 ${display(forecast.range)} · 跌 ${display(forecast.down)}`;
 }
 
+function drawWrappedText(
+  context: CanvasRenderingContext2D,
+  text: string,
+  x: number,
+  y: number,
+  maxWidth: number,
+  lineHeight: number,
+  maxLines: number,
+) {
+  const separator = /\s/u.test(text) ? " " : "";
+  const words = separator ? text.split(/\s+/u) : Array.from(text);
+  let line = "";
+  let lineIndex = 0;
+  for (const word of words) {
+    const candidate = line ? `${line}${separator}${word}` : word;
+    if (line && context.measureText(candidate).width > maxWidth) {
+      context.fillText(line, x, y + lineIndex * lineHeight);
+      lineIndex++;
+      if (lineIndex >= maxLines) return;
+      line = word;
+    } else {
+      line = candidate;
+    }
+  }
+  if (line && lineIndex < maxLines)
+    context.fillText(line, x, y + lineIndex * lineHeight);
+}
+
 async function createResultShareCard({
   locale,
   date,
@@ -405,6 +434,7 @@ async function createResultShareCard({
   marks,
   challengeUrl,
   decisionStyle,
+  variant,
 }: {
   locale: Locale;
   date: string;
@@ -416,6 +446,7 @@ async function createResultShareCard({
   marks: number[];
   challengeUrl?: string;
   decisionStyle: DecisionStyle;
+  variant: ResultCardVariant;
 }) {
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -446,23 +477,6 @@ async function createResultShareCard({
     112,
   );
   context.textAlign = "left";
-  context.fillStyle = "#252721";
-  context.font = "800 268px Arial, sans-serif";
-  context.fillText(String(score), 62, 505);
-  context.fillStyle = "#74766d";
-  context.font = "800 24px Arial, sans-serif";
-  context.fillText(
-    locale === "en" ? "DECISION SCORE" : "决策评分",
-    76,
-    558,
-  );
-  context.fillStyle = "#4f514a";
-  context.font = "800 21px Arial, sans-serif";
-  context.fillText(
-    `${locale === "en" ? "DECISION STYLE" : "今日决策风格"} · ${decisionStyle.title.toUpperCase()}`,
-    72,
-    602,
-  );
   const metrics = [
     [locale === "en" ? "CALIBRATION" : "概率校准", calibration],
     [locale === "en" ? "RISK CONTROL" : "风险控制", risk],
@@ -471,40 +485,126 @@ async function createResultShareCard({
       percentile == null ? "—" : `${percentile}%`,
     ],
   ] as const;
-  metrics.forEach(([label, value], index) => {
-    const x = 72 + index * 320;
-    context.fillStyle = "#ffffff";
-    context.fillRect(x, 630, 288, 168);
-    context.fillStyle = "#8b8c84";
-    context.font = "800 18px Arial, sans-serif";
-    context.fillText(label, x + 26, 675);
-    context.fillStyle = "#252721";
-    context.font = "800 61px Arial, sans-serif";
-    context.fillText(String(value), x + 24, 755);
-  });
   const displayedMarks = marks.slice(0, DAILY_CHALLENGE_DECISIONS);
   while (displayedMarks.length < DAILY_CHALLENGE_DECISIONS)
     displayedMarks.push(50);
-  displayedMarks.forEach((value, index) => {
-    context.fillStyle = value >= 70 ? "#4f785f" : value >= 45 ? "#c1a764" : "#ba625d";
-    context.fillRect(72 + index * 192, 866, 168, 88);
-  });
-  context.fillStyle = "#252721";
-  context.font = "800 48px Arial, sans-serif";
-  context.fillText(
-    locale === "en" ? "CAN YOU READ IT BETTER?" : "你能读得更准吗？",
-    72,
-    1051,
-  );
-  context.fillStyle = "#777970";
-  context.font = "600 22px Arial, sans-serif";
-  context.fillText(
-    locale === "en"
-      ? "Same mystery chart. Five decisions. No ticker until the reveal."
-      : "同一张神秘历史图，五次决策，结算前不看股票与日期。",
-    72,
-    1095,
-  );
+  if (variant === "style") {
+    context.fillStyle = "#252721";
+    context.fillRect(72, 234, 174, 174);
+    context.fillStyle = "#f8f6ef";
+    context.font = "800 38px Arial, sans-serif";
+    context.textAlign = "center";
+    context.fillText(decisionStyle.badge, 159, 334);
+    context.textAlign = "left";
+    context.fillStyle = "#777970";
+    context.font = "800 20px Arial, sans-serif";
+    context.fillText(
+      locale === "en" ? "YOUR DECISION STYLE" : "你的今日决策风格",
+      286,
+      275,
+    );
+    context.fillStyle = "#252721";
+    context.font = "800 58px Arial, sans-serif";
+    context.fillText(decisionStyle.title, 286, 355);
+    context.fillStyle = "#5f615a";
+    context.font = "600 28px Arial, sans-serif";
+    drawWrappedText(
+      context,
+      decisionStyle.description,
+      72,
+      484,
+      936,
+      41,
+      3,
+    );
+    metrics.forEach(([label, value], index) => {
+      const x = 72 + index * 320;
+      context.fillStyle = "#ffffff";
+      context.fillRect(x, 620, 288, 154);
+      context.fillStyle = "#8b8c84";
+      context.font = "800 17px Arial, sans-serif";
+      context.fillText(label, x + 24, 661);
+      context.fillStyle = "#252721";
+      context.font = "800 56px Arial, sans-serif";
+      context.fillText(String(value), x + 24, 734);
+    });
+    displayedMarks.forEach((value, index) => {
+      context.fillStyle = value >= 70 ? "#4f785f" : value >= 45 ? "#c1a764" : "#ba625d";
+      context.fillRect(72 + index * 192, 822, 168, 60);
+    });
+    context.fillStyle = "#777970";
+    context.font = "800 18px Arial, sans-serif";
+    context.fillText(
+      `${locale === "en" ? "DECISION SCORE" : "决策评分"} ${score}`,
+      72,
+      921,
+    );
+    context.fillStyle = "#252721";
+    context.fillRect(72, 956, 936, 154);
+    context.fillStyle = "#bfc3b7";
+    context.font = "800 17px Arial, sans-serif";
+    context.fillText(locale === "en" ? "NEXT RUN" : "下一局目标", 102, 996);
+    context.fillStyle = "#ffffff";
+    context.font = "700 25px Arial, sans-serif";
+    drawWrappedText(
+      context,
+      decisionStyle.nextGoal,
+      102,
+      1040,
+      860,
+      34,
+      2,
+    );
+  } else {
+    context.fillStyle = "#252721";
+    context.font = "800 268px Arial, sans-serif";
+    context.fillText(String(score), 62, 505);
+    context.fillStyle = "#74766d";
+    context.font = "800 24px Arial, sans-serif";
+    context.fillText(
+      locale === "en" ? "DECISION SCORE" : "决策评分",
+      76,
+      558,
+    );
+    context.fillStyle = "#4f514a";
+    context.font = "800 21px Arial, sans-serif";
+    context.fillText(
+      `${locale === "en" ? "DECISION STYLE" : "今日决策风格"} · ${decisionStyle.title.toUpperCase()}`,
+      72,
+      602,
+    );
+    metrics.forEach(([label, value], index) => {
+      const x = 72 + index * 320;
+      context.fillStyle = "#ffffff";
+      context.fillRect(x, 630, 288, 168);
+      context.fillStyle = "#8b8c84";
+      context.font = "800 18px Arial, sans-serif";
+      context.fillText(label, x + 26, 675);
+      context.fillStyle = "#252721";
+      context.font = "800 61px Arial, sans-serif";
+      context.fillText(String(value), x + 24, 755);
+    });
+    displayedMarks.forEach((value, index) => {
+      context.fillStyle = value >= 70 ? "#4f785f" : value >= 45 ? "#c1a764" : "#ba625d";
+      context.fillRect(72 + index * 192, 866, 168, 88);
+    });
+    context.fillStyle = "#252721";
+    context.font = "800 48px Arial, sans-serif";
+    context.fillText(
+      locale === "en" ? "CAN YOU READ IT BETTER?" : "你能读得更准吗？",
+      72,
+      1051,
+    );
+    context.fillStyle = "#777970";
+    context.font = "600 22px Arial, sans-serif";
+    context.fillText(
+      locale === "en"
+        ? "Same mystery chart. Five decisions. No ticker until the reveal."
+        : "同一张神秘历史图，五次决策，结算前不看股票与日期。",
+      72,
+      1095,
+    );
+  }
   context.fillStyle = "#252721";
   context.fillRect(72, 1150, 936, 105);
   context.fillStyle = "#bfc3b7";
@@ -1509,6 +1609,8 @@ export default function GameClient({
   const [revealPulse, setRevealPulse] = useState(0),
     [shareStatus, setShareStatus] = useState("");
   const [cardStatus, setCardStatus] = useState("");
+  const [resultCardVariant, setResultCardVariant] =
+    useState<ResultCardVariant>("style");
   const [duelRoomShareStatus, setDuelRoomShareStatus] = useState("");
   const [duelShareUrl, setDuelShareUrl] = useState("");
   const [shareSetupStatus, setShareSetupStatus] =
@@ -3032,13 +3134,14 @@ export default function GameClient({
       marks: resultShareMarks,
       challengeUrl: duelShareUrl || undefined,
       decisionStyle,
+      variant: resultCardVariant,
     });
 
   const downloadResultCard = (image: Blob) => {
     const href = URL.createObjectURL(image);
     const link = document.createElement("a");
     link.href = href;
-    link.download = `blind-trading-${today}.png`;
+    link.download = `blind-trading-${resultCardVariant}-${today}.png`;
     document.body.append(link);
     link.click();
     link.remove();
@@ -3082,9 +3185,13 @@ export default function GameClient({
     try {
       const image = await resultCardImage();
       if (!image) throw new Error("image unavailable");
-      const file = new File([image], `blind-trading-${today}.png`, {
-        type: "image/png",
-      });
+      const file = new File(
+        [image],
+        `blind-trading-${resultCardVariant}-${today}.png`,
+        {
+          type: "image/png",
+        },
+      );
       const taggedUrl = taggedChallengeUrl(duelShareUrl, "native");
       const copy = resultShareCopy();
       if (navigator.share && navigator.canShare?.({ files: [file] })) {
@@ -3094,13 +3201,31 @@ export default function GameClient({
           text: `${copy.compactText}\n${taggedUrl}`,
         });
         recordDuelShare("native");
-        setCardStatus(locale === "en" ? "Score card shared" : "成绩卡已分享");
+        trackActivationEvent(
+          playerId,
+          resultCardVariant === "style"
+            ? "daily_style_card_share"
+            : "daily_score_card_share",
+          activeDuel ? "duel" : "direct",
+        );
+        setCardStatus(
+          locale === "en"
+            ? `${resultCardVariant === "style" ? "Style" : "Score"} card shared`
+            : `${resultCardVariant === "style" ? "风格" : "成绩"}卡已分享`,
+        );
         return;
       }
       downloadResultCard(image);
       try {
         await navigator.clipboard.writeText(`${copy.compactText}\n${taggedChallengeUrl(duelShareUrl, "copy")}`);
         recordDuelShare("copy");
+        trackActivationEvent(
+          playerId,
+          resultCardVariant === "style"
+            ? "daily_style_card_share"
+            : "daily_score_card_share",
+          activeDuel ? "duel" : "direct",
+        );
         setCardStatus(
           locale === "en"
             ? "Image saved · link copied"
@@ -6174,6 +6299,38 @@ export default function GameClient({
                       ? "Shows your decision style, score, and calibration—not the ticker or the answer."
                       : "展示决策风格、得分与校准，不泄露股票名或答案。"}
                   </p>
+                  <div
+                    className="result-card-picker"
+                    role="group"
+                    aria-label={
+                      locale === "en" ? "Choose share card" : "选择分享卡片"
+                    }
+                  >
+                    <button
+                      type="button"
+                      className={resultCardVariant === "style" ? "active" : ""}
+                      aria-pressed={resultCardVariant === "style"}
+                      onClick={() => {
+                        setResultCardVariant("style");
+                        setCardStatus("");
+                      }}
+                    >
+                      <b>{locale === "en" ? "Style card" : "风格卡"}</b>
+                      <small>{locale === "en" ? "Identity first" : "身份优先"}</small>
+                    </button>
+                    <button
+                      type="button"
+                      className={resultCardVariant === "score" ? "active" : ""}
+                      aria-pressed={resultCardVariant === "score"}
+                      onClick={() => {
+                        setResultCardVariant("score");
+                        setCardStatus("");
+                      }}
+                    >
+                      <b>{locale === "en" ? "Score card" : "成绩卡"}</b>
+                      <small>{locale === "en" ? "Stats first" : "数据优先"}</small>
+                    </button>
+                  </div>
                 </div>
                 <div className="result-card-actions">
                   <button
@@ -6183,15 +6340,17 @@ export default function GameClient({
                   >
                     {cardStatus ||
                       (locale === "en"
-                        ? "Share score card"
-                        : "分享成绩卡")}
+                        ? `Share ${resultCardVariant} card`
+                        : `分享${resultCardVariant === "style" ? "风格" : "成绩"}卡`)}
                   </button>
                   <button
                     type="button"
                     disabled={cardStatus.includes("…")}
                     onClick={() => void saveResultCard()}
                   >
-                    {locale === "en" ? "Save image" : "保存图片"}
+                    {locale === "en"
+                      ? `Save ${resultCardVariant} image`
+                      : `保存${resultCardVariant === "style" ? "风格" : "成绩"}图`}
                   </button>
                 </div>
                 <nav

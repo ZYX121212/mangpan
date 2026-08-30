@@ -10,7 +10,9 @@ export type ActivationEventType =
   | "daily_first_move"
   | "daily_second_move"
   | "practice_second_move"
-  | "daily_complete";
+  | "daily_complete"
+  | "daily_score_card_share"
+  | "daily_style_card_share";
 export type ActivationSource = "lobby" | "direct" | "duel";
 
 const EVENT_TYPES = new Set<ActivationEventType>([
@@ -22,6 +24,8 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "daily_second_move",
   "practice_second_move",
   "daily_complete",
+  "daily_score_card_share",
+  "daily_style_card_share",
 ]);
 const SOURCES = new Set<ActivationSource>(["lobby", "direct", "duel"]);
 const headers = { "cache-control": "no-store" };
