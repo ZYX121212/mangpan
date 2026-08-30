@@ -2807,10 +2807,10 @@ export default function GameClient({
                 onClick={() => void nextChart()}
               >
                 {challengeLoading
-                  ? "正在开始下一局…"
+                  ? "正在切换股票…"
                   : gameMode === "daily"
                     ? "离开今日挑战 · 随机练习"
-                    : "下一局 →"}
+                    : "换一只股票 →"}
               </button>
               <button className="finish-action" onClick={finishGame}>
                 提前结束并揭晓股票

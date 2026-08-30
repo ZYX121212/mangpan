@@ -43,7 +43,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /信心校准/);
   assert.match(page, /今日长线挑战/);
   assert.match(page, /不限制决策次数/);
-  assert.match(page, /下一局 →/);
+  assert.match(page, /换一只股票 →/);
   assert.match(page, /离开今日挑战 · 随机练习/);
   assert.match(page, /window\.confirm/);
   assert.match(page, /method: "DELETE"/);
