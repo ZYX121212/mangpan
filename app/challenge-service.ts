@@ -10,6 +10,18 @@ import {
   type ScenarioKind,
 } from "./market-data";
 
+const BUNDLE_CACHE_LIMIT = 16;
+const bundleCache = new Map<string, ChallengeBundle>();
+
+function rememberBundle(id: string, bundle: ChallengeBundle) {
+  bundleCache.delete(id);
+  bundleCache.set(id, bundle);
+  if (bundleCache.size <= BUNDLE_CACHE_LIMIT) return bundle;
+  const oldest = bundleCache.keys().next().value;
+  if (oldest) bundleCache.delete(oldest);
+  return bundle;
+}
+
 export function snapshotId(date: string, market: MarketKind) {
   return `${date}@${GAME_VERSION}@${market}`;
 }
@@ -52,13 +64,15 @@ export async function getDailyChallengeBundle(
 ) {
   await ensureDatabase();
   const id = snapshotId(date, market);
+  const cached = bundleCache.get(id);
+  if (cached) return rememberBundle(id, cached);
   const db = getDb();
   const [existing] = await db
     .select({ payload: dailyChallenges.payload })
     .from(dailyChallenges)
     .where(eq(dailyChallenges.id, id))
     .limit(1);
-  if (existing) return await parseBundle(existing.payload);
+  if (existing) return rememberBundle(id, await parseBundle(existing.payload));
 
   const bundle = await getChallengeBundle(date, market);
   const payload = await serializeBundle(bundle);
@@ -78,10 +92,15 @@ export async function getDailyChallengeBundle(
     .from(dailyChallenges)
     .where(eq(dailyChallenges.id, id))
     .limit(1);
-  return saved ? await parseBundle(saved.payload) : bundle;
+  return rememberBundle(
+    id,
+    saved ? await parseBundle(saved.payload) : bundle,
+  );
 }
 
 export async function getStoredChallengeBundle(id: string) {
+  const cached = bundleCache.get(id);
+  if (cached) return rememberBundle(id, cached);
   await ensureDatabase();
   const db = getDb();
   const [stored] = await db
@@ -90,7 +109,7 @@ export async function getStoredChallengeBundle(id: string) {
     .where(eq(dailyChallenges.id, id))
     .limit(1);
   if (!stored) throw new Error("挑战不存在或已经过期");
-  return await parseBundle(stored.payload);
+  return rememberBundle(id, await parseBundle(stored.payload));
 }
 
 export async function createPracticeChallenge(
@@ -116,5 +135,6 @@ export async function createPracticeChallenge(
       payload: await serializeBundle(bundle),
       source: bundle.dataSource,
     });
+  rememberBundle(id, bundle);
   return { id, bundle };
 }
