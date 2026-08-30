@@ -8,8 +8,13 @@ export type ActivationEventType =
   | "practice_second_move"
   | "daily_complete"
   | "daily_score_card_share"
-  | "daily_style_card_share";
-export type ActivationSource = "lobby" | "direct" | "duel";
+  | "daily_style_card_share"
+  | "crew_view"
+  | "crew_create"
+  | "crew_join"
+  | "crew_invite_share"
+  | "crew_daily_checkin";
+export type ActivationSource = "lobby" | "direct" | "duel" | "crew";
 
 export function trackActivationEvent(
   playerId: string,

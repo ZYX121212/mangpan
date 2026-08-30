@@ -12,8 +12,13 @@ export type ActivationEventType =
   | "practice_second_move"
   | "daily_complete"
   | "daily_score_card_share"
-  | "daily_style_card_share";
-export type ActivationSource = "lobby" | "direct" | "duel";
+  | "daily_style_card_share"
+  | "crew_view"
+  | "crew_create"
+  | "crew_join"
+  | "crew_invite_share"
+  | "crew_daily_checkin";
+export type ActivationSource = "lobby" | "direct" | "duel" | "crew";
 
 const EVENT_TYPES = new Set<ActivationEventType>([
   "lobby_view",
@@ -26,8 +31,13 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "daily_complete",
   "daily_score_card_share",
   "daily_style_card_share",
+  "crew_view",
+  "crew_create",
+  "crew_join",
+  "crew_invite_share",
+  "crew_daily_checkin",
 ]);
-const SOURCES = new Set<ActivationSource>(["lobby", "direct", "duel"]);
+const SOURCES = new Set<ActivationSource>(["lobby", "direct", "duel", "crew"]);
 const headers = { "cache-control": "no-store" };
 
 export async function POST(request: Request) {

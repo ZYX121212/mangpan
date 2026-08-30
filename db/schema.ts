@@ -321,6 +321,76 @@ export const activationEvents = sqliteTable(
   ],
 );
 
+export const crews = sqliteTable("crews", {
+  code: text("code").primaryKey(),
+  name: text("name").notNull(),
+  ownerPlayerId: text("owner_player_id").notNull(),
+  market: text("market").notNull(),
+  currentStreak: integer("current_streak").notNull().default(0),
+  bestStreak: integer("best_streak").notNull().default(0),
+  lastCompletedDate: text("last_completed_date"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const crewMembers = sqliteTable(
+  "crew_members",
+  {
+    id: text("id").primaryKey(),
+    crewCode: text("crew_code")
+      .notNull()
+      .references(() => crews.code),
+    playerId: text("player_id").notNull(),
+    nickname: text("nickname").notNull(),
+    slot: integer("slot").notNull(),
+    joinedAt: text("joined_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("crew_members_crew_player_unique").on(
+      table.crewCode,
+      table.playerId,
+    ),
+    uniqueIndex("crew_members_crew_slot_unique").on(
+      table.crewCode,
+      table.slot,
+    ),
+    index("crew_members_player_joined_idx").on(
+      table.playerId,
+      table.joinedAt,
+    ),
+  ],
+);
+
+export const crewCheckins = sqliteTable(
+  "crew_checkins",
+  {
+    id: text("id").primaryKey(),
+    crewCode: text("crew_code")
+      .notNull()
+      .references(() => crews.code),
+    playerId: text("player_id").notNull(),
+    checkinDate: text("checkin_date").notNull(),
+    score: integer("score").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("crew_checkins_crew_player_date_unique").on(
+      table.crewCode,
+      table.playerId,
+      table.checkinDate,
+    ),
+    index("crew_checkins_crew_date_idx").on(
+      table.crewCode,
+      table.checkinDate,
+    ),
+  ],
+);
+
 export const weeklyRewards = sqliteTable(
   "weekly_rewards",
   {

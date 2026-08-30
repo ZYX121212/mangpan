@@ -500,6 +500,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     practicePage,
     trainingPage,
     duelLobby,
+    crewLobby,
+    crewRoom,
+    crewRoute,
+    crewApi,
+    crewService,
     scoreRoute,
     challengeRoute,
     quizRoute,
@@ -535,6 +540,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     activationRoute,
     activationClient,
     activationMigration,
+    crewMigration,
     privacy,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
@@ -545,6 +551,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     readFile(new URL("../app/practice/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/training/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/duel/duel-lobby.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/crew/crew-lobby.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/c/[code]/crew-room-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/c/[code]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/crews/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/crew-service.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/challenge/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/quiz/route.ts", import.meta.url), "utf8"),
@@ -628,6 +639,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
       new URL("../drizzle/0018_pink_nightmare.sql", import.meta.url),
       "utf8",
     ),
+    readFile(
+      new URL("../drizzle/0019_military_sally_floyd.sql", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8"),
   ]);
 
@@ -649,11 +664,13 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   );
   assert.match(scoreRoute, /scoreDate\(date, market\)/);
   assert.match(pageRoute, /<ModeLobby \/>/);
-  assert.match(modeLobby, /FOUR WAYS TO PLAY/);
+  assert.match(modeLobby, /FIVE WAYS TO PLAY/);
   assert.match(modeLobby, /href: "\/daily"/);
   assert.match(modeLobby, /href: "\/practice"/);
   assert.match(modeLobby, /href: "\/training"/);
   assert.match(modeLobby, /href: "\/duel"/);
+  assert.match(modeLobby, /href: "\/crew"/);
+  assert.match(modeLobby, /Crew Streak/);
   assert.match(modeLobby, /Can you read what happens next\?/);
   assert.match(modeLobby, /\/practice\?market=\$\{market\}&guide=1/);
   assert.match(modeLobby, /Play one chart/);
@@ -669,6 +686,19 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(practicePage, /mode="practice"/);
   assert.match(trainingPage, /mode="training"/);
   assert.match(duelLobby, /location\.assign\(`\/d\//);
+  assert.match(crewLobby, /START A CREW/);
+  assert.match(crewLobby, /action: "create"/);
+  assert.match(crewLobby, /trackActivationEvent\(playerId, "crew_create", "crew"\)/);
+  assert.match(crewRoom, /TODAY’S COMMITMENT/);
+  assert.match(crewRoom, /Join Crew Streak/);
+  assert.match(crewRoom, /crew_invite_share/);
+  assert.match(crewRoute, /opengraph-image/);
+  assert.match(crewApi, /createCrew/);
+  assert.match(crewApi, /joinCrew/);
+  assert.match(crewService, /CREW_CAPACITY = 5/);
+  assert.match(crewService, /recordCrewDailyCheckins/);
+  assert.match(crewService, /last_completed_date/);
+  assert.match(scoreRoute, /recordCrewDailyCheckins/);
   assert.match(page, /href="\/"/);
   assert.doesNotMatch(page, /onClick=\{\(\) => setModeHubOpen\(true\)\}/);
   assert.match(challengeRoute, /marketDate\(market\)/);
@@ -734,7 +764,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /duelChallengerSummary/);
   assert.match(scoreRoute, /playerOverride: isHost/);
   assert.match(scoreRoute, /: duelChallengerSummary\(duel\)/);
-  assert.match(scoreRoute, /if \(isCurrentRankedChallenge\)\s*await db/);
+  assert.match(scoreRoute, /if \(isCurrentRankedChallenge\) \{\s*await db/);
   assert.match(scoreRoute, /challenge\.session\.challengeId !== storageDate/);
   assert.match(scoreRoute, /storageDateOverride \?\? scoreDate\(date, market\)/);
   assert.match(scoreRoute, /duelContext\?\.duel\.challengeId/);
@@ -919,9 +949,17 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(activationMigration, /CREATE TABLE `activation_events`/);
   assert.match(activationMigration, /activation_events_player_event_source_unique/);
   assert.match(activationMigration, /activation_events_event_created_idx/);
+  assert.match(crewMigration, /CREATE TABLE `crews`/);
+  assert.match(crewMigration, /CREATE TABLE `crew_members`/);
+  assert.match(crewMigration, /CREATE TABLE `crew_checkins`/);
+  assert.match(crewMigration, /crew_members_crew_slot_unique/);
+  assert.match(crewMigration, /crew_checkins_crew_player_date_unique/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_responses/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_events/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS activation_events/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS crews/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS crew_members/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS crew_checkins/);
   assert.match(database, /PRAGMA table_info\(duel_challenges\)/);
   assert.match(database, /ALTER TABLE duel_challenges ADD COLUMN challenge_id/);
   assert.match(database, /focused-daily-v18/);
@@ -942,6 +980,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(activationRoute, /practice_second_move/);
   assert.match(activationRoute, /daily_style_card_share/);
   assert.match(activationRoute, /daily_score_card_share/);
+  assert.match(activationRoute, /crew_daily_checkin/);
+  assert.match(activationRoute, /"crew"/);
   assert.match(activationRoute, /requestPlayerId/);
   assert.match(activationRoute, /\.onConflictDoNothing\(\{/);
   assert.match(activationClient, /fetch\("\/api\/activation-events"/);

@@ -220,6 +220,47 @@ export function ensureDatabase() {
       database.prepare(
         "CREATE INDEX IF NOT EXISTS activation_events_event_created_idx ON activation_events (event_type, created_at)",
       ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS crews (
+        code TEXT PRIMARY KEY NOT NULL,
+        name TEXT NOT NULL,
+        owner_player_id TEXT NOT NULL,
+        market TEXT NOT NULL,
+        current_streak INTEGER NOT NULL DEFAULT 0,
+        best_streak INTEGER NOT NULL DEFAULT 0,
+        last_completed_date TEXT,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS crew_members (
+        id TEXT PRIMARY KEY NOT NULL,
+        crew_code TEXT NOT NULL REFERENCES crews(code),
+        player_id TEXT NOT NULL,
+        nickname TEXT NOT NULL,
+        slot INTEGER NOT NULL,
+        joined_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS crew_members_crew_player_unique ON crew_members (crew_code, player_id)",
+      ),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS crew_members_crew_slot_unique ON crew_members (crew_code, slot)",
+      ),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS crew_members_player_joined_idx ON crew_members (player_id, joined_at)",
+      ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS crew_checkins (
+        id TEXT PRIMARY KEY NOT NULL,
+        crew_code TEXT NOT NULL REFERENCES crews(code),
+        player_id TEXT NOT NULL,
+        checkin_date TEXT NOT NULL,
+        score INTEGER NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS crew_checkins_crew_player_date_unique ON crew_checkins (crew_code, player_id, checkin_date)",
+      ),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS crew_checkins_crew_date_idx ON crew_checkins (crew_code, checkin_date)",
+      ),
       database.prepare(`CREATE TABLE IF NOT EXISTS weekly_rewards (
         id TEXT PRIMARY KEY NOT NULL,
         player_id TEXT NOT NULL,

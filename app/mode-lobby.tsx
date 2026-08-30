@@ -69,6 +69,19 @@ const MODES = [
     action: { en: "Enter a duel", zh: "进入好友对决" },
     tone: "duel",
   },
+  {
+    number: "05",
+    href: "/crew",
+    eyebrow: { en: "KEEP THE FLAME ALIVE", zh: "共同连续" },
+    title: { en: "Crew Streak", zh: "小队连续挑战" },
+    description: {
+      en: "Create a private crew for up to five friends. The shared streak grows only when every member finishes today’s chart.",
+      zh: "创建最多五人的私密小队；只有每位成员都完成今日盲盘，共同连续纪录才会增长。",
+    },
+    meta: { en: "2–5 friends · daily", zh: "2–5 人 · 每日共同完成" },
+    action: { en: "Open crew streaks", zh: "进入小队模式" },
+    tone: "crew",
+  },
 ] as const;
 
 export default function ModeLobby() {
@@ -146,7 +159,7 @@ export default function ModeLobby() {
         <small>
           {isNewPlayer
             ? "ONE REAL CHART · NO SIGN-UP"
-            : "BLIND TRADING · FOUR WAYS TO PLAY"}
+            : "BLIND TRADING · FIVE WAYS TO PLAY"}
         </small>
         <h1>
           {isNewPlayer
@@ -163,8 +176,8 @@ export default function ModeLobby() {
               ? "Make one forecast on a hidden piece of real market history, then reveal the answer. Learn the complete loop by playing—not by reading a tutorial."
               : "在一段隐藏身份的真实历史行情上做一次判断，再揭晓答案。先玩懂核心循环，不用先读教程。"
             : locale === "en"
-              ? "Daily competition, free exploration, deliberate training, and friend duels now live in separate modes—with their own rules and rhythm."
-              : "每日竞技、自由探索、专项训练和好友对决各自独立，不再把不同目标堆进同一局。"}
+              ? "Daily competition, free exploration, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm."
+              : "每日竞技、自由探索、专项训练、好友对决和小队连续挑战各自独立，不再把不同目标堆进同一局。"}
         </p>
         {isNewPlayer && (
           <div className="first-play-actions">

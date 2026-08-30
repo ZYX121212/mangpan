@@ -19,7 +19,10 @@ export default function PrivacyPage() {
           room host can see aggregate challenge progress. It also records anonymous
           first-play milestones such as opening the lobby, starting the guide,
           making the first forecast, and completing a run so onboarding can be
-          improved. If you use Sign in with ChatGPT, the hosting platform
+          improved. If you join a Crew Streak, it stores the crew name,
+          membership, daily completion status, shared-streak history, and the
+          score attached to each completed check-in. If you use Sign in with
+          ChatGPT, the hosting platform
           provides an account identifier so progress can sync; Blind Trading stores
           a one-way derived player identifier rather than the original account ID.
         </p>
@@ -36,7 +39,7 @@ export default function PrivacyPage() {
       <section>
         <h2>How data is used</h2>
         <ul>
-          <li>Operate sessions, leaderboards, training, and friend challenges.</li>
+          <li>Operate sessions, leaderboards, training, friend challenges, and Crew Streaks.</li>
           <li>Prevent duplicate or manipulated score submissions.</li>
           <li>Show room hosts aggregate friend-challenge conversion progress.</li>
           <li>Measure aggregate first-play completion and improve onboarding.</li>
@@ -53,7 +56,9 @@ export default function PrivacyPage() {
         <p>
           Your chosen player name, score, return, and ranking may appear on public
           leaderboards. Do not use a player name that reveals information you do
-          not want to make public.
+          not want to make public. Crew pages are unlisted but accessible to
+          anyone who has the crew link or code; they show the crew name, member
+          display names, today&apos;s completion state, and completed scores.
         </p>
       </section>
       <section>

@@ -30,6 +30,7 @@ import {
   validPlayerId,
 } from "../../request-identity";
 import { calculateStreakProtection } from "../../streak-protection";
+import { recordCrewDailyCheckins } from "../../crew-service";
 import {
   normalizeShareSource,
   type ShareSource,
@@ -856,7 +857,7 @@ export async function POST(request: Request) {
         target: players.id,
         set: { nickname, updatedAt: new Date().toISOString() },
       });
-    if (isCurrentRankedChallenge)
+    if (isCurrentRankedChallenge) {
       await db
         .insert(dailyScores)
         .values({
@@ -876,6 +877,13 @@ export async function POST(request: Request) {
         .onConflictDoNothing({
           target: [dailyScores.challengeDate, dailyScores.playerId],
         });
+      await recordCrewDailyCheckins({
+        playerId,
+        market,
+        date,
+        score: result.score,
+      });
+    }
 
     if (duelContext && duelContext.duel.challengerPlayerId !== playerId) {
       const [officialScore] = isCurrentRankedChallenge

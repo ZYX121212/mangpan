@@ -1,0 +1,152 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useMemo, useState } from "react";
+import { trackActivationEvent } from "../../activation-events";
+import type { CrewSummary } from "../../crew-service";
+import type { Locale } from "../../i18n";
+
+function ensureLocalPlayerId() {
+  const existing = localStorage.getItem("mangpan-player-id");
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  localStorage.setItem("mangpan-player-id", created);
+  return created;
+}
+
+export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSummary }) {
+  const [crew, setCrew] = useState(initialCrew);
+  const [locale, setLocale] = useState<Locale>("en");
+  const [playerId, setPlayerId] = useState("");
+  const [nickname, setNickname] = useState("");
+  const [status, setStatus] = useState("");
+  const remaining = useMemo(
+    () => crew.members.filter((member) => !member.completedToday),
+    [crew.members],
+  );
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const id = ensureLocalPlayerId();
+      const savedNickname = localStorage.getItem("mangpan-player-name");
+      if (localStorage.getItem("mangpan-locale") === "zh") setLocale("zh");
+      setPlayerId(id);
+      setNickname(savedNickname || `Trader ${id.slice(-4).toUpperCase()}`);
+      trackActivationEvent(id, "crew_view", "crew");
+      void fetch(`/api/crews?code=${encodeURIComponent(initialCrew.code)}&playerId=${encodeURIComponent(id)}`)
+        .then((response) => response.json())
+        .then((payload: { crew?: CrewSummary }) => {
+          if (payload.crew) setCrew(payload.crew);
+        })
+        .catch(() => undefined);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [initialCrew.code]);
+
+  const join = async () => {
+    if (!playerId) return;
+    setStatus(locale === "en" ? "Joining crew…" : "正在加入小队…");
+    try {
+      const response = await fetch("/api/crews", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ action: "join", code: crew.code, playerId, nickname }),
+      });
+      const payload = (await response.json()) as { crew?: CrewSummary; error?: string };
+      if (!response.ok || !payload.crew) throw new Error(payload.error || "Could not join crew.");
+      setCrew(payload.crew);
+      setStatus(locale === "en" ? "You’re in. Finish today’s chart." : "加入成功，去完成今日盲盘吧。 ");
+      trackActivationEvent(playerId, "crew_join", "crew");
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Could not join crew.");
+    }
+  };
+
+  const share = async (kind: "invite" | "nudge") => {
+    const baseUrl = `${location.origin}/c/${crew.code}`;
+    const url = `${baseUrl}?via=${kind}`;
+    const people = kind === "nudge" ? remaining.map((member) => member.nickname).join(", ") : "";
+    const text = kind === "nudge"
+      ? locale === "en"
+        ? `${people || "Crew"}, ${crew.name} is waiting: ${crew.completedToday}/${crew.memberCount} done today. Keep our ${crew.currentStreak}-day Blind Trading streak alive.`
+        : `${people || "小队成员"}，${crew.name} 正等你：今天 ${crew.completedToday}/${crew.memberCount} 人已完成。一起守住 ${crew.currentStreak} 天连续纪录。`
+      : locale === "en"
+        ? `Join ${crew.name} on Blind Trading. One hidden chart each day; the crew streak grows only when everyone finishes.`
+        : `加入 ${crew.name} 的盲盘小队：每天每人完成一张隐藏行情，只有全员完成才会延续共同纪录。`;
+    try {
+      if (navigator.share) await navigator.share({ title: `${crew.name} · Crew Streak`, text, url });
+      else await navigator.clipboard.writeText(`${text}\n${url}`);
+      setStatus(locale === "en" ? (kind === "nudge" ? "Reminder shared" : "Invite shared") : kind === "nudge" ? "提醒已分享" : "邀请已分享");
+      if (playerId) trackActivationEvent(playerId, "crew_invite_share", "crew");
+    } catch {
+      setStatus(locale === "en" ? "Share cancelled" : "已取消分享");
+    }
+  };
+
+  const slots = Array.from({ length: crew.capacity }, (_, index) =>
+    crew.members.find((member) => member.slot === index + 1) ?? null,
+  );
+
+  return (
+    <main className="crew-room-page">
+      <header className="crew-topbar">
+        <Link className="mode-lobby-brand" href="/"><span>B</span><b>BLIND TRADING</b></Link>
+        <Link href="/crew">{locale === "en" ? "Crew Streaks" : "小队连续纪录"}</Link>
+      </header>
+
+      <section className="crew-room-hero">
+        <div>
+          <small>{crew.market === "us" ? "U.S. MARKET CREW" : "A-SHARE MARKET CREW"} · {crew.code}</small>
+          <h1>{crew.name}</h1>
+          <p>{locale === "en" ? "One daily chart each. The flame grows only when every crew member finishes." : "每天每人完成一张盲盘；只有全员完成，共同火焰才会延续。"}</p>
+        </div>
+        <div className="crew-flame" data-active={crew.currentStreak > 0}>
+          <i>🔥</i>
+          <strong>{crew.currentStreak}</strong>
+          <span>{locale === "en" ? "DAY CREW STREAK" : "天共同连续"}</span>
+          <small>{locale === "en" ? `Best ${crew.bestStreak}` : `最佳 ${crew.bestStreak} 天`}</small>
+        </div>
+      </section>
+
+      <section className="crew-today-card">
+        <header>
+          <div><small>TODAY’S COMMITMENT</small><h2>{crew.allDoneToday ? (locale === "en" ? "The whole crew showed up." : "全员到齐。") : (locale === "en" ? `${crew.completedToday} of ${crew.memberCount} finished` : `${crew.completedToday}/${crew.memberCount} 人已完成`)}</h2></div>
+          <span>{crew.allDoneToday ? "COMPLETE" : `${Math.round((crew.completedToday / Math.max(1, crew.memberCount)) * 100)}%`}</span>
+        </header>
+        <div className="crew-progress"><i style={{ width: `${(crew.completedToday / Math.max(1, crew.memberCount)) * 100}%` }} /></div>
+        <div className="crew-member-grid">
+          {slots.map((member, index) => member ? (
+            <article className={member.completedToday ? "done" : "waiting"} key={`${member.nickname}-${index}`}>
+              <i>{member.completedToday ? "✓" : String(index + 1).padStart(2, "0")}</i>
+              <span><b>{member.nickname}{member.isViewer ? (locale === "en" ? " · YOU" : " · 你") : ""}</b><small>{member.completedToday ? (locale === "en" ? `Done · score ${member.score}` : `已完成 · ${member.score} 分`) : (locale === "en" ? "Waiting today" : "今日待完成")}</small></span>
+            </article>
+          ) : (
+            <article className="empty" key={`empty-${index}`}><i>+</i><span><b>{locale === "en" ? "Open slot" : "空位"}</b><small>{locale === "en" ? "Invite a friend" : "邀请好友"}</small></span></article>
+          ))}
+        </div>
+      </section>
+
+      <section className="crew-room-actions">
+        {!crew.isMember ? (
+          <div className="crew-join-cta">
+            <div><small>PRIVATE CREW INVITE</small><h2>{locale === "en" ? "Take one of the open seats" : "加入这支小队"}</h2><p>{locale === "en" ? "Your score stays yours. Only today’s completion status is shared with the crew." : "分数仍属于你自己，小队只共享每日完成状态。"}</p></div>
+            <button disabled={crew.memberCount >= crew.capacity || status.includes("…")} onClick={() => void join()}>{crew.memberCount >= crew.capacity ? (locale === "en" ? "Crew full" : "小队已满") : (locale === "en" ? "Join Crew Streak →" : "加入小队 →")}</button>
+          </div>
+        ) : (
+          <div className="crew-member-actions">
+            <Link href={`/daily?market=${crew.market}`}>{crew.members.some((member) => member.isViewer && member.completedToday) ? (locale === "en" ? "Review today’s result →" : "查看今日结果 →") : (locale === "en" ? "Play today’s chart →" : "完成今日盲盘 →")}</Link>
+            {remaining.length > 0 && <button onClick={() => void share("nudge")}>{locale === "en" ? `Nudge ${remaining.length} waiting →` : `提醒 ${remaining.length} 位待完成人员 →`}</button>}
+          </div>
+        )}
+        <button className="crew-invite-button" onClick={() => void share("invite")}>{locale === "en" ? "Invite another friend" : "邀请更多好友"}</button>
+        {status && <p className="crew-form-status" role="status">{status}</p>}
+      </section>
+
+      <footer className="crew-room-proof">
+        <span>{locale === "en" ? "MAX 5 MEMBERS" : "最多五人"}</span>
+        <span>{locale === "en" ? "PRIVATE BY LINK" : "仅凭链接加入"}</span>
+        <span>{locale === "en" ? "NO REAL MONEY" : "不涉及真实资金"}</span>
+      </footer>
+    </main>
+  );
+}
