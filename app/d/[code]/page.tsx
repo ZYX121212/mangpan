@@ -34,7 +34,10 @@ export async function generateMetadata({
   if (!invite) return unavailableMetadata();
   const market = invite.market === "us" ? "U.S. stock" : "China A-share";
   const title = `${invite.challengerNickname} scored ${invite.targetScore}. Can you beat it? | Blind Trading`;
-  const description = `The same hidden historical ${market} chart. Five decisions. No ticker, no future, no sign-up.`;
+  const roomProof = invite.responseCount
+    ? `${invite.responseCount} ${invite.responseCount === 1 ? "player has" : "players have"} answered. `
+    : "";
+  const description = `${roomProof}The same hidden historical ${market} chart. Five decisions. No ticker, no future, no sign-up.`;
   const path = `/d/${invite.code}`;
   return {
     title,

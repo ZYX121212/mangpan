@@ -125,6 +125,10 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /resultShareMarks/);
   assert.match(page, /result-share-kit/);
   assert.match(page, /SHARE WITHOUT SPOILERS/);
+  assert.match(page, /YOUR DUEL ROOM/);
+  assert.match(page, /shareDuelRoom/);
+  assert.match(page, /duelRoomShareStatus/);
+  assert.match(page, /Share this duel again/);
   assert.match(page, /duel-comparison/);
   assert.match(page, /PRIVATE SAME-CHART DUEL/);
   assert.match(page, /duel-invite-card/);
@@ -299,6 +303,7 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   assert.match(duelPage, /generateMetadata/);
   assert.match(duelPage, /scored \$\{invite\.targetScore\}\. Can you beat it\?/);
   assert.match(duelPage, /No ticker, no future, no sign-up/);
+  assert.match(duelPage, /invite\.responseCount/);
   assert.match(duelPage, /images: \[\]/);
   assert.match(duelPage, /robots: \{ index: false, follow: false \}/);
   assert.match(duelPage, /initialDuel=\{\{ code: invite\.code, date: invite\.date \}\}/);
@@ -320,6 +325,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     identity,
     sessions,
     schema,
+    database,
     hosting,
     styles,
     config,
@@ -334,6 +340,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     dailyProgressMigration,
     duelMigration,
     weeklyRewardMigration,
+    duelRoomMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -344,6 +351,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     readFile(new URL("../app/request-identity.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/challenge-sessions.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/index.ts", import.meta.url), "utf8"),
     readFile(new URL("../.openai/hosting.json", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/game-config.ts", import.meta.url), "utf8"),
@@ -374,6 +382,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     ),
     readFile(
       new URL("../drizzle/0009_reflective_madripoor.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0010_cute_sentry.sql", import.meta.url),
       "utf8",
     ),
   ]);
@@ -415,6 +427,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /ROW_NUMBER\(\) OVER/);
   assert.match(scoreRoute, /每周取最佳 5 局/);
   assert.match(scoreRoute, /duelChallenges/);
+  assert.match(scoreRoute, /duelResponses/);
+  assert.match(scoreRoute, /resolveDuelContext/);
+  assert.match(scoreRoute, /responseCount/);
+  assert.match(scoreRoute, /duelRoom: duelRoom \?\? null/);
+  assert.match(scoreRoute, /payload\.duelCode/);
+  assert.match(scoreRoute, /respondentPlayerId: playerId/);
   assert.match(scoreRoute, /rankFor\(opponentId\)/);
   assert.match(scoreRoute, /buildAchievements/);
   assert.match(scoreRoute, /weeklyRewards/);
@@ -436,6 +454,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /patternQuizzes/);
   assert.match(schema, /dailyProgress/);
   assert.match(schema, /duelChallenges/);
+  assert.match(schema, /duelResponses/);
   assert.match(schema, /weeklyRewards/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
@@ -450,6 +469,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.coach-focus/);
   assert.match(styles, /\.duel-invite-card/);
   assert.match(styles, /\.duel-target-score/);
+  assert.match(styles, /\.duel-room-stats/);
   assert.match(styles, /\.result-share-kit/);
   assert.match(styles, /\.share-mark-preview/);
   assert.match(
@@ -519,6 +539,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelMigration, /duel_challenges_player_date_market_unique/);
   assert.match(weeklyRewardMigration, /CREATE TABLE `weekly_rewards`/);
   assert.match(weeklyRewardMigration, /weekly_rewards_player_market_week_unique/);
+  assert.match(duelRoomMigration, /CREATE TABLE `duel_responses`/);
+  assert.match(duelRoomMigration, /duel_responses_duel_player_unique/);
+  assert.match(duelRoomMigration, /duel_responses_duel_score_idx/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS duel_responses/);
+  assert.match(database, /PRAGMA optimize/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);

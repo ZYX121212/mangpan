@@ -237,6 +237,29 @@ export const duelChallenges = sqliteTable(
   ],
 );
 
+export const duelResponses = sqliteTable(
+  "duel_responses",
+  {
+    id: text("id").primaryKey(),
+    duelCode: text("duel_code")
+      .notNull()
+      .references(() => duelChallenges.code),
+    respondentPlayerId: text("respondent_player_id").notNull(),
+    nickname: text("nickname").notNull(),
+    score: integer("score").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("duel_responses_duel_player_unique").on(
+      table.duelCode,
+      table.respondentPlayerId,
+    ),
+    index("duel_responses_duel_score_idx").on(table.duelCode, table.score),
+  ],
+);
+
 export const weeklyRewards = sqliteTable(
   "weekly_rewards",
   {

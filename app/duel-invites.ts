@@ -1,7 +1,7 @@
 import { cache } from "react";
-import { and, eq } from "drizzle-orm";
+import { and, count, eq } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../db";
-import { dailyScores, duelChallenges } from "../db/schema";
+import { dailyScores, duelChallenges, duelResponses } from "../db/schema";
 import { GAME_VERSION, type MarketKind } from "./game-core";
 
 export type PublicDuelInvite = {
@@ -10,6 +10,7 @@ export type PublicDuelInvite = {
   market: MarketKind;
   challengerNickname: string;
   targetScore: number;
+  responseCount: number;
 };
 
 function validCode(value: string) {
@@ -33,16 +34,25 @@ export const getPublicDuelInvite = cache(
       .limit(1);
     if (!duel || (duel.market !== "cn" && duel.market !== "us")) return null;
     const market = duel.market;
-    const [score] = await db
-      .select({ nickname: dailyScores.nickname, score: dailyScores.score })
-      .from(dailyScores)
-      .where(
-        and(
-          eq(dailyScores.challengeDate, scoreDate(duel.challengeDate, market)),
-          eq(dailyScores.playerId, duel.challengerPlayerId),
-        ),
-      )
-      .limit(1);
+    const [[score], [{ responseCount }]] = await Promise.all([
+      db
+        .select({ nickname: dailyScores.nickname, score: dailyScores.score })
+        .from(dailyScores)
+        .where(
+          and(
+            eq(
+              dailyScores.challengeDate,
+              scoreDate(duel.challengeDate, market),
+            ),
+            eq(dailyScores.playerId, duel.challengerPlayerId),
+          ),
+        )
+        .limit(1),
+      db
+        .select({ responseCount: count() })
+        .from(duelResponses)
+        .where(eq(duelResponses.duelCode, duel.code)),
+    ]);
     if (!score) return null;
     return {
       code,
@@ -50,6 +60,7 @@ export const getPublicDuelInvite = cache(
       market,
       challengerNickname: score.nickname,
       targetScore: score.score,
+      responseCount,
     };
   },
 );

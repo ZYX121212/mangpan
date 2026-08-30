@@ -3,6 +3,7 @@ import { ensureDatabase, getD1Database, getDb } from "../../../db";
 import {
   dailyScores,
   duelChallenges,
+  duelResponses,
   players,
   weeklyRewards,
 } from "../../../db/schema";
@@ -23,6 +24,13 @@ import {
 } from "../../request-identity";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
+
+type DuelRoom = {
+  isHost: boolean;
+  responseCount: number;
+  bestNickname: string | null;
+  bestScore: number | null;
+};
 
 function scoreDate(date: string, market: MarketKind) {
   return `${date}@${GAME_VERSION}@${market}`;
@@ -322,6 +330,7 @@ async function buildScoreboard(
   playerId?: string,
   opponentId?: string,
   duelCode?: string,
+  duelRoom?: DuelRoom | null,
 ) {
   const db = getDb();
   const storageDate = scoreDate(date, market);
@@ -511,9 +520,57 @@ async function buildScoreboard(
     })),
     playerScore,
     opponent,
-    duelCode: opponentId ? duelCode ?? null : null,
+    duelCode: duelRoom ? duelCode ?? null : null,
+    duelRoom: duelRoom ?? null,
     weekly,
     stats,
+  };
+}
+
+async function resolveDuelContext(
+  duelCode: string,
+  date: string,
+  market: MarketKind,
+  playerId?: string,
+) {
+  const db = getDb();
+  const [duel] = await db
+    .select()
+    .from(duelChallenges)
+    .where(eq(duelChallenges.code, duelCode.toUpperCase()))
+    .limit(1);
+  if (!duel || duel.challengeDate !== date || duel.market !== market)
+    return null;
+  const [[{ total }], [best]] = await Promise.all([
+    db
+      .select({ total: count() })
+      .from(duelResponses)
+      .where(eq(duelResponses.duelCode, duel.code)),
+    db
+      .select()
+      .from(duelResponses)
+      .where(eq(duelResponses.duelCode, duel.code))
+      .orderBy(
+        desc(duelResponses.score),
+        asc(duelResponses.createdAt),
+        asc(duelResponses.respondentPlayerId),
+      )
+      .limit(1),
+  ]);
+  const isHost = duel.challengerPlayerId === playerId;
+  return {
+    duel,
+    opponentId: isHost
+      ? best?.respondentPlayerId
+      : duel.challengerPlayerId !== playerId
+        ? duel.challengerPlayerId
+        : undefined,
+    room: {
+      isHost,
+      responseCount: total,
+      bestNickname: best?.nickname ?? null,
+      bestScore: best?.score ?? null,
+    } satisfies DuelRoom,
   };
 }
 
@@ -536,27 +593,23 @@ export async function GET(request: Request) {
       return Response.json({ error: "玩家标识无效" }, { status: 400 });
     if (duelCode && !/^[A-Z0-9]{8,12}$/i.test(duelCode))
       return Response.json({ error: "挑战码无效" }, { status: 400 });
-    let opponentId: string | undefined;
-    if (duelCode) {
-      const [duel] = await getDb()
-        .select()
-        .from(duelChallenges)
-        .where(eq(duelChallenges.code, duelCode.toUpperCase()))
-        .limit(1);
-      if (
-        !duel ||
-        duel.challengeDate !== date ||
-        duel.market !== market
-      )
-        return Response.json(
-          { error: "挑战码已过期或不属于当前市场" },
-          { status: 404 },
-        );
-      if (duel.challengerPlayerId !== playerId)
-        opponentId = duel.challengerPlayerId;
-    }
+    const duelContext = duelCode
+      ? await resolveDuelContext(duelCode, date, market, playerId)
+      : null;
+    if (duelCode && !duelContext)
+      return Response.json(
+        { error: "挑战码已过期或不属于当前市场" },
+        { status: 404 },
+      );
     return Response.json(
-      await buildScoreboard(date, market, playerId, opponentId, duelCode),
+      await buildScoreboard(
+        date,
+        market,
+        playerId,
+        duelContext?.opponentId,
+        duelCode,
+        duelContext?.room,
+      ),
     );
   } catch (error) {
     return Response.json(
@@ -575,6 +628,7 @@ export async function POST(request: Request) {
       playerId?: unknown;
       nickname?: unknown;
       sessionId?: unknown;
+      duelCode?: unknown;
     };
     if (
       !validDate(typeof payload.date === "string" ? payload.date : null) ||
@@ -600,6 +654,17 @@ export async function POST(request: Request) {
       playerId,
     );
     const market = payload.market;
+    const duelCode =
+      typeof payload.duelCode === "string" && payload.duelCode
+        ? payload.duelCode.toUpperCase()
+        : undefined;
+    if (duelCode && !/^[A-Z0-9]{8,12}$/.test(duelCode))
+      return Response.json({ error: "挑战码无效" }, { status: 400 });
+    let duelContext = duelCode
+      ? await resolveDuelContext(duelCode, date, market, playerId)
+      : null;
+    if (duelCode && !duelContext)
+      return Response.json({ error: "挑战码已过期" }, { status: 404 });
     const challenge = await getSessionForScore(payload.sessionId, playerId);
     if (
       challenge.session.challengeDate !== date ||
@@ -640,7 +705,55 @@ export async function POST(request: Request) {
         target: [dailyScores.challengeDate, dailyScores.playerId],
       });
 
-    return Response.json(await buildScoreboard(date, market, playerId));
+    if (duelContext && duelContext.duel.challengerPlayerId !== playerId) {
+      const [officialScore] = await db
+        .select({ nickname: dailyScores.nickname, score: dailyScores.score })
+        .from(dailyScores)
+        .where(
+          and(
+            eq(dailyScores.challengeDate, storageDate),
+            eq(dailyScores.playerId, playerId),
+          ),
+        )
+        .limit(1);
+      if (officialScore)
+        await db
+          .insert(duelResponses)
+          .values({
+            id: `${duelContext.duel.code}:${playerId}`,
+            duelCode: duelContext.duel.code,
+            respondentPlayerId: playerId,
+            nickname: officialScore.nickname,
+            score: officialScore.score,
+          })
+          .onConflictDoUpdate({
+            target: [
+              duelResponses.duelCode,
+              duelResponses.respondentPlayerId,
+            ],
+            set: {
+              nickname: officialScore.nickname,
+              score: officialScore.score,
+            },
+          });
+      duelContext = await resolveDuelContext(
+        duelContext.duel.code,
+        date,
+        market,
+        playerId,
+      );
+    }
+
+    return Response.json(
+      await buildScoreboard(
+        date,
+        market,
+        playerId,
+        duelContext?.opponentId,
+        duelCode,
+        duelContext?.room,
+      ),
+    );
   } catch (error) {
     return Response.json(
       { error: error instanceof Error ? error.message : "成绩提交失败" },
