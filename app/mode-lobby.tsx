@@ -9,6 +9,7 @@ import {
   marketDate,
   type MarketKind,
 } from "./game-config";
+import { reportPlatformLoaded } from "./web-game-platform";
 
 const ONBOARDING_STORAGE_KEY = "mangpan-guided-first-chart-v1";
 
@@ -149,6 +150,7 @@ export default function ModeLobby() {
   );
 
   useEffect(() => {
+    reportPlatformLoaded();
     const timer = window.setTimeout(() => {
       const savedLocale = localStorage.getItem("mangpan-locale");
       const savedMarket = localStorage.getItem("mangpan-market");

@@ -36,6 +36,11 @@ import {
 import { buildTradeAnalysis } from "./trade-analysis";
 import { decisionStyleFor, type DecisionStyle } from "./decision-style";
 import { trackActivationEvent } from "./activation-events";
+import {
+  reportPlatformGameplayStart,
+  reportPlatformGameplayStop,
+  reportPlatformLoaded,
+} from "./web-game-platform";
 import type { CrewSummary } from "./crew-service";
 import { Localized, type Locale } from "./i18n";
 import {
@@ -1667,6 +1672,35 @@ export default function GameClient({
     new Map<string, Promise<ChallengeSession>>(),
   );
   useEffect(() => {
+    reportPlatformLoaded();
+  }, []);
+  useEffect(() => {
+    const hasStarted = session.decisionsUsed > 0 || actions.length > 0;
+    const paused =
+      finished ||
+      resultOpen ||
+      rulesOpen ||
+      analysisOpen ||
+      trainingOpen ||
+      quizOpen ||
+      scoreboardOpen ||
+      duelInviteOpen;
+    if (hasStarted && !paused) reportPlatformGameplayStart();
+    else reportPlatformGameplayStop();
+  }, [
+    actions.length,
+    analysisOpen,
+    duelInviteOpen,
+    finished,
+    quizOpen,
+    resultOpen,
+    rulesOpen,
+    scoreboardOpen,
+    session.decisionsUsed,
+    trainingOpen,
+  ]);
+  useEffect(() => () => reportPlatformGameplayStop(), []);
+  useEffect(() => {
     const saved = localStorage.getItem("mangpan-locale");
     const detected: Locale = saved === "zh" ? "zh" : "en";
     const timer = window.setTimeout(() => setLocale(detected), 0);
@@ -2813,6 +2847,7 @@ export default function GameClient({
   };
   const advance = async (action: "trade" | "hold") => {
     if (finished || isRevealing || remainingDays <= 0 || dailyExpired) return;
+    reportPlatformGameplayStart();
     setIsRevealing(true);
     const holdingDays = Math.min(revealDays, remainingDays);
     const requestedQuantity =
