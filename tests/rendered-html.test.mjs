@@ -380,7 +380,10 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
     readFile(new URL("../app/duel-invites.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /initialDuel\?: \{ code: string; date: string \}/);
+  assert.match(
+    page,
+    /initialDuel\?: \{ code: string; date: string; source: ShareSource \}/,
+  );
   assert.match(page, /initialDuel\?\.code \|\| params\.get\("duel"\)/);
   assert.match(page, /`\$\{location\.origin\}\/d\//);
   assert.match(page, /`\/d\/\$\{encodeURIComponent\(code\)\}`/);
@@ -401,7 +404,12 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   assert.match(duelImage, /safeNickname/);
   assert.doesNotMatch(duelImage, /\.date|stock|ticker|returnRate|actions/);
   assert.match(duelPage, /robots: \{ index: false, follow: false \}/);
-  assert.match(duelPage, /initialDuel=\{\{ code: invite\.code, date: invite\.date \}\}/);
+  assert.match(duelPage, /searchParams: Promise<\{ via\?: string \| string\[\] \}>/);
+  assert.match(duelPage, /normalizeShareSource/);
+  assert.match(
+    duelPage,
+    /initialDuel=\{\{ code: invite\.code, date: invite\.date, source \}\}/,
+  );
   assert.match(duelPage, /CHALLENGE EXPIRED/);
   assert.match(duelPage, /marketDate\(invite\.market\)/);
   assert.match(duelInvites, /duelChallenges\.code/);
@@ -466,6 +474,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     duelMigration,
     weeklyRewardMigration,
     duelRoomMigration,
+    attributionMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -517,6 +526,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     ),
     readFile(
       new URL("../drizzle/0010_cute_sentry.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0011_easy_tyger_tiger.sql", import.meta.url),
       "utf8",
     ),
   ]);
@@ -586,6 +599,13 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /responseCount/);
   assert.match(scoreRoute, /duelRoom: duelRoom \?\? null/);
   assert.match(scoreRoute, /payload\.duelCode/);
+  assert.match(scoreRoute, /normalizeShareSource\(payload\.duelSource\)/);
+  assert.match(scoreRoute, /source: duelSource/);
+  assert.match(scoreRoute, /groupBy\(duelResponses\.source\)/);
+  assert.match(scoreRoute, /sources: sourceRows/);
+  assert.match(scoreRoute, /COUNT\(DISTINCT duel_challenges\.code\)/);
+  assert.match(scoreRoute, /INNER JOIN duel_responses/);
+  assert.match(scoreRoute, /收到 1 位好友的有效同图应战/);
   assert.match(scoreRoute, /respondentPlayerId: playerId/);
   assert.match(scoreRoute, /rankFor\(opponentId\)/);
   assert.match(scoreRoute, /buildAchievements/);
@@ -616,6 +636,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /dailyProgress/);
   assert.match(schema, /duelChallenges/);
   assert.match(schema, /duelResponses/);
+  assert.match(schema, /source: text\("source"\)\.notNull\(\)\.default\("direct"\)/);
   assert.match(schema, /weeklyRewards/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
@@ -712,7 +733,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelRoomMigration, /CREATE TABLE `duel_responses`/);
   assert.match(duelRoomMigration, /duel_responses_duel_player_unique/);
   assert.match(duelRoomMigration, /duel_responses_duel_score_idx/);
+  assert.match(attributionMigration, /ALTER TABLE `duel_responses` ADD `source`/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_responses/);
+  assert.match(database, /PRAGMA table_info\(duel_responses\)/);
+  assert.match(database, /ALTER TABLE duel_responses ADD COLUMN source/);
   assert.match(database, /PRAGMA optimize/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);

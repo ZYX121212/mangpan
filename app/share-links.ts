@@ -5,7 +5,46 @@ export type ShareChannel =
   | "telegram"
   | "copy";
 
+export type ShareSource = ShareChannel | "direct";
+
+const SHARE_SOURCES = new Set<ShareSource>([
+  "native",
+  "x",
+  "whatsapp",
+  "telegram",
+  "copy",
+  "direct",
+]);
+
 type DirectShareChannel = Exclude<ShareChannel, "native" | "copy">;
+
+export function normalizeShareSource(value: unknown): ShareSource {
+  return typeof value === "string" && SHARE_SOURCES.has(value as ShareSource)
+    ? (value as ShareSource)
+    : "direct";
+}
+
+export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en") {
+  const labels =
+    locale === "zh"
+      ? ({
+          native: "系统分享",
+          x: "X",
+          whatsapp: "WhatsApp",
+          telegram: "Telegram",
+          copy: "复制链接",
+          direct: "直接访问",
+        } as const)
+      : ({
+      native: "System share",
+      x: "X",
+      whatsapp: "WhatsApp",
+      telegram: "Telegram",
+      copy: "Copied link",
+      direct: "Direct",
+        } as const);
+  return labels[source];
+}
 
 export function taggedChallengeUrl(url: string, channel: ShareChannel) {
   const tagged = new URL(url);

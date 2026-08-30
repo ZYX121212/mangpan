@@ -1,0 +1,1 @@
+ALTER TABLE `duel_responses` ADD `source` text DEFAULT 'direct' NOT NULL;

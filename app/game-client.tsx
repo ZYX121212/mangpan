@@ -36,9 +36,11 @@ import {
 import { buildTradeAnalysis } from "./trade-analysis";
 import { Localized, type Locale } from "./i18n";
 import {
+  shareSourceLabel,
   socialShareHref,
   taggedChallengeUrl,
   type ShareChannel,
+  type ShareSource,
 } from "./share-links";
 
 const delay = (ms: number) =>
@@ -145,6 +147,7 @@ type Scoreboard = {
     responseCount: number;
     bestNickname: string | null;
     bestScore: number | null;
+    sources: { source: ShareSource; count: number }[];
   };
   weekly: {
     start: string;
@@ -1342,7 +1345,7 @@ export default function GameClient({
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
-  initialDuel?: { code: string; date: string };
+  initialDuel?: { code: string; date: string; source: ShareSource };
   initialMode?: "daily" | "practice" | "training";
 }) {
   const [locale, setLocale] = useState<Locale>("en");
@@ -1984,6 +1987,7 @@ export default function GameClient({
         nickname,
         sessionId: session.sessionId,
         duelCode: duelCode || undefined,
+        duelSource: duelCode ? initialDuel?.source ?? "direct" : undefined,
       }),
     })
       .then(async (response) => {
@@ -2000,6 +2004,7 @@ export default function GameClient({
     duelCode,
     finished,
     gameMode,
+    initialDuel?.source,
     market,
     nickname,
     playerId,
@@ -3933,6 +3938,14 @@ export default function GameClient({
                     <article>
                       <small>{locale === "en" ? "ROOM CODE" : "擂台码"}</small>
                       <b>{duelCode}</b>
+                    </article>
+                    <article>
+                      <small>{locale === "en" ? "TOP SOURCE" : "主要来源"}</small>
+                      <b>
+                        {scoreboard.duelRoom.sources[0]
+                          ? `${shareSourceLabel(scoreboard.duelRoom.sources[0].source, locale)} · ${scoreboard.duelRoom.sources[0].count}`
+                          : "—"}
+                      </b>
                     </article>
                   </div>
                   <p className="duel-spoiler-note">

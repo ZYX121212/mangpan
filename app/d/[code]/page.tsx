@@ -6,6 +6,7 @@ import { startDailySession } from "../../challenge-sessions";
 import { getPublicDuelInvite } from "../../duel-invites";
 import { marketDate } from "../../game-config";
 import { opaquePlayerId } from "../../request-identity";
+import { normalizeShareSource } from "../../share-links";
 
 export const dynamic = "force-dynamic";
 
@@ -106,10 +107,16 @@ function DuelUnavailable({ expired }: { expired: boolean }) {
 
 export default async function DuelPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ code: string }>;
+  searchParams: Promise<{ via?: string | string[] }>;
 }) {
   const { code } = await params;
+  const query = await searchParams;
+  const source = normalizeShareSource(
+    Array.isArray(query.via) ? query.via[0] : query.via,
+  );
   const invite = await getPublicDuelInvite(code);
   if (!invite) return <DuelUnavailable expired={false} />;
   if (invite.date !== marketDate(invite.market))
@@ -125,7 +132,7 @@ export default async function DuelPage({
     <GameClient
       initialChallenge={challenge}
       initialIdentity={playerId ? { playerId, cloud: true } : null}
-      initialDuel={{ code: invite.code, date: invite.date }}
+      initialDuel={{ code: invite.code, date: invite.date, source }}
       initialMode="daily"
     />
   );

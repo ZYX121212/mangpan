@@ -23,6 +23,10 @@ import {
   validPlayerId,
 } from "../../request-identity";
 import { calculateStreakProtection } from "../../streak-protection";
+import {
+  normalizeShareSource,
+  type ShareSource,
+} from "../../share-links";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
 
@@ -31,6 +35,7 @@ type DuelRoom = {
   responseCount: number;
   bestNickname: string | null;
   bestScore: number | null;
+  sources: { source: ShareSource; count: number }[];
 };
 
 function scoreDate(date: string, market: MarketKind) {
@@ -108,7 +113,7 @@ function buildAchievements(input: AchievementInput) {
     ["quiz_20", "形态观察家", "累计识别正确 20 道形态", input.recognitionCorrect, 20, 100],
     ["course_4", "课程探索者", "掌握 4 个训练课目", input.masteredCourses, 4, 100],
     ["course_12", "全情景大师", "掌握全部 12 个训练课目", input.masteredCourses, 12, 200],
-    ["duel_host", "同图擂主", "成功发起 1 次匿名同图挑战", input.duelCreated, 1, 60],
+    ["duel_host", "同图擂主", "收到 1 位好友的有效同图应战", input.duelCreated, 1, 60],
     ["thirty_days", "长期主义", "累计完成 30 局正式挑战", input.completedDays, 30, 150],
   ] as const;
   return definitions.map(([key, title, description, rawProgress, target, rewardXp], index) => {
@@ -432,7 +437,10 @@ async function buildScoreboard(
         getTrainingProfile(playerId, market),
         getD1Database()
           .prepare(
-            "SELECT COUNT(*) AS total FROM duel_challenges WHERE challenger_player_id = ? AND market = ?",
+            `SELECT COUNT(DISTINCT duel_challenges.code) AS total
+            FROM duel_challenges
+            INNER JOIN duel_responses ON duel_responses.duel_code = duel_challenges.code
+            WHERE duel_challenges.challenger_player_id = ? AND duel_challenges.market = ?`,
           )
           .bind(playerId, market)
           .first<{ total: number }>(),
@@ -530,7 +538,7 @@ async function resolveDuelContext(
     .limit(1);
   if (!duel || duel.challengeDate !== date || duel.market !== market)
     return null;
-  const [[{ total }], [best]] = await Promise.all([
+  const [[{ total }], [best], sourceRows] = await Promise.all([
     db
       .select({ total: count() })
       .from(duelResponses)
@@ -545,6 +553,11 @@ async function resolveDuelContext(
         asc(duelResponses.respondentPlayerId),
       )
       .limit(1),
+    db
+      .select({ source: duelResponses.source, total: count() })
+      .from(duelResponses)
+      .where(eq(duelResponses.duelCode, duel.code))
+      .groupBy(duelResponses.source),
   ]);
   const isHost = duel.challengerPlayerId === playerId;
   return {
@@ -559,6 +572,15 @@ async function resolveDuelContext(
       responseCount: total,
       bestNickname: best?.nickname ?? null,
       bestScore: best?.score ?? null,
+      sources: sourceRows
+        .map((row) => ({
+          source: normalizeShareSource(row.source),
+          count: Number(row.total),
+        }))
+        .sort(
+          (left, right) =>
+            right.count - left.count || left.source.localeCompare(right.source),
+        ),
     } satisfies DuelRoom,
   };
 }
@@ -618,6 +640,7 @@ export async function POST(request: Request) {
       nickname?: unknown;
       sessionId?: unknown;
       duelCode?: unknown;
+      duelSource?: unknown;
     };
     if (!validMarket(payload.market))
       return Response.json({ error: "市场无效" }, { status: 400 });
@@ -647,6 +670,7 @@ export async function POST(request: Request) {
       typeof payload.duelCode === "string" && payload.duelCode
         ? payload.duelCode.toUpperCase()
         : undefined;
+    const duelSource = normalizeShareSource(payload.duelSource);
     if (duelCode && !/^[A-Z0-9]{8,12}$/.test(duelCode))
       return Response.json({ error: "挑战码无效" }, { status: 400 });
     let duelContext = duelCode
@@ -714,6 +738,7 @@ export async function POST(request: Request) {
             respondentPlayerId: playerId,
             nickname: officialScore.nickname,
             score: officialScore.score,
+            source: duelSource,
           })
           .onConflictDoUpdate({
             target: [

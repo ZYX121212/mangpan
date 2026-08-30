@@ -176,6 +176,7 @@ export function ensureDatabase() {
         respondent_player_id TEXT NOT NULL,
         nickname TEXT NOT NULL,
         score INTEGER NOT NULL,
+        source TEXT NOT NULL DEFAULT 'direct',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
       database.prepare(
@@ -215,6 +216,14 @@ export function ensureDatabase() {
       }
       if (!columns.results.some((column) => column.name === "difficulty")) {
         await database.prepare("ALTER TABLE game_sessions ADD COLUMN difficulty TEXT NOT NULL DEFAULT 'standard'").run();
+      }
+      const duelResponseColumns = (await database
+        .prepare("PRAGMA table_info(duel_responses)")
+        .all()) as { results: { name: string }[] };
+      if (!duelResponseColumns.results.some((column) => column.name === "source")) {
+        await database
+          .prepare("ALTER TABLE duel_responses ADD COLUMN source TEXT NOT NULL DEFAULT 'direct'")
+          .run();
       }
       return result;
     })

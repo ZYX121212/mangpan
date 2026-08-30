@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  normalizeShareSource,
+  shareSourceLabel,
   socialShareHref,
   taggedChallengeUrl,
 } from "../app/share-links.ts";
@@ -13,6 +15,14 @@ test("tags every challenge link with its actual share channel", () => {
   assert.equal(tagged.pathname, "/d/ABC12345");
   assert.equal(tagged.searchParams.get("room"), "daily");
   assert.equal(tagged.searchParams.get("via"), "copy");
+});
+
+test("accepts only known attribution sources and safely defaults to direct", () => {
+  assert.equal(normalizeShareSource("whatsapp"), "whatsapp");
+  assert.equal(normalizeShareSource("WHATSAPP"), "direct");
+  assert.equal(normalizeShareSource("<script>"), "direct");
+  assert.equal(normalizeShareSource(["x"]), "direct");
+  assert.equal(shareSourceLabel("native"), "System share");
 });
 
 test("builds an encoded X intent with a separately tagged URL", () => {

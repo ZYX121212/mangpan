@@ -78,6 +78,13 @@
       "when": 1788080611748,
       "tag": "0010_cute_sentry",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "6",
+      "when": 1788088357352,
+      "tag": "0011_easy_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }
