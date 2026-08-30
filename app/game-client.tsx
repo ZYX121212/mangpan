@@ -1387,6 +1387,7 @@ export default function GameClient({
   const [nickname, setNickname] = useState("MarketReader"),
     [duelCode, setDuelCode] = useState("");
   const [duelJoinInput, setDuelJoinInput] = useState("");
+  const [duelInviteOpen, setDuelInviteOpen] = useState(false);
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
     [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [boardTab, setBoardTab] = useState<"daily" | "weekly">("daily");
@@ -1839,6 +1840,7 @@ export default function GameClient({
         /^[A-Z0-9]{8,12}$/i.test(challenger)
       ) {
         setDuelCode(challenger.toUpperCase());
+        setDuelInviteOpen(true);
         setModeHubOpen(false);
       }
       setPlayerId(id);
@@ -2184,6 +2186,7 @@ export default function GameClient({
     const code = duelJoinInput.trim().toUpperCase();
     if (!/^[A-Z0-9]{8,12}$/.test(code)) return;
     setDuelCode(code);
+    setDuelInviteOpen(true);
     setModeHubOpen(false);
     history.replaceState(
       null,
@@ -2192,6 +2195,16 @@ export default function GameClient({
     );
     if (gameMode !== "daily" || finished)
       await resetGame("daily", market, "random", "standard");
+  };
+
+  const leaveDuel = () => {
+    setDuelInviteOpen(false);
+    setDuelCode("");
+    setDuelJoinInput("");
+    setScoreboard((value) =>
+      value ? { ...value, opponent: null, duelCode: null } : value,
+    );
+    history.replaceState(null, "", location.pathname);
   };
 
   const startQuiz = async (focus?: QuizScenario) => {
@@ -2683,11 +2696,23 @@ export default function GameClient({
           </button>
         </div>
       </header>
-      {activeDuel && (
+      {activeDuel && scoreboard?.opponent && (
         <div className="duel-banner">
           <span>⚔</span>
-          <b>好友向你发起了今日同图挑战</b>
-          <small>无需注册，完成后立即对比分数；双方看到完全相同的 K 线</small>
+          <b>
+            {locale === "en"
+              ? `Beat ${scoreboard.opponent.nickname}'s ${scoreboard.opponent.score}`
+              : `挑战 ${scoreboard.opponent.nickname} 的 ${scoreboard.opponent.score} 分`}
+          </b>
+          <small>
+            {locale === "en"
+              ? "Same hidden chart · five decisions · verified score"
+              : "同一张隐藏行情 · 五次决策 · 服务器复算"}
+          </small>
+          <strong>{session.decisionsUsed}/{dailyDecisionTarget}</strong>
+          <button onClick={() => setDuelInviteOpen(true)}>
+            {locale === "en" ? "Details" : "详情"}
+          </button>
         </div>
       )}
       {gameMode === "daily" && !activeDuel && (
@@ -3393,6 +3418,91 @@ export default function GameClient({
           <a href="/terms" target="_blank" rel="noreferrer">服务条款</a>
         </nav>
       </footer>
+
+      {activeDuel &&
+        duelInviteOpen &&
+        scoreboard?.opponent &&
+        !actions.length &&
+        !finished && (
+          <dialog open className="modal-backdrop duel-invite-backdrop">
+            <section
+              className="duel-invite-card"
+              aria-labelledby="duel-invite-title"
+            >
+              <header>
+                <small>
+                  {locale === "en"
+                    ? "PRIVATE SAME-CHART DUEL"
+                    : "好友同图对决"}
+                </small>
+                <span>
+                  {locale === "en" ? "ABOUT 90 SEC" : "约 90 秒"}
+                </span>
+              </header>
+              <div className="duel-challenger">
+                <i>{scoreboard.opponent.nickname.slice(0, 1).toUpperCase()}</i>
+                <div>
+                  <h2 id="duel-invite-title">
+                    {locale === "en"
+                      ? `${scoreboard.opponent.nickname} scored ${scoreboard.opponent.score}`
+                      : `${scoreboard.opponent.nickname} 得到 ${scoreboard.opponent.score} 分`}
+                  </h2>
+                  <p>
+                    {locale === "en"
+                      ? "The exact same mystery chart is waiting for your read."
+                      : "完全相同的神秘历史行情，正在等待你的判断。"}
+                  </p>
+                </div>
+              </div>
+              <div className="duel-target-score">
+                <small>{locale === "en" ? "SCORE TO BEAT" : "目标分数"}</small>
+                <strong>{scoreboard.opponent.score}</strong>
+                <span>
+                  {locale === "en"
+                    ? `Top ${Math.max(1, 100 - (scoreboard.opponent.percentile ?? 0))}% today`
+                    : `今日领先 ${scoreboard.opponent.percentile ?? 0}% 玩家`}
+                </span>
+              </div>
+              <div className="duel-invite-rules">
+                <article>
+                  <i>01</i>
+                  <b>{locale === "en" ? "Read" : "读图"}</b>
+                  <span>{locale === "en" ? "Ticker hidden" : "隐藏股票身份"}</span>
+                </article>
+                <article>
+                  <i>02</i>
+                  <b>{locale === "en" ? "Call" : "判断"}</b>
+                  <span>{locale === "en" ? "Five decisions" : "完成五次决策"}</span>
+                </article>
+                <article>
+                  <i>03</i>
+                  <b>{locale === "en" ? "Compare" : "对比"}</b>
+                  <span>{locale === "en" ? "Reveal both scores" : "结算后揭晓双方"}</span>
+                </article>
+              </div>
+              <p className="duel-spoiler-note">
+                {locale === "en"
+                  ? "Their trades, returns, and the ticker stay hidden until you finish. No sign-up required."
+                  : "对方交易、收益和股票身份都会隐藏到你完成挑战；无需注册。"}
+              </p>
+              <div className="duel-invite-actions">
+                <button
+                  className="duel-accept"
+                  onClick={() => setDuelInviteOpen(false)}
+                >
+                  {locale === "en"
+                    ? `Accept · beat ${scoreboard.opponent.score} →`
+                    : `接受挑战 · 超过 ${scoreboard.opponent.score} 分 →`}
+                </button>
+                <button className="duel-decline" onClick={leaveDuel}>
+                  {locale === "en"
+                    ? "Play without the duel"
+                    : "退出对决，普通游玩"}
+                </button>
+              </div>
+            </section>
+          </dialog>
+        )}
 
       {modeHubOpen && (
         <dialog open className="modal-backdrop mode-hub-backdrop">
@@ -4852,7 +4962,11 @@ export default function GameClient({
                 {shareStatus ||
                   (gameMode === "daily"
                     ? scoreStatus === "done"
-                      ? "发起好友同图挑战"
+                      ? activeDuel && scoreboard?.opponent
+                        ? locale === "en"
+                          ? `Send result back to ${scoreboard.opponent.nickname}`
+                          : `把结果发回给 ${scoreboard.opponent.nickname}`
+                        : "发起好友同图挑战"
                       : "正在准备挑战卡…"
                     : "分享战绩")}
               </button>

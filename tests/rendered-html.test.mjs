@@ -117,6 +117,13 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /createResultShareCard/);
   assert.match(page, /navigator\.canShare/);
   assert.match(page, /duel-comparison/);
+  assert.match(page, /PRIVATE SAME-CHART DUEL/);
+  assert.match(page, /duel-invite-card/);
+  assert.match(page, /SCORE TO BEAT/);
+  assert.match(page, /Their trades, returns, and the ticker stay hidden until you finish/);
+  assert.match(page, /scoreboard\.opponent\.score/);
+  assert.match(page, /leaveDuel/);
+  assert.match(page, /Send result back to/);
   assert.match(page, /换一只股票 →/);
   assert.match(page, /更换股票将结束今日挑战并转入随机练习/);
   assert.doesNotMatch(page, /离开今日挑战 · 随机练习/);
@@ -374,6 +381,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /ROW_NUMBER\(\) OVER/);
   assert.match(scoreRoute, /每周取最佳 5 局/);
   assert.match(scoreRoute, /duelChallenges/);
+  assert.match(scoreRoute, /rankFor\(opponentId\)/);
   assert.match(scoreRoute, /buildAchievements/);
   assert.match(scoreRoute, /weeklyRewards/);
   assert.match(scoreRoute, /lifetimeRewardXp/);
@@ -406,13 +414,15 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.guided-start-card/);
   assert.match(styles, /\.first-run-coach/);
   assert.match(styles, /\.coach-focus/);
+  assert.match(styles, /\.duel-invite-card/);
+  assert.match(styles, /\.duel-target-score/);
   assert.match(
     styles,
     /\.probability-contract \.journal-row\{grid-template-columns:1fr\}/,
   );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /guided-first-chart-v16/);
+  assert.match(config, /duel-landing-v17/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
