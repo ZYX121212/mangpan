@@ -14,6 +14,8 @@ export type ActivationEventType =
   | "guide_start"
   | "guide_forecast"
   | "guide_reveal"
+  | "keyboard_first_action"
+  | "decision_continue"
   | "daily_first_move"
   | "daily_second_move"
   | "practice_second_move"
@@ -41,6 +43,8 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "guide_start",
   "guide_forecast",
   "guide_reveal",
+  "keyboard_first_action",
+  "decision_continue",
   "daily_first_move",
   "daily_second_move",
   "practice_second_move",

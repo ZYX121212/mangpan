@@ -585,6 +585,44 @@ test("gives the first-run lesson a readable unranked history window", async () =
   assert.match(game, /BEGINNER CHART · REAL HISTORY/);
 });
 
+test("keeps each market call moving with discoverable keyboard controls", async () => {
+  const [game, styles, activationClient, activationRoute] = await Promise.all([
+    readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/activation-events.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/api/activation-events/route.ts", import.meta.url),
+      "utf8",
+    ),
+  ]);
+
+  assert.match(game, /window\.addEventListener\("keydown", handleKeyboard\)/);
+  assert.match(
+    game,
+    /event\.key === "Enter" && decisionRevealOpen[\s\S]*const target = event\.target/,
+  );
+  assert.match(game, /target\?\.closest\("button"\)[\s\S]*event\.key === "Enter"/);
+  assert.match(game, /const forecastByKey: Record<string, MarketOutlook>/);
+  assert.match(game, /"1": "up"/);
+  assert.match(game, /"2": "range"/);
+  assert.match(game, /"3": "down"/);
+  assert.match(game, /aria-keyshortcuts="B"/);
+  assert.match(game, /aria-keyshortcuts="S"/);
+  assert.match(game, /aria-keyshortcuts="H"/);
+  assert.match(game, /aria-keyshortcuts="Enter"/);
+  assert.match(game, /Next call →/);
+  assert.match(game, /continueAfterFeedback/);
+  assert.match(game, /keyboard_first_action/);
+  assert.match(game, /decision_continue/);
+  assert.match(activationClient, /keyboard_first_action/);
+  assert.match(activationClient, /decision_continue/);
+  assert.match(activationRoute, /keyboard_first_action/);
+  assert.match(activationRoute, /decision_continue/);
+  assert.match(styles, /\.keyboard-shortcuts/);
+  assert.match(styles, /\.decision-reveal-card>footer button/);
+  assert.match(styles, /\(hover:none\)\{\.keyboard-shortcuts\{display:none\}\}/);
+});
+
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
   const [
     page,

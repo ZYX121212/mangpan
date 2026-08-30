@@ -3306,6 +3306,127 @@ export default function GameClient({
     remainingDays <= 0 ||
     estimatedQuantity <= 0 ||
     Boolean(quantityError);
+  const holdDisabled =
+    isRevealing ||
+    finished ||
+    dailyExpired ||
+    remainingDays <= 0 ||
+    (gameMode === "daily" && !forecastTouched);
+  const activationSource = initialCrewCode
+    ? "crew"
+    : initialDuel
+      ? "duel"
+      : "direct";
+  const continueAfterFeedback = () => {
+    setDecisionRevealOpen(false);
+    if (playerId)
+      trackActivationEvent(playerId, "decision_continue", activationSource);
+    window.requestAnimationFrame(() => {
+      const forecast = document.querySelector<HTMLElement>(
+        ".probability-contract .outlook-grid button",
+      );
+      forecast?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "center",
+      });
+      forecast?.focus({ preventScroll: true });
+    });
+  };
+  useEffect(() => {
+    const handleKeyboard = (event: KeyboardEvent) => {
+      if (
+        event.defaultPrevented ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey ||
+        finished ||
+        isRevealing ||
+        challengeLoading ||
+        resultOpen ||
+        rulesOpen ||
+        analysisOpen ||
+        trainingOpen ||
+        quizOpen ||
+        scoreboardOpen ||
+        duelInviteOpen ||
+        onboardingStep === 3
+      )
+        return;
+      const recordShortcut = () => {
+        if (playerId)
+          trackActivationEvent(
+            playerId,
+            "keyboard_first_action",
+            activationSource,
+          );
+      };
+      if (event.key === "Enter" && decisionRevealOpen) {
+        event.preventDefault();
+        recordShortcut();
+        continueAfterFeedback();
+        return;
+      }
+      const target = event.target as HTMLElement | null;
+      if (
+        target?.closest(
+          "input, select, textarea, a, summary, [contenteditable='true']",
+        )
+      )
+        return;
+      if (
+        target?.closest("button") &&
+        (event.key === "Enter" || event.key === " ")
+      )
+        return;
+      const key = event.key.toLowerCase();
+      const forecastByKey: Record<string, MarketOutlook> = {
+        "1": "up",
+        "2": "range",
+        "3": "down",
+      };
+      const keyboardForecast = forecastByKey[key];
+      if (keyboardForecast) {
+        event.preventDefault();
+        setRecordView(true);
+        setOutlook(keyboardForecast);
+        setForecastTouched(true);
+        if (onboardingStep === 1) setOnboardingStep(2);
+        recordShortcut();
+        return;
+      }
+      if (key === "b") {
+        event.preventDefault();
+        setMode("buy");
+        setOrderInputMode("allocation");
+        setQuantityInput("");
+        recordShortcut();
+        return;
+      }
+      if (key === "s" && shares > 0.000001) {
+        event.preventDefault();
+        setMode("sell");
+        setOrderInputMode("allocation");
+        setQuantityInput("");
+        recordShortcut();
+        return;
+      }
+      if (key === "h" && !holdDisabled) {
+        event.preventDefault();
+        recordShortcut();
+        void advance("hold");
+        return;
+      }
+      if (event.key === "Enter" && !tradeDisabled) {
+        event.preventDefault();
+        recordShortcut();
+        void advance("trade");
+      }
+    };
+    window.addEventListener("keydown", handleKeyboard);
+    return () => window.removeEventListener("keydown", handleKeyboard);
+  });
   return (
     <Localized locale={locale}>
     <main className="shell" data-market={market} data-game-mode={gameMode}>
@@ -3786,6 +3907,15 @@ export default function GameClient({
                       : OUTLOOK_LABEL[latestCrowdLeader]} {crowdForecast[latestCrowdLeader]}%
                   </span>
                 )}
+                {onboardingStep !== 3 && (
+                  <button
+                    type="button"
+                    onClick={continueAfterFeedback}
+                    aria-keyshortcuts="Enter"
+                  >
+                    {locale === "en" ? "Next call →" : "下一次判断 →"}
+                  </button>
+                )}
               </footer>
             </aside>
           )}
@@ -3857,13 +3987,21 @@ export default function GameClient({
         <aside className="trade-panel">
           <div className="decision-head">
             <span>股票交易</span>
-            <small>
-              {gameMode === "daily"
-                ? locale === "en"
-                  ? `Daily sprint · ${dailyDecisionsRemaining} decisions left`
-                  : `每日快局 · 剩余 ${dailyDecisionsRemaining} 次决策`
-                : "无限练习 · 随时结束"}
-            </small>
+            <div className="decision-head-meta">
+              <small>
+                {gameMode === "daily"
+                  ? locale === "en"
+                    ? `Daily sprint · ${dailyDecisionsRemaining} decisions left`
+                    : `每日快局 · 剩余 ${dailyDecisionsRemaining} 次决策`
+                  : "无限练习 · 随时结束"}
+              </small>
+              <span className="keyboard-shortcuts" aria-label="Keyboard shortcuts">
+                <span><kbd>1–3</kbd>{locale === "en" ? " forecast" : " 判断"}</span>
+                <span><kbd>B/S</kbd>{locale === "en" ? " trade" : " 买卖"}</span>
+                <span><kbd>H</kbd>{locale === "en" ? " hold" : " 观望"}</span>
+                <span><kbd>↵</kbd>{locale === "en" ? " act" : " 执行"}</span>
+              </span>
+            </div>
           </div>
           <div
             className={`horizon-track ${gameMode === "daily" ? "daily-limited" : "open-ended"}`}
@@ -4012,6 +4150,7 @@ export default function GameClient({
               <div className="mode-tabs">
                 <button
                   className={mode === "buy" ? "active buy" : ""}
+                  aria-keyshortcuts="B"
                   onClick={() => {
                     setMode("buy");
                     setOrderInputMode("allocation");
@@ -4022,6 +4161,7 @@ export default function GameClient({
                 </button>
                 <button
                   className={mode === "sell" ? "active sell" : ""}
+                  aria-keyshortcuts="S"
                   onClick={() => {
                     setMode("sell");
                     setOrderInputMode("allocation");
@@ -4248,6 +4388,9 @@ export default function GameClient({
                       {(["up", "range", "down"] as const).map((value) => (
                         <button
                           key={value}
+                          aria-keyshortcuts={
+                            value === "up" ? "1" : value === "range" ? "2" : "3"
+                          }
                           className={
                             outlook === value &&
                             (gameMode !== "daily" || forecastTouched)
@@ -4363,6 +4506,7 @@ export default function GameClient({
               <button
                 className={`primary-action ${mode} ${onboardingStep === 2 ? "coach-focus" : ""}`}
                 disabled={tradeDisabled}
+                aria-keyshortcuts="Enter"
                 onClick={() => advance("trade")}
               >
                 {isRevealing
@@ -4376,12 +4520,8 @@ export default function GameClient({
               </button>
               <button
                 className={`hold-action ${onboardingStep === 2 ? "coach-focus" : ""}`}
-                disabled={
-                  isRevealing ||
-                  remainingDays <= 0 ||
-                  dailyExpired ||
-                  (gameMode === "daily" && !forecastTouched)
-                }
+                disabled={holdDisabled}
+                aria-keyshortcuts="H"
                 onClick={() => advance("hold")}
               >
                 {isRevealing
