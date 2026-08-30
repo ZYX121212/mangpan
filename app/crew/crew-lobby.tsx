@@ -5,7 +5,12 @@ import { type FormEvent, useEffect, useState } from "react";
 import { trackActivationEvent } from "../activation-events";
 import type { CrewSummary } from "../crew-service";
 import type { MarketKind } from "../game-config";
-import type { Locale } from "../i18n";
+import {
+  Localized,
+  localeLanguageTag,
+  normalizeLocale,
+  type Locale,
+} from "../i18n";
 
 function ensureLocalPlayerId() {
   const existing = localStorage.getItem("mangpan-player-id");
@@ -31,7 +36,11 @@ export default function CrewLobby() {
       const savedLocale = localStorage.getItem("mangpan-locale");
       const savedMarket = localStorage.getItem("mangpan-market");
       const savedNickname = localStorage.getItem("mangpan-player-name");
-      if (savedLocale === "zh") setLocale("zh");
+      const resolvedLocale = normalizeLocale(
+        savedLocale || navigator.languages?.[0] || navigator.language,
+      );
+      setLocale(resolvedLocale);
+      document.documentElement.lang = localeLanguageTag(resolvedLocale);
       if (savedMarket === "cn") setMarket("cn");
       setPlayerId(id);
       setNickname(savedNickname || `Trader ${id.slice(-4).toUpperCase()}`);
@@ -86,7 +95,8 @@ export default function CrewLobby() {
   };
 
   return (
-    <main className="crew-lobby-page">
+    <Localized locale={locale}>
+      <main className="crew-lobby-page">
       <header className="crew-topbar">
         <Link className="mode-lobby-brand" href="/">
           <span>B</span>
@@ -173,6 +183,7 @@ export default function CrewLobby() {
           </div>
         </section>
       )}
-    </main>
+      </main>
+    </Localized>
   );
 }

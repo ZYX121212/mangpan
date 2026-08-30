@@ -2,7 +2,12 @@
 
 import Link from "next/link";
 import { type FormEvent, useEffect, useState } from "react";
-import type { Locale } from "../i18n";
+import {
+  Localized,
+  localeLanguageTag,
+  normalizeLocale,
+  type Locale,
+} from "../i18n";
 import type { MarketKind } from "../game-config";
 
 export default function DuelLobby() {
@@ -12,7 +17,13 @@ export default function DuelLobby() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (localStorage.getItem("mangpan-locale") === "zh") setLocale("zh");
+      const resolvedLocale = normalizeLocale(
+        localStorage.getItem("mangpan-locale") ||
+          navigator.languages?.[0] ||
+          navigator.language,
+      );
+      setLocale(resolvedLocale);
+      document.documentElement.lang = localeLanguageTag(resolvedLocale);
       const params = new URLSearchParams(location.search);
       if (params.get("market") === "cn") setMarket("cn");
     }, 0);
@@ -26,7 +37,8 @@ export default function DuelLobby() {
   };
 
   return (
-    <main className="duel-lobby-page">
+    <Localized locale={locale}>
+      <main className="duel-lobby-page">
       <header className="duel-lobby-topbar">
         <Link href="/" className="mode-lobby-brand">
           <span>B</span>
@@ -90,6 +102,7 @@ export default function DuelLobby() {
         <span>{locale === "en" ? "VERIFIED SCORE" : "服务器复算得分"}</span>
         <span>{locale === "en" ? "NO SIGN-UP" : "无需注册"}</span>
       </footer>
-    </main>
+      </main>
+    </Localized>
   );
 }

@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { trackActivationEvent } from "./activation-events";
-import type { Locale } from "./i18n";
+import {
+  Localized,
+  localeLanguageTag,
+  normalizeLocale,
+  type Locale,
+} from "./i18n";
 import {
   marketCountdown,
   marketDate,
@@ -160,6 +165,9 @@ export default function ModeLobby() {
     const timer = window.setTimeout(() => {
       const savedLocale = localStorage.getItem("mangpan-locale");
       const savedMarket = localStorage.getItem("mangpan-market");
+      const resolvedLocale = normalizeLocale(
+        savedLocale || navigator.languages?.[0] || navigator.language,
+      );
       const resolvedMarket: MarketKind = savedMarket === "cn" ? "cn" : "us";
       const browseModes =
         new URLSearchParams(location.search).get("modes") === "1";
@@ -175,7 +183,8 @@ export default function ModeLobby() {
         localStorage.getItem("mangpan-scenario-progress") ||
         localStorage.getItem("mangpan-player-name"),
       );
-      if (savedLocale === "zh") setLocale("zh");
+      setLocale(resolvedLocale);
+      document.documentElement.lang = localeLanguageTag(resolvedLocale);
       if (resolvedMarket === "cn") setMarket("cn");
       setPlayerId(id);
       setIsNewPlayer(!hasPriorActivity && !browseModes);
@@ -186,8 +195,7 @@ export default function ModeLobby() {
         if (cancelled) return;
         if (context.locale) {
           setLocale(context.locale);
-          document.documentElement.lang =
-            context.locale === "zh" ? "zh-CN" : "en";
+          document.documentElement.lang = localeLanguageTag(context.locale);
         }
         if (context.duelCode) {
           router.replace(`/d/${encodeURIComponent(context.duelCode)}`);
@@ -268,7 +276,7 @@ export default function ModeLobby() {
   const chooseLocale = (next: Locale) => {
     setLocale(next);
     localStorage.setItem("mangpan-locale", next);
-    document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
+    document.documentElement.lang = localeLanguageTag(next);
   };
   const chooseMarket = (next: MarketKind) => {
     setMarket(next);
@@ -293,9 +301,11 @@ export default function ModeLobby() {
     dailyState.phase === "complete"
       ? `/run?market=${market}`
       : `/daily?market=${market}`;
+  const copyLocale = locale === "zh" ? "zh" : "en";
 
   return (
-    <main className="mode-lobby-page">
+    <Localized locale={locale}>
+      <main className="mode-lobby-page">
       <header className="mode-lobby-topbar">
         <Link className="mode-lobby-brand" href="/">
           <span>B</span>
@@ -316,12 +326,16 @@ export default function ModeLobby() {
               A-SHARES
             </button>
           </div>
-          <button
+          <select
             className="lobby-locale-switch"
-            onClick={() => chooseLocale(locale === "en" ? "zh" : "en")}
+            value={locale}
+            aria-label="Language"
+            onChange={(event) => chooseLocale(event.target.value as Locale)}
           >
-            {locale === "en" ? "中文" : "EN"}
-          </button>
+            <option value="en">EN</option>
+            <option value="es">ES</option>
+            <option value="zh">中文</option>
+          </select>
         </div>
       </header>
 
@@ -465,8 +479,8 @@ export default function ModeLobby() {
             <header className="mode-family-heading">
               <span>{family.number}</span>
               <div>
-                <h2>{family.title[locale]}</h2>
-                <p>{family.description[locale]}</p>
+                <h2>{family.title[copyLocale]}</h2>
+                <p>{family.description[copyLocale]}</p>
               </div>
             </header>
             <div className="mode-family-cards">
@@ -479,13 +493,13 @@ export default function ModeLobby() {
                 >
                   <header>
                     <span>{mode.number}</span>
-                    <small>{mode.eyebrow[locale]}</small>
+                    <small>{mode.eyebrow[copyLocale]}</small>
                   </header>
-                  <h3>{mode.title[locale]}</h3>
-                  <p>{mode.description[locale]}</p>
+                  <h3>{mode.title[copyLocale]}</h3>
+                  <p>{mode.description[copyLocale]}</p>
                   <footer>
-                    <small>{mode.meta[locale]}</small>
-                    <b>{mode.action[locale]} →</b>
+                    <small>{mode.meta[copyLocale]}</small>
+                    <b>{mode.action[copyLocale]} →</b>
                   </footer>
                 </Link>
               ))}
@@ -499,6 +513,7 @@ export default function ModeLobby() {
         <span>{locale === "en" ? "TICKER HIDDEN UNTIL REVEAL" : "结算前隐藏股票身份"}</span>
         <span>{locale === "en" ? "NO REAL MONEY" : "不涉及真实资金"}</span>
       </footer>
-    </main>
+      </main>
+    </Localized>
   );
 }

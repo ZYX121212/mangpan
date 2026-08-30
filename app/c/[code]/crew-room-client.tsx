@@ -4,7 +4,12 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { trackActivationEvent } from "../../activation-events";
 import type { CrewSummary } from "../../crew-service";
-import type { Locale } from "../../i18n";
+import {
+  Localized,
+  localeLanguageTag,
+  normalizeLocale,
+  type Locale,
+} from "../../i18n";
 import {
   createPlatformCrewShareUrl,
   getWebGameLaunchContext,
@@ -39,12 +44,21 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
     const timer = window.setTimeout(() => {
       const id = ensureLocalPlayerId();
       const savedNickname = localStorage.getItem("mangpan-player-name");
-      if (localStorage.getItem("mangpan-locale") === "zh") setLocale("zh");
+      const resolvedLocale = normalizeLocale(
+        localStorage.getItem("mangpan-locale") ||
+          navigator.languages?.[0] ||
+          navigator.language,
+      );
+      setLocale(resolvedLocale);
+      document.documentElement.lang = localeLanguageTag(resolvedLocale);
       setPlayerId(id);
       setNickname(savedNickname || `Trader ${id.slice(-4).toUpperCase()}`);
       trackActivationEvent(id, "crew_view", "crew");
       void getWebGameLaunchContext().then((context) => {
-        if (!cancelled && context.locale) setLocale(context.locale);
+        if (!cancelled && context.locale) {
+          setLocale(context.locale);
+          document.documentElement.lang = localeLanguageTag(context.locale);
+        }
       });
       void fetch(`/api/crews?code=${encodeURIComponent(initialCrew.code)}&playerId=${encodeURIComponent(id)}`)
         .then((response) => response.json())
@@ -114,7 +128,8 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
   );
 
   return (
-    <main className="crew-room-page">
+    <Localized locale={locale}>
+      <main className="crew-room-page">
       <header className="crew-topbar">
         <Link className="mode-lobby-brand" href="/"><span>B</span><b>BLIND TRADING</b></Link>
         <Link href="/crew">{locale === "en" ? "Crew Streaks" : "小队连续纪录"}</Link>
@@ -185,6 +200,7 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
         <span>{locale === "en" ? "PRIVATE BY LINK" : "仅凭链接加入"}</span>
         <span>{locale === "en" ? "NO REAL MONEY" : "不涉及真实资金"}</span>
       </footer>
-    </main>
+      </main>
+    </Localized>
   );
 }

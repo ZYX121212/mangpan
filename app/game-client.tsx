@@ -57,7 +57,13 @@ import {
   reportPlatformLoaded,
 } from "./web-game-platform";
 import type { CrewSummary } from "./crew-service";
-import { Localized, type Locale } from "./i18n";
+import {
+  Localized,
+  localeLanguageTag,
+  localeNumberTag,
+  normalizeLocale,
+  type Locale,
+} from "./i18n";
 import {
   shareComparisonHook,
   shareSourceLabel,
@@ -69,6 +75,13 @@ import {
 
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
+
+function documentTitleFor(locale: Locale) {
+  if (locale === "zh") return "盲盘｜真实历史 K 线交易挑战";
+  if (locale === "es")
+    return "Trading a ciegas | Reto con mercados históricos reales";
+  return "Blind Trading | Real Historical Market Challenge";
+}
 
 function trackDuelEvent(
   code: string,
@@ -1708,12 +1721,8 @@ export default function GameClient({
       if (cancelled) return;
       if (context.locale) {
         setLocale(context.locale);
-        document.documentElement.lang =
-          context.locale === "zh" ? "zh-CN" : "en";
-        document.title =
-          context.locale === "zh"
-            ? "盲盘｜真实历史 K 线交易挑战"
-            : "Blind Trading | Real Historical Market Challenge";
+        document.documentElement.lang = localeLanguageTag(context.locale);
+        document.title = documentTitleFor(context.locale);
       }
       if (context.duelCode && !initialDuel) {
         router.replace(`/d/${encodeURIComponent(context.duelCode)}`);
@@ -1763,12 +1772,12 @@ export default function GameClient({
   useEffect(() => () => reportPlatformGameplayStop(), []);
   useEffect(() => {
     const saved = localStorage.getItem("mangpan-locale");
-    const detected: Locale = saved === "zh" ? "zh" : "en";
+    const detected = normalizeLocale(
+      saved || navigator.languages?.[0] || navigator.language,
+    );
     const timer = window.setTimeout(() => setLocale(detected), 0);
-    document.documentElement.lang = detected === "zh" ? "zh-CN" : "en";
-    document.title = detected === "zh"
-      ? "盲盘｜真实历史 K 线交易挑战"
-      : "Blind Trading | Real Historical Market Challenge";
+    document.documentElement.lang = localeLanguageTag(detected);
+    document.title = documentTitleFor(detected);
     return () => window.clearTimeout(timer);
   }, []);
   useEffect(() => {
@@ -1820,12 +1829,11 @@ export default function GameClient({
   const changeLocale = (next: Locale) => {
     setLocale(next);
     localStorage.setItem("mangpan-locale", next);
-    document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
-    document.title = next === "zh"
-      ? "盲盘｜真实历史 K 线交易挑战"
-      : "Blind Trading | Real Historical Market Challenge";
+    document.documentElement.lang = localeLanguageTag(next);
+    document.title = documentTitleFor(next);
   };
-  const numberLocale = locale === "en" ? "en-US" : "zh-CN";
+  const numberLocale = localeNumberTag(locale);
+  const copyLocale = locale === "zh" ? "zh" : "en";
   const nf = useMemo(
     () =>
       new Intl.NumberFormat(numberLocale, {
@@ -3809,6 +3817,13 @@ export default function GameClient({
             >
               EN
             </button>
+            <button
+              className={locale === "es" ? "active" : ""}
+              onClick={() => changeLocale("es")}
+              aria-pressed={locale === "es"}
+            >
+              ES
+            </button>
           </div>
           <button
             className="player-chip"
@@ -3946,7 +3961,7 @@ export default function GameClient({
       {isMarketRun && (
         <div className="market-run-banner">
           <span>{locale === "en" ? "MARKET RUN" : "市场闯关"}</span>
-          <b>{marketRunStage.title[locale]}</b>
+          <b>{marketRunStage.title[copyLocale]}</b>
           <div aria-label={locale === "en" ? "Five-stage run progress" : "五关进度"}>
             {MARKET_RUN_STAGES.map((stage, index) => (
               <i

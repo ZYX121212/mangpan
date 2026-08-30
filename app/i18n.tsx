@@ -3,13 +3,29 @@
 import {
   Children,
   cloneElement,
-  Fragment,
   isValidElement,
   type ReactElement,
   type ReactNode,
 } from "react";
+import { translateEnglishToSpanish } from "./i18n-es";
 
-export type Locale = "zh" | "en";
+export type Locale = "zh" | "en" | "es";
+
+export function normalizeLocale(value: unknown): Locale {
+  if (typeof value !== "string") return "en";
+  const normalized = value.toLowerCase();
+  if (normalized.startsWith("zh")) return "zh";
+  if (normalized.startsWith("es")) return "es";
+  return "en";
+}
+
+export function localeLanguageTag(locale: Locale) {
+  return locale === "zh" ? "zh-CN" : locale === "es" ? "es" : "en";
+}
+
+export function localeNumberTag(locale: Locale) {
+  return locale === "zh" ? "zh-CN" : locale === "es" ? "es-ES" : "en-US";
+}
 
 const ENGLISH: Record<string, string> = {
   "盲盘｜真实历史 K 线交易挑战": "Blind Trading | Real Historical Market Challenge",
@@ -547,46 +563,52 @@ const replacements = Object.entries(ENGLISH).sort(
 const cache = new Map<string, string>();
 
 export function translateText(text: string, locale: Locale): string {
-  if (locale === "zh" || !/[\u3400-\u9fff]/u.test(text)) return text;
-  const cached = cache.get(text);
+  if (locale === "zh") return text;
+  const cacheKey = `${locale}\u0000${text}`;
+  const cached = cache.get(cacheKey);
   if (cached) return cached;
-  let translated = text
-    .replace(
-      /^买入后最大不利波动达到\s*(-?\d+(?:\.\d+)?)%，入场容错偏小；可尝试分批建仓。$/u,
-      "Maximum adverse move after the buy was $1%; the entry had little room for error. Try scaling in.",
-    )
-    .replace(
-      /^卖出后区间内一度上涨\s*(-?\d+(?:\.\d+)?)%，可比较一次清仓与分批退出。$/u,
-      "Price rose as much as $1% after the sell. Compare a full exit with scaling out.",
-    )
-    .replace(
-      /^有\s*(\d+)\s*次高信心误判；下局先降低仓位，再等待走势确认。$/u,
-      "$1 high-confidence misses. Start smaller next session and wait for confirmation.",
-    )
-    .replace(
-      /^A股(买入|卖出)须为\s*([\d,]+)\s*股的整数倍$/u,
-      (_, side: string, lot: string) =>
-        `China A-share ${side === "买入" ? "buy" : "sell"} orders must be in multiples of ${lot} shares`,
-    );
-  for (const [source, target] of replacements) {
-    if (source.length === 1) {
-      if (translated.trim() === source) translated = translated.replace(source, target);
-    } else if (translated.includes(source)) {
-      translated = translated.replaceAll(source, target);
+  let translated = text;
+  if (/[\u3400-\u9fff]/u.test(text)) {
+    translated = text
+      .replace(
+        /^买入后最大不利波动达到\s*(-?\d+(?:\.\d+)?)%，入场容错偏小；可尝试分批建仓。$/u,
+        "Maximum adverse move after the buy was $1%; the entry had little room for error. Try scaling in.",
+      )
+      .replace(
+        /^卖出后区间内一度上涨\s*(-?\d+(?:\.\d+)?)%，可比较一次清仓与分批退出。$/u,
+        "Price rose as much as $1% after the sell. Compare a full exit with scaling out.",
+      )
+      .replace(
+        /^有\s*(\d+)\s*次高信心误判；下局先降低仓位，再等待走势确认。$/u,
+        "$1 high-confidence misses. Start smaller next session and wait for confirmation.",
+      )
+      .replace(
+        /^A股(买入|卖出)须为\s*([\d,]+)\s*股的整数倍$/u,
+        (_, side: string, lot: string) =>
+          `China A-share ${side === "买入" ? "buy" : "sell"} orders must be in multiples of ${lot} shares`,
+      );
+    for (const [source, target] of replacements) {
+      if (source.length === 1) {
+        if (translated.trim() === source)
+          translated = translated.replace(source, target);
+      } else if (translated.includes(source)) {
+        translated = translated.replaceAll(source, target);
+      }
     }
+    translated = translated
+      .replace(/第\s*(\d+)\/(\d+)\s*次/gu, "Decision $1/$2")
+      .replace(/第\s*(\d+)\s*次推进/gu, "Decision $1")
+      .replace(/第\s*(\d+)\s*日/gu, "Day $1")
+      .replace(/第\s*(\d+)\s*名/gu, "#$1")
+      .replace(/(\d+(?:\.\d+)?)\s*日/gu, "$1 days")
+      .replace(/(\d+(?:\.\d+)?)\s*天/gu, "$1 days")
+      .replace(/(\d+(?:\.\d+)?)\s*次/gu, "$1 times")
+      .replace(/([\d,]+(?:\.\d+)?)\s*股/gu, "$1 shares")
+      .replace(/(\d+(?:\.\d+)?)\s*根/gu, "$1 candles")
+      .replace(/(\d+(?:\.\d+)?)\s*课/gu, "$1 lessons");
   }
-  translated = translated
-    .replace(/第\s*(\d+)\/(\d+)\s*次/gu, "Decision $1/$2")
-    .replace(/第\s*(\d+)\s*次推进/gu, "Decision $1")
-    .replace(/第\s*(\d+)\s*日/gu, "Day $1")
-    .replace(/第\s*(\d+)\s*名/gu, "#$1")
-    .replace(/(\d+(?:\.\d+)?)\s*日/gu, "$1 days")
-    .replace(/(\d+(?:\.\d+)?)\s*天/gu, "$1 days")
-    .replace(/(\d+(?:\.\d+)?)\s*次/gu, "$1 times")
-    .replace(/([\d,]+(?:\.\d+)?)\s*股/gu, "$1 shares")
-    .replace(/(\d+(?:\.\d+)?)\s*根/gu, "$1 candles")
-    .replace(/(\d+(?:\.\d+)?)\s*课/gu, "$1 lessons");
-  cache.set(text, translated);
+  if (locale === "es") translated = translateEnglishToSpanish(translated);
+  cache.set(cacheKey, translated);
   return translated;
 }
 
@@ -599,9 +621,6 @@ function localizeNode(node: ReactNode, locale: Locale): ReactNode {
   if (!isValidElement(node)) return node;
 
   const element = node as ReactElement<Record<string, unknown>>;
-  if (typeof element.type !== "string" && element.type !== Fragment)
-    return element;
-
   const nextProps: Record<string, unknown> = {};
   for (const prop of translatedProps) {
     const value = element.props[prop];
