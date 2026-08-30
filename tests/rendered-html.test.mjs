@@ -174,7 +174,16 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /createResultShareCard/);
   assert.match(page, /navigator\.share/);
   assert.match(page, /saveResultCard/);
-  assert.match(page, /ClipboardItem/);
+  assert.match(page, /shareResultCard/);
+  assert.match(page, /navigator\.canShare\?\.\(\{ files: \[file\] \}\)/);
+  assert.match(page, /files: \[file\]/);
+  assert.match(page, /Score card shared/);
+  assert.match(page, /Image saved · link copied/);
+  assert.match(page, /canvas\.width = 1080/);
+  assert.match(page, /canvas\.height = 1350/);
+  assert.match(page, /PLAY TODAY'S HIDDEN CHART/);
+  assert.match(page, /Share score card/);
+  assert.match(page, /Save image/);
   assert.match(page, /URL\.createObjectURL/);
   assert.match(page, /resultShareMarks/);
   assert.match(page, /result-share-kit/);
@@ -789,6 +798,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.duel-room-stats/);
   assert.match(styles, /\.duel-room-funnel/);
   assert.match(styles, /\.result-share-kit/);
+  assert.match(styles, /\.result-card-actions/);
   assert.match(styles, /\.streak-week footer/);
   assert.match(styles, /\.career-freeze-card/);
   assert.match(styles, /\.share-mark-preview/);

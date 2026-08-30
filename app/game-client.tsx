@@ -402,6 +402,7 @@ async function createResultShareCard({
   risk,
   percentile,
   marks,
+  challengeUrl,
 }: {
   locale: Locale;
   date: string;
@@ -411,37 +412,46 @@ async function createResultShareCard({
   risk: number;
   percentile?: number;
   marks: number[];
+  challengeUrl?: string;
 }) {
   const canvas = document.createElement("canvas");
-  canvas.width = 1200;
-  canvas.height = 630;
+  canvas.width = 1080;
+  canvas.height = 1350;
   const context = canvas.getContext("2d");
   if (!context) return null;
   context.fillStyle = "#f4f1e9";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#252721";
-  context.fillRect(0, 0, canvas.width, 118);
-  context.fillStyle = "#f8f6ef";
-  context.font = "700 34px Arial, sans-serif";
-  context.fillText("BLIND TRADING DAILY", 72, 74);
+  context.fillRect(0, 0, canvas.width, 174);
   context.fillStyle = "#bfc3b7";
-  context.font = "600 22px Arial, sans-serif";
+  context.font = "700 20px Arial, sans-serif";
+  context.fillText("DAILY MARKET PUZZLE", 72, 61);
+  context.fillStyle = "#f8f6ef";
+  context.font = "800 50px Arial, sans-serif";
+  context.fillText("BLIND TRADING", 72, 124);
+  context.fillStyle = "#bfc3b7";
+  context.font = "700 20px Arial, sans-serif";
   context.textAlign = "right";
   context.fillText(
-    `#${date.replaceAll("-", "")} · ${market === "us" ? "US STOCKS" : "CHINA A-SHARES"}`,
-    1128,
-    72,
+    `#${date.replaceAll("-", "")}`,
+    1008,
+    73,
+  );
+  context.fillText(
+    market === "us" ? "US STOCKS" : "CHINA A-SHARES",
+    1008,
+    112,
   );
   context.textAlign = "left";
   context.fillStyle = "#252721";
-  context.font = "800 150px Arial, sans-serif";
-  context.fillText(String(score), 70, 315);
+  context.font = "800 268px Arial, sans-serif";
+  context.fillText(String(score), 62, 505);
   context.fillStyle = "#74766d";
-  context.font = "700 22px Arial, sans-serif";
+  context.font = "800 24px Arial, sans-serif";
   context.fillText(
     locale === "en" ? "DECISION SCORE" : "决策评分",
     76,
-    356,
+    558,
   );
   const metrics = [
     [locale === "en" ? "CALIBRATION" : "概率校准", calibration],
@@ -452,36 +462,66 @@ async function createResultShareCard({
     ],
   ] as const;
   metrics.forEach(([label, value], index) => {
-    const x = 385 + index * 245;
+    const x = 72 + index * 320;
+    context.fillStyle = "#ffffff";
+    context.fillRect(x, 630, 288, 168);
     context.fillStyle = "#8b8c84";
-    context.font = "700 18px Arial, sans-serif";
-    context.fillText(label, x, 224);
+    context.font = "800 18px Arial, sans-serif";
+    context.fillText(label, x + 26, 675);
     context.fillStyle = "#252721";
-    context.font = "800 54px Arial, sans-serif";
-    context.fillText(String(value), x, 286);
+    context.font = "800 61px Arial, sans-serif";
+    context.fillText(String(value), x + 24, 755);
   });
   const displayedMarks = marks.slice(0, DAILY_CHALLENGE_DECISIONS);
   while (displayedMarks.length < DAILY_CHALLENGE_DECISIONS)
     displayedMarks.push(50);
   displayedMarks.forEach((value, index) => {
     context.fillStyle = value >= 70 ? "#4f785f" : value >= 45 ? "#c1a764" : "#ba625d";
-    context.fillRect(72 + index * 138, 414, 116, 62);
+    context.fillRect(72 + index * 192, 866, 168, 88);
   });
   context.fillStyle = "#252721";
-  context.font = "800 29px Arial, sans-serif";
+  context.font = "800 48px Arial, sans-serif";
   context.fillText(
     locale === "en" ? "CAN YOU READ IT BETTER?" : "你能读得更准吗？",
     72,
-    550,
+    1051,
   );
   context.fillStyle = "#777970";
-  context.font = "500 20px Arial, sans-serif";
+  context.font = "600 22px Arial, sans-serif";
   context.fillText(
     locale === "en"
       ? "Same mystery chart. Five decisions. No ticker until the reveal."
       : "同一张神秘历史图，五次决策，结算前不看股票与日期。",
     72,
-    585,
+    1095,
+  );
+  context.fillStyle = "#252721";
+  context.fillRect(72, 1150, 936, 105);
+  context.fillStyle = "#bfc3b7";
+  context.font = "800 17px Arial, sans-serif";
+  context.fillText(
+    locale === "en" ? "PLAY TODAY'S HIDDEN CHART" : "挑战今天的隐藏行情",
+    102,
+    1191,
+  );
+  context.fillStyle = "#ffffff";
+  context.font = "700 24px Arial, sans-serif";
+  let challengeLabel = "mangpan-kline-game.hiayun.chatgpt.site";
+  if (challengeUrl) {
+    try {
+      const parsed = new URL(challengeUrl);
+      challengeLabel = `${parsed.hostname.replace(/^www\./u, "")}${parsed.pathname}`;
+    } catch {
+      // Keep the public game address when a custom challenge URL is malformed.
+    }
+  }
+  context.fillText(challengeLabel, 102, 1230);
+  context.fillStyle = "#8b8c84";
+  context.font = "700 16px Arial, sans-serif";
+  context.fillText(
+    "REAL HISTORICAL DATA · TICKER HIDDEN UNTIL REVEAL · NO REAL MONEY",
+    72,
+    1307,
   );
   return new Promise<Blob | null>((resolve) =>
     canvas.toBlob(resolve, "image/png"),
@@ -2937,45 +2977,105 @@ export default function GameClient({
     }
   };
 
+  const resultCardImage = () =>
+    createResultShareCard({
+      locale,
+      date: today,
+      market,
+      score: skillScore,
+      calibration: Math.round(decisionStats.calibration),
+      risk: Math.round(processScores.risk),
+      percentile: scoreboard?.playerScore?.percentile,
+      marks: resultShareMarks,
+      challengeUrl: duelShareUrl || undefined,
+    });
+
+  const downloadResultCard = (image: Blob) => {
+    const href = URL.createObjectURL(image);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = `blind-trading-${today}.png`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(href), 0);
+  };
+
   const saveResultCard = async () => {
     setCardStatus(locale === "en" ? "Preparing image…" : "正在生成图片…");
     try {
-      const image = await createResultShareCard({
-        locale,
-        date: today,
-        market,
-        score: skillScore,
-        calibration: Math.round(decisionStats.calibration),
-        risk: Math.round(processScores.risk),
-        percentile: scoreboard?.playerScore?.percentile,
-        marks: resultShareMarks,
-      });
+      const image = await resultCardImage();
       if (!image) throw new Error("image unavailable");
-      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({ "image/png": image }),
-          ]);
-          setCardStatus(
-            locale === "en" ? "Image copied" : "图片已复制",
-          );
-          return;
-        } catch {
-          // Browsers without image clipboard support fall back to a download.
-        }
-      }
-      const href = URL.createObjectURL(image);
-      const link = document.createElement("a");
-      link.href = href;
-      link.download = `blind-trading-${today}.png`;
-      document.body.append(link);
-      link.click();
-      link.remove();
-      window.setTimeout(() => URL.revokeObjectURL(href), 0);
+      downloadResultCard(image);
       setCardStatus(locale === "en" ? "Image saved" : "图片已保存");
     } catch {
       setCardStatus(
         locale === "en" ? "Could not create image" : "图片生成失败",
+      );
+    }
+  };
+
+  const shareResultCard = async () => {
+    if (!duelShareUrl) {
+      setCardStatus(
+        locale === "en" ? "Preparing challenge…" : "正在生成挑战链接…",
+      );
+      try {
+        await prepareDuelShareUrl();
+        setCardStatus(
+          locale === "en"
+            ? "Challenge ready · tap again"
+            : "挑战已准备好 · 再点一次",
+        );
+      } catch {
+        setCardStatus(
+          locale === "en" ? "Could not prepare · retry" : "准备失败 · 请重试",
+        );
+      }
+      return;
+    }
+    setCardStatus(locale === "en" ? "Preparing image…" : "正在生成图片…");
+    try {
+      const image = await resultCardImage();
+      if (!image) throw new Error("image unavailable");
+      const file = new File([image], `blind-trading-${today}.png`, {
+        type: "image/png",
+      });
+      const taggedUrl = taggedChallengeUrl(duelShareUrl, "native");
+      const copy = resultShareCopy();
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: copy.title,
+          text: `${copy.compactText}\n${taggedUrl}`,
+        });
+        recordDuelShare("native");
+        setCardStatus(locale === "en" ? "Score card shared" : "成绩卡已分享");
+        return;
+      }
+      downloadResultCard(image);
+      try {
+        await navigator.clipboard.writeText(`${copy.compactText}\n${taggedChallengeUrl(duelShareUrl, "copy")}`);
+        recordDuelShare("copy");
+        setCardStatus(
+          locale === "en"
+            ? "Image saved · link copied"
+            : "图片已保存 · 链接已复制",
+        );
+      } catch {
+        setCardStatus(
+          locale === "en"
+            ? "Image saved · copy the link below"
+            : "图片已保存 · 请复制下方链接",
+        );
+      }
+    } catch (error) {
+      setCardStatus(
+        error instanceof DOMException && error.name === "AbortError"
+          ? ""
+          : locale === "en"
+            ? "Could not share image"
+            : "图片分享失败",
       );
     }
   };
@@ -6015,16 +6115,25 @@ export default function GameClient({
                       : "只展示得分与校准，不泄露股票名或答案。"}
                   </p>
                 </div>
-                <button
-                  type="button"
-                  disabled={cardStatus.includes("…")}
-                  onClick={() => void saveResultCard()}
-                >
-                  {cardStatus ||
-                    (locale === "en"
-                      ? "Copy or save score card"
-                      : "复制或保存成绩卡")}
-                </button>
+                <div className="result-card-actions">
+                  <button
+                    type="button"
+                    disabled={cardStatus.includes("…")}
+                    onClick={() => void shareResultCard()}
+                  >
+                    {cardStatus ||
+                      (locale === "en"
+                        ? "Share score card"
+                        : "分享成绩卡")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={cardStatus.includes("…")}
+                    onClick={() => void saveResultCard()}
+                  >
+                    {locale === "en" ? "Save image" : "保存图片"}
+                  </button>
+                </div>
                 <nav
                   className="result-share-channels"
                   aria-label={
