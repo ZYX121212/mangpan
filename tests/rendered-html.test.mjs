@@ -704,6 +704,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /CREW DAILY COMMITMENT/);
   assert.match(page, /CREW CHECK-IN RECORDED/);
   assert.match(page, /crew_result_return/);
+  assert.match(page, /shareComparisonHook/);
+  assert.match(page, /result-comparison-proof/);
+  assert.match(page, /BEAT TODAY/);
   assert.match(activationRoute, /crew_first_invite_share/);
   assert.match(activationClient, /crew_first_invite_share/);
   assert.match(activationRoute, /crew_result_return/);

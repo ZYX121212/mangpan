@@ -39,6 +39,7 @@ import { trackActivationEvent } from "./activation-events";
 import type { CrewSummary } from "./crew-service";
 import { Localized, type Locale } from "./i18n";
 import {
+  shareComparisonHook,
   shareSourceLabel,
   socialShareHref,
   taggedChallengeUrl,
@@ -482,7 +483,7 @@ async function createResultShareCard({
     [locale === "en" ? "CALIBRATION" : "概率校准", calibration],
     [locale === "en" ? "RISK CONTROL" : "风险控制", risk],
     [
-      locale === "en" ? "PERCENTILE" : "超过玩家",
+      locale === "en" ? "BEAT TODAY" : "领先玩家",
       percentile == null ? "—" : `${percentile}%`,
     ],
   ] as const;
@@ -1922,6 +1923,10 @@ export default function GameClient({
         : decisionReplay.map((item) => (item.matched ? 75 : 30)),
     [decisionReplay, feedbackHistory],
   );
+  const resultComparisonProof = shareComparisonHook(
+    scoreboard?.playerScore?.percentile,
+    locale,
+  );
   const evidenceStreak = useMemo(() => {
     let streak = 0;
     for (let index = feedbackHistory.length - 1; index >= 0; index--) {
@@ -3041,14 +3046,15 @@ export default function GameClient({
       locale === "en"
         ? `Decision style · ${decisionStyle.title}`
         : `今日决策风格 · ${decisionStyle.title}`;
+    const comparisonLine = resultComparisonProof;
     const text =
       locale === "en"
-        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
-        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
+        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
+        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
     const compactText =
       locale === "en"
-        ? `My Blind Trading style is ${decisionStyle.title} · ${skillScore}${chainLabel} ${sequence} Same hidden chart, five calls. Can you beat me?`
-        : `我是${decisionStyle.title}，盲盘挑战 ${skillScore} 分${chainLabel} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
+        ? `${comparisonLine ? `${comparisonLine} · ` : ""}My Blind Trading style is ${decisionStyle.title} · ${skillScore}${chainLabel} ${sequence} Same hidden chart, five calls. Can you beat me?`
+        : `${comparisonLine ? `${comparisonLine} · ` : ""}我是${decisionStyle.title}，盲盘挑战 ${skillScore} 分${chainLabel} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
     return { compactText, text, title };
   };
 
@@ -6340,9 +6346,14 @@ export default function GameClient({
                       ? "SHARE WITHOUT SPOILERS"
                       : "无剧透分享"}
                   </small>
+                  {resultComparisonProof && (
+                    <em className="result-comparison-proof">
+                      {resultComparisonProof}
+                    </em>
+                  )}
                   <b>
                     {locale === "en"
-                      ? `${decisionStyle.title} · your five-decision story`
+                      ? `${decisionStyle.title} · your five-decision challenge`
                       : `${decisionStyle.title} · 你的五次决策轨迹`}
                   </b>
                   <span

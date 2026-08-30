@@ -54,6 +54,22 @@ export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en"
   return labels[source];
 }
 
+export function shareComparisonHook(
+  percentile: number | null | undefined,
+  locale: "en" | "zh" = "en",
+) {
+  if (
+    typeof percentile !== "number" ||
+    !Number.isFinite(percentile) ||
+    percentile < 70
+  )
+    return null;
+  const value = Math.max(0, Math.min(100, Math.round(percentile)));
+  return locale === "en"
+    ? `Beat ${value}% of players today`
+    : `今日领先 ${value}% 玩家`;
+}
+
 export function taggedChallengeUrl(url: string, channel: ShareChannel) {
   const tagged = new URL(url);
   tagged.searchParams.set("via", channel);

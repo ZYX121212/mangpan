@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   normalizeShareSource,
+  shareComparisonHook,
   shareSourceLabel,
   socialShareHref,
   taggedChallengeUrl,
@@ -25,6 +26,14 @@ test("accepts only known attribution sources and safely defaults to direct", () 
   assert.equal(normalizeShareSource("<script>"), "direct");
   assert.equal(normalizeShareSource(["x"]), "direct");
   assert.equal(shareSourceLabel("native"), "System share");
+});
+
+test("surfaces comparison proof only when it is worth sharing", () => {
+  assert.equal(shareComparisonHook(82.4), "Beat 82% of players today");
+  assert.equal(shareComparisonHook(82.4, "zh"), "今日领先 82% 玩家");
+  assert.equal(shareComparisonHook(69.9), null);
+  assert.equal(shareComparisonHook(Number.NaN), null);
+  assert.equal(shareComparisonHook(108), "Beat 100% of players today");
 });
 
 test("builds an encoded X intent with a separately tagged URL", () => {
