@@ -3,9 +3,10 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 test("contains the complete blind chart game shell", async () => {
-  const [page, layout] = await Promise.all([
+  const [page, layout, i18n] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(layout, /盲盘｜真实历史 K 线交易挑战/);
   assert.match(page, /今日盲盘/);
@@ -76,6 +77,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /四维诊断/);
   assert.match(page, /完整数据：/);
   assert.match(page, /stock\.candles\.length\.toLocaleString/);
+  assert.match(page, /mangpan-locale/);
+  assert.match(page, /changeLocale\("en"\)/);
+  assert.match(page, /document\.documentElement\.lang/);
+  assert.match(i18n, /Blind Chart \| Real Historical Candlestick Challenge/);
+  assert.match(i18n, /Only recorded views count toward accuracy/);
   assert.doesNotMatch(page, /最多推进 60/);
   assert.doesNotMatch(page, /Building your site|Your site is taking shape/);
 });

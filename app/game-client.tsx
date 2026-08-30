@@ -21,6 +21,7 @@ import {
   type ReplayAction,
 } from "./game-config";
 import { buildTradeAnalysis } from "./trade-analysis";
+import { Localized, type Locale } from "./i18n";
 
 const nf = new Intl.NumberFormat("zh-CN", {
   minimumFractionDigits: 2,
@@ -487,8 +488,13 @@ function average(data: Candle[], at: number, period: number) {
   return total / period;
 }
 
-function formatVolume(value: number, market: MarketKind) {
-  const unit = market === "cn" ? "手" : "股";
+function formatVolume(value: number, market: MarketKind, locale: Locale) {
+  const unit = locale === "en" ? (market === "cn" ? " lots" : " shares") : market === "cn" ? "手" : "股";
+  if (locale === "en") {
+    if (value >= 100_000_000) return `${(value / 1_000_000).toFixed(2)}M${unit}`;
+    if (value >= 10_000) return `${(value / 1_000).toFixed(2)}K${unit}`;
+    return `${Math.round(value).toLocaleString("en-US")}${unit}`;
+  }
   if (value >= 100_000_000)
     return `${(value / 100_000_000).toFixed(2)}亿${unit}`;
   if (value >= 10_000) return `${(value / 10_000).toFixed(2)}万${unit}`;
@@ -499,10 +505,12 @@ function CandleChart({
   data,
   markers,
   market,
+  locale,
 }: {
   data: Candle[];
   markers: TradeMarker[];
   market: MarketKind;
+  locale: Locale;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{
@@ -753,7 +761,9 @@ function CandleChart({
         ctx.textAlign = "center";
         ctx.fillText(d.close.toFixed(2), w - right / 2, y + 3.5);
         ctx.textAlign = "left";
-        const dayLabel = `第 ${start + hover.index + 1} 日`;
+        const dayLabel = locale === "en"
+          ? `Day ${start + hover.index + 1}`
+          : `第 ${start + hover.index + 1} 日`;
         const labelW = 58,
           labelX = Math.max(0, Math.min(w - right - labelW, x - labelW / 2));
         ctx.fillStyle = "rgba(38,39,34,.94)";
@@ -768,7 +778,7 @@ function CandleChart({
     const observer = new ResizeObserver(draw);
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [data, effectiveView, hover, markers, viewEnd, viewStart]);
+  }, [data, effectiveView, hover, locale, markers, viewEnd, viewStart]);
 
   const hoverIndex = hover ? viewStart + hover.index : -1;
   const hoverCandle = hoverIndex >= 0 ? data[hoverIndex] : null;
@@ -800,6 +810,7 @@ function CandleChart({
           : "flat";
 
   return (
+    <Localized locale={locale}>
     <div className="chart-area">
       <div className="chart-tools">
         <div className="trade-legend">
@@ -1087,7 +1098,7 @@ function CandleChart({
             </div>
             <div>
               <dt>成交量</dt>
-              <dd>{formatVolume(hoverCandle.volume, market)}</dd>
+              <dd>{formatVolume(hoverCandle.volume, market, locale)}</dd>
             </div>
             <div>
               <dt>量比</dt>
@@ -1108,6 +1119,7 @@ function CandleChart({
         </div>
       )}
     </div>
+    </Localized>
   );
 }
 
@@ -1119,6 +1131,7 @@ export default function GameClient({
   initialIdentity: { playerId: string; cloud: true } | null;
 }) {
   const today = initialChallenges.cn.date;
+  const [locale, setLocale] = useState<Locale>("zh");
   const [market, setMarket] = useState<MarketKind>("cn");
   const [gameMode, setGameMode] = useState<GameMode>("daily");
   const [session, setSession] = useState(initialChallenges.cn);
@@ -1187,6 +1200,28 @@ export default function GameClient({
   const submissionRef = useRef(false);
   const resumeAttemptRef = useRef(new Set<MarketKind>());
   const initialUrlHandledRef = useRef(false);
+  useEffect(() => {
+    const saved = localStorage.getItem("mangpan-locale");
+    const detected: Locale = saved === "en" || saved === "zh"
+      ? saved
+      : navigator.language.toLowerCase().startsWith("zh")
+        ? "zh"
+        : "en";
+    const timer = window.setTimeout(() => setLocale(detected), 0);
+    document.documentElement.lang = detected === "zh" ? "zh-CN" : "en";
+    document.title = detected === "zh"
+      ? "盲盘｜真实历史 K 线交易挑战"
+      : "Blind Chart | Real Historical Candlestick Challenge";
+    return () => window.clearTimeout(timer);
+  }, []);
+  const changeLocale = (next: Locale) => {
+    setLocale(next);
+    localStorage.setItem("mangpan-locale", next);
+    document.documentElement.lang = next === "zh" ? "zh-CN" : "en";
+    document.title = next === "zh"
+      ? "盲盘｜真实历史 K 线交易挑战"
+      : "Blind Chart | Real Historical Candlestick Challenge";
+  };
   const marketLabel = market === "cn" ? "A股" : "美股";
   const scenarioLabel = (
     {
@@ -2033,6 +2068,7 @@ export default function GameClient({
     estimatedQuantity <= 0 ||
     Boolean(quantityError);
   return (
+    <Localized locale={locale}>
     <main className="shell">
       <header className="topbar">
         <div className="brand">
@@ -2071,6 +2107,22 @@ export default function GameClient({
           已推进 {advancedDays} 个交易日
         </div>
         <div className="top-actions">
+          <div className="language-toggle" role="group" aria-label="Language / 语言">
+            <button
+              className={locale === "zh" ? "active" : ""}
+              onClick={() => changeLocale("zh")}
+              aria-pressed={locale === "zh"}
+            >
+              中
+            </button>
+            <button
+              className={locale === "en" ? "active" : ""}
+              onClick={() => changeLocale("en")}
+              aria-pressed={locale === "en"}
+            >
+              EN
+            </button>
+          </div>
           <button
             className={`mission-chip ${dailyMission.completed === 3 ? "done" : ""}`}
             onClick={() => setTrainingOpen(true)}
@@ -2224,6 +2276,7 @@ export default function GameClient({
             data={data}
             markers={tradeMarkers}
             market={market}
+            locale={locale}
           />
         </div>
         <aside className="trade-panel">
@@ -2790,6 +2843,7 @@ export default function GameClient({
                 data={patternQuiz.stock.candles}
                 markers={[]}
                 market={patternQuiz.market}
+                locale={locale}
               />
             </div>
             <div
@@ -3831,5 +3885,6 @@ export default function GameClient({
         </dialog>
       )}
     </main>
+    </Localized>
   );
 }
