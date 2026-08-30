@@ -2429,15 +2429,21 @@ export default function GameClient({
                   <span>
                     预计委托 <b>{shareNf.format(estimatedQuantity)} 股</b>
                   </span>
-                  <small>
-                    预计占用 {currencySymbol}
-                    {nf.format(
-                      mode === "buy"
-                        ? -estimatedQuote.cashDelta
-                        : Math.max(0, estimatedQuote.cashDelta),
-                    )} · 含费 {currencySymbol}
-                    {nf.format(estimatedQuote.totalFees)}
-                  </small>
+                  <div>
+                    <strong>
+                      {mode === "buy" ? "预计占用" : "预计到账"}{" "}
+                      {currencySymbol}
+                      {nf.format(Math.abs(estimatedQuote.cashDelta))}
+                    </strong>
+                    <small>
+                      {currencySymbol}
+                      {nf.format(estimatedQuote.referenceGross)} {" "}
+                      {mode === "buy" ? "+" : "−"} 滑点 {currencySymbol}
+                      {nf.format(estimatedQuote.slippageCost)} {" "}
+                      {mode === "buy" ? "+" : "−"} 费用 {currencySymbol}
+                      {nf.format(estimatedQuote.totalFees)}
+                    </small>
+                  </div>
                 </div>
               )}
               <details className="fee-preview">

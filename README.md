@@ -1,100 +1,67 @@
-# vinext-starter
+# 盲盘 · Mangpan
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+![盲盘｜真实历史 K 线交易挑战](public/og.png)
 
-## Prerequisites
+只看走势，不看答案。
 
-- Node.js `>=22.13.0`
+「盲盘」是一款基于真实历史 K 线的交易训练游戏。股票身份、日期和后续走势会被隐藏，你需要在信息不完整的情况下判断方向、管理仓位，并在结算后复盘自己的决策。
 
-## Quick Start
+[立即体验](https://mangpan-kline-game.hiayun.chatgpt.site) · [提交问题](https://github.com/ZYX121212/mangpan/issues)
+
+## 为什么做盲盘
+
+看见股票名称和历史答案后，判断总是容易得多。盲盘通过隐藏标的与日期，把注意力重新放回价格、成交量、风险和执行，让训练更接近真实决策。
+
+## 核心玩法
+
+- A 股与美股双市场，使用真实历史行情片段
+- 每日同题挑战、无限练习和好友同图对决
+- 趋势、拐点、急跌、高波动四类情境训练
+- 12 课训练树，覆盖入门、标准和专家难度
+- 模拟手续费、滑点、A 股整手与美股整数股交易
+- 结算后揭晓股票与日期，逐笔复盘判断和后续走势
+- 今日排行榜、每周联赛、XP、等级与成就系统
+- 登录后同步训练档案，匿名玩家也可直接体验
+
+## 本地运行
+
+需要 Node.js `>=22.13.0`。
 
 ```bash
 npm install
 npm run dev
+```
+
+生产构建与测试：
+
+```bash
 npm run build
+npm test
 ```
 
-This starter does not use `wrangler.jsonc`.
+## 技术栈
 
-## Included Shape
+- React 19 + TypeScript
+- Vinext / Vite
+- Cloudflare Workers + D1
+- Drizzle ORM
+- OpenAI Sites
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+## 项目结构
 
-## Workspace Auth Headers
-
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
-
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
-
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
-
-Treat the full name as optional and fall back to email when it is absent:
-
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```text
+app/       页面、游戏逻辑与 API
+db/        D1 数据库定义
+drizzle/   数据库迁移
+public/    品牌与分享素材
+tests/     渲染测试
+worker/    Worker 入口
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## 免责声明
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+本项目仅用于交易决策训练与娱乐，不提供投资建议，也不构成对任何证券的推荐。历史表现不代表未来结果。
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## 参与贡献
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
-
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
-
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+欢迎提交 Issue 分享体验、数据问题或玩法建议。准备贡献代码时，请先创建 Issue 说明改动目标，再提交 Pull Request。

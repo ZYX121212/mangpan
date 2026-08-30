@@ -1,5 +1,5 @@
-export const INITIAL_CASH = 100_000;
-export const GAME_VERSION = "realistic-execution-v7";
+export const INITIAL_CASH = 1_000_000;
+export const GAME_VERSION = "realistic-execution-v8";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;
@@ -40,6 +40,7 @@ export type TransactionQuote = {
   referencePrice: number;
   executionPrice: number;
   quantity: number;
+  referenceGross: number;
   gross: number;
   commission: number;
   stampDuty: number;
@@ -70,6 +71,7 @@ export function transactionQuote({
   const slippageRate = market === "cn" ? 0.0002 : 0.00015;
   const executionPrice =
     referencePrice * (1 + (kind === "buy" ? slippageRate : -slippageRate));
+  const referenceGross = roundMoney(referencePrice * validQuantity);
   const gross = roundMoney(executionPrice * validQuantity);
   const commission =
     market === "cn" && validQuantity > 0
@@ -86,13 +88,14 @@ export function transactionQuote({
   const totalFees = roundMoney(
     commission + stampDuty + transferFee + regulatoryFee,
   );
-  const slippageCost = roundMoney(
-    Math.abs(executionPrice - referencePrice) * validQuantity,
-  );
+  // Derive slippage from the two displayed, cent-rounded amounts so the
+  // breakdown always reconciles exactly for users.
+  const slippageCost = roundMoney(Math.abs(gross - referenceGross));
   return {
     referencePrice,
     executionPrice,
     quantity: validQuantity,
+    referenceGross,
     gross,
     commission,
     stampDuty,
@@ -100,7 +103,9 @@ export function transactionQuote({
     regulatoryFee,
     slippageCost,
     totalFees,
-    cashDelta: kind === "buy" ? -(gross + totalFees) : gross - totalFees,
+    cashDelta: roundMoney(
+      kind === "buy" ? -(gross + totalFees) : gross - totalFees,
+    ),
   };
 }
 
