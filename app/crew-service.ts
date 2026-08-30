@@ -30,7 +30,6 @@ export type CrewSummary = {
     nickname: string;
     slot: number;
     completedToday: boolean;
-    score: number | null;
     isViewer: boolean;
   }[];
 };
@@ -208,7 +207,6 @@ export async function getCrewSummary(
     nickname: member.nickname,
     slot: member.slot,
     completedToday: checkins.has(member.playerId),
-    score: checkins.get(member.playerId) ?? null,
     isViewer: member.playerId === viewerPlayerId,
   }));
   return {

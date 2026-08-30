@@ -118,7 +118,7 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
           {slots.map((member, index) => member ? (
             <article className={member.completedToday ? "done" : "waiting"} key={`${member.nickname}-${index}`}>
               <i>{member.completedToday ? "✓" : String(index + 1).padStart(2, "0")}</i>
-              <span><b>{member.nickname}{member.isViewer ? (locale === "en" ? " · YOU" : " · 你") : ""}</b><small>{member.completedToday ? (locale === "en" ? `Done · score ${member.score}` : `已完成 · ${member.score} 分`) : (locale === "en" ? "Waiting today" : "今日待完成")}</small></span>
+              <span><b>{member.nickname}{member.isViewer ? (locale === "en" ? " · YOU" : " · 你") : ""}</b><small>{member.completedToday ? (locale === "en" ? "Done today" : "今日已完成") : (locale === "en" ? "Waiting today" : "今日待完成")}</small></span>
             </article>
           ) : (
             <article className="empty" key={`empty-${index}`}><i>+</i><span><b>{locale === "en" ? "Open slot" : "空位"}</b><small>{locale === "en" ? "Invite a friend" : "邀请好友"}</small></span></article>

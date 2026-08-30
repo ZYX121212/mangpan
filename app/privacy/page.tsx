@@ -58,7 +58,8 @@ export default function PrivacyPage() {
           leaderboards. Do not use a player name that reveals information you do
           not want to make public. Crew pages are unlisted but accessible to
           anyone who has the crew link or code; they show the crew name, member
-          display names, today&apos;s completion state, and completed scores.
+          display names, and today&apos;s completion state. Individual scores are
+          not shown on the crew page.
         </p>
       </section>
       <section>
