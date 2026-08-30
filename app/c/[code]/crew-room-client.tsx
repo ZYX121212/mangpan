@@ -15,12 +15,13 @@ import {
   getWebGameLaunchContext,
   reportPlatformLoaded,
 } from "../../web-game-platform";
+import { safeLocalStorage } from "../../safe-storage";
 
 function ensureLocalPlayerId() {
-  const existing = localStorage.getItem("mangpan-player-id");
+  const existing = safeLocalStorage.getItem("mangpan-player-id");
   if (existing) return existing;
   const created = crypto.randomUUID();
-  localStorage.setItem("mangpan-player-id", created);
+  safeLocalStorage.setItem("mangpan-player-id", created);
   return created;
 }
 
@@ -43,9 +44,9 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
     let cancelled = false;
     const timer = window.setTimeout(() => {
       const id = ensureLocalPlayerId();
-      const savedNickname = localStorage.getItem("mangpan-player-name");
+      const savedNickname = safeLocalStorage.getItem("mangpan-player-name");
       const resolvedLocale = normalizeLocale(
-        localStorage.getItem("mangpan-locale") ||
+        safeLocalStorage.getItem("mangpan-locale") ||
           navigator.languages?.[0] ||
           navigator.language,
       );

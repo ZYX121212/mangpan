@@ -42,6 +42,12 @@ const SPANISH: Record<string, string> = {
   "Daily Tasks": "Tareas diarias",
   "Leaderboard": "Clasificación",
   "Cloud": "Nube",
+  "PRIVATE SESSION": "SESIÓN TEMPORAL",
+  "Private session": "Sesión temporal",
+  "Keep this tab open to continue your current progress.":
+    "Mantén abierta esta pestaña para conservar el progreso actual.",
+  "Browser storage is blocked, but the game remains fully playable.":
+    "El almacenamiento del navegador está bloqueado, pero puedes seguir jugando con normalidad.",
   "Training Mission": "Misión de entrenamiento",
   "Change Training": "Cambiar entrenamiento",
   "Total Equity": "Capital total",

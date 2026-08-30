@@ -19,6 +19,7 @@ import {
   getWebGameLaunchContext,
   reportPlatformLoaded,
 } from "./web-game-platform";
+import { safeLocalStorage } from "./safe-storage";
 
 const ONBOARDING_STORAGE_KEY = "mangpan-guided-first-chart-v1";
 
@@ -29,10 +30,10 @@ type DailyLobbyState = {
 };
 
 function ensureLocalPlayerId() {
-  const existing = localStorage.getItem("mangpan-player-id");
+  const existing = safeLocalStorage.getItem("mangpan-player-id");
   if (existing) return existing;
   const created = crypto.randomUUID();
-  localStorage.setItem("mangpan-player-id", created);
+  safeLocalStorage.setItem("mangpan-player-id", created);
   return created;
 }
 
@@ -163,8 +164,8 @@ export default function ModeLobby() {
     reportPlatformLoaded();
     let cancelled = false;
     const timer = window.setTimeout(() => {
-      const savedLocale = localStorage.getItem("mangpan-locale");
-      const savedMarket = localStorage.getItem("mangpan-market");
+      const savedLocale = safeLocalStorage.getItem("mangpan-locale");
+      const savedMarket = safeLocalStorage.getItem("mangpan-market");
       const resolvedLocale = normalizeLocale(
         savedLocale || navigator.languages?.[0] || navigator.language,
       );
@@ -173,15 +174,15 @@ export default function ModeLobby() {
         new URLSearchParams(location.search).get("modes") === "1";
       const id = ensureLocalPlayerId();
       const hasPriorActivity = Boolean(
-        localStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
-        localStorage.getItem("mangpan-active-session-us") ||
-        localStorage.getItem("mangpan-active-session-cn") ||
-        localStorage.getItem("mangpan-run-active-session-us") ||
-        localStorage.getItem("mangpan-run-active-session-cn") ||
-        localStorage.getItem("mangpan-market-run-us") ||
-        localStorage.getItem("mangpan-market-run-cn") ||
-        localStorage.getItem("mangpan-scenario-progress") ||
-        localStorage.getItem("mangpan-player-name"),
+        safeLocalStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
+        safeLocalStorage.getItem("mangpan-active-session-us") ||
+        safeLocalStorage.getItem("mangpan-active-session-cn") ||
+        safeLocalStorage.getItem("mangpan-run-active-session-us") ||
+        safeLocalStorage.getItem("mangpan-run-active-session-cn") ||
+        safeLocalStorage.getItem("mangpan-market-run-us") ||
+        safeLocalStorage.getItem("mangpan-market-run-cn") ||
+        safeLocalStorage.getItem("mangpan-scenario-progress") ||
+        safeLocalStorage.getItem("mangpan-player-name"),
       );
       setLocale(resolvedLocale);
       document.documentElement.lang = localeLanguageTag(resolvedLocale);
@@ -224,7 +225,7 @@ export default function ModeLobby() {
     const controller = new AbortController();
     let cancelled = false;
     const hasActiveSession = Boolean(
-      localStorage.getItem(`mangpan-active-session-${market}`),
+      safeLocalStorage.getItem(`mangpan-active-session-${market}`),
     );
     queueMicrotask(() => {
       if (!cancelled)
@@ -275,12 +276,12 @@ export default function ModeLobby() {
 
   const chooseLocale = (next: Locale) => {
     setLocale(next);
-    localStorage.setItem("mangpan-locale", next);
+    safeLocalStorage.setItem("mangpan-locale", next);
     document.documentElement.lang = localeLanguageTag(next);
   };
   const chooseMarket = (next: MarketKind) => {
     setMarket(next);
-    localStorage.setItem("mangpan-market", next);
+    safeLocalStorage.setItem("mangpan-market", next);
   };
   const openDailyReturn = () => {
     trackActivationEvent(

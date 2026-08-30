@@ -75,6 +75,11 @@ const ENGLISH: Record<string, string> = {
   "云端": "Cloud",
   "已连接站点账号，训练进度云端同步": "Account connected; training progress is synced to the cloud",
   "当前设备训练档案": "Training profile on this device",
+  "临时会话": "Private session",
+  "保持此标签页打开即可继续当前进度。":
+    "Keep this tab open to continue your current progress.",
+  "浏览器已阻止本地存储，但游戏仍可正常进行。":
+    "Browser storage is blocked, but the game remains fully playable.",
   "好友向你发起了今日同图挑战": "A friend challenged you on today's same chart",
   "完成后立即对比分数，双方看到的 K 线完全相同": "Finish to compare scores; both players see the exact same chart",
   "训练任务": "Training Mission",

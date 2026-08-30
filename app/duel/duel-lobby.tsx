@@ -9,6 +9,7 @@ import {
   type Locale,
 } from "../i18n";
 import type { MarketKind } from "../game-config";
+import { safeLocalStorage } from "../safe-storage";
 
 export default function DuelLobby() {
   const [locale, setLocale] = useState<Locale>("en");
@@ -18,7 +19,7 @@ export default function DuelLobby() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const resolvedLocale = normalizeLocale(
-        localStorage.getItem("mangpan-locale") ||
+        safeLocalStorage.getItem("mangpan-locale") ||
           navigator.languages?.[0] ||
           navigator.language,
       );

@@ -6,6 +6,7 @@ import { trackActivationEvent } from "../../activation-events";
 import GameClient, { type ChallengeSession } from "../../game-client";
 import GameLoading from "../../game-loading";
 import type { MarketKind } from "../../game-config";
+import { safeLocalStorage } from "../../safe-storage";
 
 type QuickDuel = {
   session: ChallengeSession;
@@ -13,13 +14,13 @@ type QuickDuel = {
 };
 
 function localPlayer() {
-  let playerId = localStorage.getItem("mangpan-player-id");
+  let playerId = safeLocalStorage.getItem("mangpan-player-id");
   if (!playerId) {
     playerId = crypto.randomUUID();
-    localStorage.setItem("mangpan-player-id", playerId);
+    safeLocalStorage.setItem("mangpan-player-id", playerId);
   }
   const nickname =
-    localStorage.getItem("mangpan-player-name") ||
+    safeLocalStorage.getItem("mangpan-player-name") ||
     `Reader-${playerId.slice(-4).toUpperCase()}`;
   return { playerId, nickname };
 }

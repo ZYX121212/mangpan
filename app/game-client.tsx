@@ -72,6 +72,7 @@ import {
   type ShareChannel,
   type ShareSource,
 } from "./share-links";
+import { safeLocalStorage } from "./safe-storage";
 
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -1673,6 +1674,7 @@ export default function GameClient({
   const [installPrompt, setInstallPrompt] =
     useState<InstallPromptEvent | null>(null);
   const [installStatus, setInstallStatus] = useState("");
+  const [storageIsEphemeral, setStorageIsEphemeral] = useState(false);
   const [actions, setActions] = useState<ReplayAction[]>([]),
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
@@ -1736,7 +1738,7 @@ export default function GameClient({
     if (!isMarketRun) return;
     const timer = window.setTimeout(() => {
       const restored = parseMarketRunProgress(
-        localStorage.getItem(marketRunStorageKey(market)),
+        safeLocalStorage.getItem(marketRunStorageKey(market)),
         market,
       );
       marketRunProgressLoadedRef.current = true;
@@ -1771,7 +1773,7 @@ export default function GameClient({
   ]);
   useEffect(() => () => reportPlatformGameplayStop(), []);
   useEffect(() => {
-    const saved = localStorage.getItem("mangpan-locale");
+    const saved = safeLocalStorage.getItem("mangpan-locale");
     const detected = normalizeLocale(
       saved || navigator.languages?.[0] || navigator.language,
     );
@@ -1779,6 +1781,16 @@ export default function GameClient({
     document.documentElement.lang = localeLanguageTag(detected);
     document.title = documentTitleFor(detected);
     return () => window.clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled && !safeLocalStorage.isPersistent())
+        setStorageIsEphemeral(true);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
   useEffect(() => {
     const captureInstallPrompt = (event: Event) => {
@@ -1828,7 +1840,7 @@ export default function GameClient({
   }, [decisionRevealOpen, lastFeedback?.round]);
   const changeLocale = (next: Locale) => {
     setLocale(next);
-    localStorage.setItem("mangpan-locale", next);
+    safeLocalStorage.setItem("mangpan-locale", next);
     document.documentElement.lang = localeLanguageTag(next);
     document.title = documentTitleFor(next);
   };
@@ -2210,12 +2222,12 @@ export default function GameClient({
     )
       return;
     const current = parseMarketRunProgress(
-      localStorage.getItem(marketRunStorageKey(market)),
+      safeLocalStorage.getItem(marketRunStorageKey(market)),
       market,
     );
     const next = recordMarketRunStage(current, session.sessionId, skillScore);
     if (next === current) return;
-    localStorage.setItem(marketRunStorageKey(market), JSON.stringify(next));
+    safeLocalStorage.setItem(marketRunStorageKey(market), JSON.stringify(next));
     const timer = window.setTimeout(() => setMarketRunProgress(next), 0);
     if (playerId) {
       trackActivationEvent(playerId, "run_stage_complete", "run");
@@ -2305,36 +2317,36 @@ export default function GameClient({
   useEffect(() => {
     if (initialUrlHandledRef.current) return;
     initialUrlHandledRef.current = true;
-    const localPlayerId = localStorage.getItem("mangpan-player-id");
+    const localPlayerId = safeLocalStorage.getItem("mangpan-player-id");
     const hasPriorActivity = Boolean(
-      localStorage.getItem("mangpan-active-session-us") ||
-      localStorage.getItem("mangpan-active-session-cn") ||
-      localStorage.getItem("mangpan-run-active-session-us") ||
-      localStorage.getItem("mangpan-run-active-session-cn") ||
-      localStorage.getItem("mangpan-market-run-us") ||
-      localStorage.getItem("mangpan-market-run-cn") ||
-      localStorage.getItem("mangpan-scenario-progress") ||
-      localStorage.getItem("mangpan-player-name") ||
-      localStorage.getItem("mangpan-locale"),
+      safeLocalStorage.getItem("mangpan-active-session-us") ||
+      safeLocalStorage.getItem("mangpan-active-session-cn") ||
+      safeLocalStorage.getItem("mangpan-run-active-session-us") ||
+      safeLocalStorage.getItem("mangpan-run-active-session-cn") ||
+      safeLocalStorage.getItem("mangpan-market-run-us") ||
+      safeLocalStorage.getItem("mangpan-market-run-cn") ||
+      safeLocalStorage.getItem("mangpan-scenario-progress") ||
+      safeLocalStorage.getItem("mangpan-player-name") ||
+      safeLocalStorage.getItem("mangpan-locale"),
     );
     const onboardingComplete =
-      localStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
+      safeLocalStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
       hasPriorActivity;
     let id = initialIdentity?.playerId || localPlayerId;
     if (!id) {
       id = crypto.randomUUID();
-      localStorage.setItem("mangpan-player-id", id);
+      safeLocalStorage.setItem("mangpan-player-id", id);
     }
-    if (initialIdentity) localStorage.setItem("mangpan-player-id", id);
+    if (initialIdentity) safeLocalStorage.setItem("mangpan-player-id", id);
     const storedNickname =
-      localStorage.getItem("mangpan-player-name") ||
-      (localStorage.getItem("mangpan-locale") === "zh"
+      safeLocalStorage.getItem("mangpan-player-name") ||
+      (safeLocalStorage.getItem("mangpan-locale") === "zh"
         ? `盲盘客${id.slice(-4).toUpperCase()}`
         : `Reader-${id.slice(-4).toUpperCase()}`);
     let storedProgress: Record<string, number> = {};
     try {
       storedProgress = JSON.parse(
-        localStorage.getItem("mangpan-scenario-progress") || "{}",
+        safeLocalStorage.getItem("mangpan-scenario-progress") || "{}",
       ) as Record<string, number>;
     } catch {
       storedProgress = {};
@@ -2376,7 +2388,7 @@ export default function GameClient({
           if (next.stats?.training) {
             setTrainingProfile(next.stats.training);
             setScenarioProgress(next.stats.training.progress);
-            localStorage.setItem(
+            safeLocalStorage.setItem(
               "mangpan-scenario-progress",
               JSON.stringify(next.stats.training.progress),
             );
@@ -2649,7 +2661,7 @@ export default function GameClient({
     setReplayLimit(8);
     setScoreStatus("idle");
     setScoreboard(null);
-    localStorage.setItem(
+    safeLocalStorage.setItem(
       activeSessionStorageKey(nextSession.market),
       nextSession.sessionId,
     );
@@ -2726,7 +2738,7 @@ export default function GameClient({
     if (initialGuide || !playerId || resumeAttemptRef.current.has(market)) return;
     resumeAttemptRef.current.add(market);
     const storageKey = activeSessionStorageKey(market);
-    const savedSession = localStorage.getItem(storageKey);
+    const savedSession = safeLocalStorage.getItem(storageKey);
     if (savedSession === session.sessionId) return;
     if (!savedSession && (isMarketRun || !initialIdentity)) return;
     const query = savedSession
@@ -2742,12 +2754,12 @@ export default function GameClient({
         const expectedMode = initialMode === "daily" ? "daily" : "practice";
         if (restored?.mode === expectedMode) resetSession(restored);
       })
-      .catch(() => localStorage.removeItem(storageKey));
+      .catch(() => safeLocalStorage.removeItem(storageKey));
   }, [activeSessionStorageKey, initialGuide, initialIdentity, initialMode, isMarketRun, market, playerId, resetSession, session.sessionId]);
 
   useEffect(() => {
     if (!playerId || !actions.length || finished) return;
-    localStorage.setItem(
+    safeLocalStorage.setItem(
       activeSessionStorageKey(market),
       session.sessionId,
     );
@@ -2798,8 +2810,8 @@ export default function GameClient({
     if (!isMarketRun || challengeLoading) return;
     if (marketRunFinished) {
       const fresh = newMarketRunProgress(market);
-      localStorage.setItem(marketRunStorageKey(market), JSON.stringify(fresh));
-      localStorage.removeItem(marketRunSessionStorageKey(market));
+      safeLocalStorage.setItem(marketRunStorageKey(market), JSON.stringify(fresh));
+      safeLocalStorage.removeItem(marketRunSessionStorageKey(market));
       setMarketRunProgress(fresh);
       await startMarketRunStage(0);
       return;
@@ -2817,7 +2829,7 @@ export default function GameClient({
       actions.length ||
       marketRunCompletedStages === 0 ||
       marketRunFinished ||
-      localStorage.getItem(marketRunSessionStorageKey(market))
+      safeLocalStorage.getItem(marketRunSessionStorageKey(market))
     )
       return;
     const expected = MARKET_RUN_STAGES[marketRunCompletedStages];
@@ -2869,7 +2881,7 @@ export default function GameClient({
           playerId,
         }),
       });
-      localStorage.removeItem(activeSessionStorageKey(market));
+      safeLocalStorage.removeItem(activeSessionStorageKey(market));
       const nextScenario = gameMode === "daily" ? "random" : session.scenario;
       const nextDifficulty =
         gameMode === "daily" ? "standard" : session.difficulty;
@@ -2899,7 +2911,7 @@ export default function GameClient({
 
   const changeMarket = (nextMarket: MarketKind) => {
     if (nextMarket === market || challengeLoading || isRevealing) return;
-    localStorage.setItem("mangpan-market", nextMarket);
+    safeLocalStorage.setItem("mangpan-market", nextMarket);
     setDuelCode("");
     void resetGame(gameMode, nextMarket, session.scenario, session.difficulty);
     history.replaceState(
@@ -2925,7 +2937,7 @@ export default function GameClient({
         initialDuel ? "duel" : initialGuide ? "lobby" : "direct",
       );
     }
-    localStorage.setItem(ONBOARDING_STORAGE_KEY, "complete");
+    safeLocalStorage.setItem(ONBOARDING_STORAGE_KEY, "complete");
     setOnboardingStep(0);
     setGuidedRunActive(false);
     const params = new URLSearchParams(location.search);
@@ -3061,7 +3073,7 @@ export default function GameClient({
       if (revealed.trainingProfile) {
         setTrainingProfile(revealed.trainingProfile);
         setScenarioProgress(revealed.trainingProfile.progress);
-        localStorage.setItem(
+        safeLocalStorage.setItem(
           "mangpan-scenario-progress",
           JSON.stringify(revealed.trainingProfile.progress),
         );
@@ -3074,7 +3086,7 @@ export default function GameClient({
             : value,
         );
       }
-      localStorage.removeItem(activeSessionStorageKey(market));
+      safeLocalStorage.removeItem(activeSessionStorageKey(market));
       setFinished(true);
       setResultOpen(true);
     } finally {
@@ -3843,6 +3855,21 @@ export default function GameClient({
           </button>
         </div>
       </header>
+      {storageIsEphemeral && (
+        <div className="storage-fallback-banner" role="status">
+          <span>{locale === "zh" ? "临时会话" : "PRIVATE SESSION"}</span>
+          <b>
+            {locale === "zh"
+              ? "保持此标签页打开即可继续当前进度。"
+              : "Keep this tab open to continue your current progress."}
+          </b>
+          <small>
+            {locale === "zh"
+              ? "浏览器已阻止本地存储，但游戏仍可正常进行。"
+              : "Browser storage is blocked, but the game remains fully playable."}
+          </small>
+        </div>
+      )}
       {activeDuel && scoreboard?.duelRoom && (
         <div className="duel-banner">
           <span>⚔</span>
@@ -4175,7 +4202,11 @@ export default function GameClient({
           </small>
         </div>
       </section>
-      <section className="workspace">
+      <section
+        className="workspace"
+        onPointerDownCapture={reportPlatformGameplayStart}
+        onKeyDownCapture={reportPlatformGameplayStart}
+      >
         <div className="chart-panel">
           {revealPulse > 0 && (
             <span key={revealPulse} className="reveal-toast">
@@ -5725,7 +5756,7 @@ export default function GameClient({
                         ? `Reader-${playerId.slice(-4).toUpperCase()}`
                         : `盲盘客${playerId.slice(-4).toUpperCase()}`);
                     setNickname(name);
-                    localStorage.setItem("mangpan-player-name", name);
+                    safeLocalStorage.setItem("mangpan-player-name", name);
                   }}
                 />
               </div>

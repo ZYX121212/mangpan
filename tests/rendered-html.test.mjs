@@ -789,7 +789,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /发起好友同图挑战/);
   assert.match(page, /fetch\("\/api\/duels"/);
   assert.doesNotMatch(page, /encodeURIComponent\(playerId\).*duel/);
-  assert.match(page, /localStorage\.getItem\("mangpan-player-id"\)/);
+  assert.match(page, /safeLocalStorage\.getItem\("mangpan-player-id"\)/);
   assert.match(
     scoreRoute,
     /getSessionForScore\(payload\.sessionId, playerId\)/,

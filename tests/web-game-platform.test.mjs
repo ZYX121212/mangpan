@@ -199,6 +199,8 @@ test("adapts to the official portal lifecycle without blocking the game", async 
   assert.match(game, /reportPlatformLoaded\(\)/);
   assert.match(game, /reportPlatformGameplayStart\(\)/);
   assert.match(game, /reportPlatformGameplayStop\(\)/);
+  assert.match(game, /onPointerDownCapture=\{reportPlatformGameplayStart\}/);
+  assert.match(game, /onKeyDownCapture=\{reportPlatformGameplayStart\}/);
   assert.match(game, /const advance = async[\s\S]*reportPlatformGameplayStart\(\)/);
   assert.match(lobby, /reportPlatformLoaded\(\)/);
   assert.match(lobby, /getWebGameLaunchContext\(\)/);

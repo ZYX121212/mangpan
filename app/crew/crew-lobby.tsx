@@ -5,6 +5,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { trackActivationEvent } from "../activation-events";
 import type { CrewSummary } from "../crew-service";
 import type { MarketKind } from "../game-config";
+import { safeLocalStorage } from "../safe-storage";
 import {
   Localized,
   localeLanguageTag,
@@ -13,10 +14,10 @@ import {
 } from "../i18n";
 
 function ensureLocalPlayerId() {
-  const existing = localStorage.getItem("mangpan-player-id");
+  const existing = safeLocalStorage.getItem("mangpan-player-id");
   if (existing) return existing;
   const created = crypto.randomUUID();
-  localStorage.setItem("mangpan-player-id", created);
+  safeLocalStorage.setItem("mangpan-player-id", created);
   return created;
 }
 
@@ -33,9 +34,9 @@ export default function CrewLobby() {
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const id = ensureLocalPlayerId();
-      const savedLocale = localStorage.getItem("mangpan-locale");
-      const savedMarket = localStorage.getItem("mangpan-market");
-      const savedNickname = localStorage.getItem("mangpan-player-name");
+      const savedLocale = safeLocalStorage.getItem("mangpan-locale");
+      const savedMarket = safeLocalStorage.getItem("mangpan-market");
+      const savedNickname = safeLocalStorage.getItem("mangpan-player-name");
       const resolvedLocale = normalizeLocale(
         savedLocale || navigator.languages?.[0] || navigator.language,
       );
