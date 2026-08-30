@@ -422,7 +422,7 @@ const ENGLISH: Record<string, string> = {
   "最多": "Up to",
   "份判断": " forecasts",
   "本局判断与人群主流一致。一致可以提供参考，但不代表人群一定正确。": "Your views matched the crowd. Agreement can help, but it does not prove the crowd is right.",
-  "发起好友同图挑战": "Challenge a Friend",
+  "发起好友同图挑战": "Challenge a Friend on This Chart",
   "分享战绩": "Share Results",
   "正在抽取历史行情…": "Selecting historical data…",
   "正在生成挑战码…": "Creating challenge code…",

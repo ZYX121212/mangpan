@@ -86,6 +86,20 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /Training Lab/);
   assert.match(page, /Friend Duel/);
   assert.match(page, /mode-card-grid/);
+  assert.match(page, /mangpan-guided-first-chart-v1/);
+  assert.match(page, /useState\(false\)/);
+  assert.match(page, /mangpan-active-session-us/);
+  assert.match(page, /60-SECOND GUIDED RUN/);
+  assert.match(page, /guided-start-card/);
+  assert.match(page, /startGuidedChart/);
+  assert.match(page, /await chooseMode\("practice"\)/);
+  assert.match(page, /GUIDED FIRST CHART · STEP/);
+  assert.match(page, /onboardingStep === 1/);
+  assert.match(page, /onboardingStep === 2/);
+  assert.match(page, /setOnboardingStep\(3\)/);
+  assert.match(page, /scrollIntoView/);
+  assert.match(page, /enterDailyAfterGuide/);
+  assert.match(page, /Play today's global challenge/);
   assert.match(page, /duelJoinInput/);
   assert.match(page, /chooseMode\("daily"\)/);
   assert.match(page, /chooseMode\("practice"\)/);
@@ -389,13 +403,16 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(styles, /\.trade-panel>\*\{flex-shrink:0\}/);
   assert.match(styles, /\.probability-contract\{flex:0 0 auto\}/);
+  assert.match(styles, /\.guided-start-card/);
+  assert.match(styles, /\.first-run-coach/);
+  assert.match(styles, /\.coach-focus/);
   assert.match(
     styles,
     /\.probability-contract \.journal-row\{grid-template-columns:1fr\}/,
   );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /english-launch-v15/);
+  assert.match(config, /guided-first-chart-v16/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);

@@ -311,6 +311,10 @@ type DecisionReplayItem = {
 type RecordedReplayAction = ReplayAction &
   Required<Pick<ReplayAction, "outlook" | "thesis" | "confidence">>;
 
+type OnboardingStep = 0 | 1 | 2 | 3;
+
+const ONBOARDING_STORAGE_KEY = "mangpan-guided-first-chart-v1";
+
 function hasRecordedView(action: ReplayAction): action is RecordedReplayAction {
   return Boolean(action.outlook && action.thesis && action.confidence);
 }
@@ -1356,7 +1360,11 @@ export default function GameClient({
   const [crowdHistory, setCrowdHistory] = useState<CrowdForecast[]>(
     initialChallenge.crowdForecasts ?? [],
   );
-  const [modeHubOpen, setModeHubOpen] = useState(true);
+  const [modeHubOpen, setModeHubOpen] = useState(false);
+  const [firstVisit, setFirstVisit] = useState(false);
+  const [showAllModes, setShowAllModes] = useState(false);
+  const [onboardingStep, setOnboardingStep] =
+    useState<OnboardingStep>(0);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
   const [patternQuiz, setPatternQuiz] = useState<PatternQuiz | null>(null);
@@ -1412,6 +1420,24 @@ export default function GameClient({
     const timer = window.setInterval(update, 1000);
     return () => window.clearInterval(timer);
   }, []);
+  useEffect(() => {
+    if (!onboardingStep || modeHubOpen) return;
+    const frame = window.requestAnimationFrame(() => {
+      const selector =
+        onboardingStep === 1
+          ? ".probability-contract"
+          : onboardingStep === 2
+            ? ".primary-action"
+            : ".decision-feedback";
+      document.querySelector(selector)?.scrollIntoView({
+        behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "center",
+      });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [modeHubOpen, onboardingStep]);
   const changeLocale = (next: Locale) => {
     setLocale(next);
     localStorage.setItem("mangpan-locale", next);
@@ -1772,7 +1798,18 @@ export default function GameClient({
   useEffect(() => {
     if (initialUrlHandledRef.current) return;
     initialUrlHandledRef.current = true;
-    let id = initialIdentity?.playerId || localStorage.getItem("mangpan-player-id");
+    const localPlayerId = localStorage.getItem("mangpan-player-id");
+    const hasPriorActivity = Boolean(
+      localStorage.getItem("mangpan-active-session-us") ||
+      localStorage.getItem("mangpan-active-session-cn") ||
+      localStorage.getItem("mangpan-scenario-progress") ||
+      localStorage.getItem("mangpan-player-name") ||
+      localStorage.getItem("mangpan-locale"),
+    );
+    const onboardingComplete =
+      localStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
+      hasPriorActivity;
+    let id = initialIdentity?.playerId || localPlayerId;
     if (!id) {
       id = crypto.randomUUID();
       localStorage.setItem("mangpan-player-id", id);
@@ -1794,6 +1831,9 @@ export default function GameClient({
     const params = new URLSearchParams(location.search);
     const challenger = params.get("duel") || "";
     queueMicrotask(() => {
+      setFirstVisit(!onboardingComplete && !challenger);
+      setShowAllModes(onboardingComplete || Boolean(challenger));
+      setModeHubOpen(!onboardingComplete && !challenger);
       if (
         params.get("date") === today &&
         /^[A-Z0-9]{8,12}$/i.test(challenger)
@@ -2122,6 +2162,24 @@ export default function GameClient({
     await resetGame(nextMode, market, "random", "standard");
   };
 
+  const completeOnboarding = () => {
+    localStorage.setItem(ONBOARDING_STORAGE_KEY, "complete");
+    setFirstVisit(false);
+    setOnboardingStep(0);
+  };
+
+  const startGuidedChart = async () => {
+    setRevealDays(3);
+    setRecordView(true);
+    setOnboardingStep(1);
+    await chooseMode("practice");
+  };
+
+  const enterDailyAfterGuide = async () => {
+    completeOnboarding();
+    await resetGame("daily", market, "random", "standard");
+  };
+
   const joinDuel = async () => {
     const code = duelJoinInput.trim().toUpperCase();
     if (!/^[A-Z0-9]{8,12}$/.test(code)) return;
@@ -2408,6 +2466,7 @@ export default function GameClient({
       setLastFeedback(feedback);
       setFeedbackHistory((value) => [...value, feedback]);
     }
+    if (onboardingStep === 2) setOnboardingStep(3);
     setIsRevealing(false);
     if (advanced.finished || nextEquity <= INITIAL_CASH * 0.2)
       await finishGame(true);
@@ -2649,6 +2708,81 @@ export default function GameClient({
           <small>{scenarioEvaluation?.completed || 0}/4 项当前达标</small>
           <button onClick={() => setTrainingOpen(true)}>更换训练</button>
         </div>
+      )}
+      {onboardingStep > 0 && !finished && (
+        <aside
+          className={`first-run-coach first-run-step-${onboardingStep}`}
+          aria-live="polite"
+        >
+          <div className="first-run-progress" aria-hidden="true">
+            {[1, 2, 3].map((step) => (
+              <i
+                key={step}
+                className={step <= onboardingStep ? "complete" : ""}
+              />
+            ))}
+          </div>
+          <div>
+            <small>
+              {locale === "en"
+                ? `GUIDED FIRST CHART · STEP ${onboardingStep}/3`
+                : `首次引导局 · 第 ${onboardingStep}/3 步`}
+            </small>
+            <b>
+              {onboardingStep === 1
+                ? locale === "en"
+                  ? "Read the chart, then make one forecast"
+                  : "先读图，再做一次判断"
+                : onboardingStep === 2
+                  ? locale === "en"
+                    ? "Choose an action and reveal three real days"
+                    : "选择行动，揭示接下来三个真实交易日"
+                  : locale === "en"
+                    ? "That is the whole loop"
+                    : "核心循环已经完成"}
+            </b>
+            <p>
+              {onboardingStep === 1
+                ? locale === "en"
+                  ? "The ticker and date are hidden. Look for trend, momentum, and volatility—then tap Up, Range, or Down below."
+                  : "股票与日期已隐藏。观察趋势、动量和波动，然后在下方选择看涨、震荡或看跌。"
+                : onboardingStep === 2
+                  ? locale === "en"
+                    ? "Buy, sell, or stay in cash. Your forecast is scored separately from profit, so a lucky trade cannot fake a good read."
+                    : "买入、卖出或保持空仓。判断与收益分开评分，一次幸运交易不能冒充好判断。"
+                  : locale === "en"
+                    ? "The new candles are real history. One result is evidence, not a strategy—keep testing your read across different charts."
+                    : "新出现的 K 线来自真实历史。一次结果只是证据，不是策略；继续跨行情验证你的判断。"}
+            </p>
+          </div>
+          {onboardingStep === 3 ? (
+            <div className="first-run-coach-actions">
+              <button
+                className="coach-primary"
+                disabled={challengeLoading}
+                onClick={() => void enterDailyAfterGuide()}
+              >
+                {challengeLoading
+                  ? locale === "en"
+                    ? "Loading today's chart…"
+                    : "正在加载今日题目…"
+                  : locale === "en"
+                    ? "Play today's global challenge →"
+                    : "进入今日全球挑战 →"}
+              </button>
+              <button className="coach-secondary" onClick={completeOnboarding}>
+                {locale === "en" ? "Keep practicing" : "继续自由练习"}
+              </button>
+            </div>
+          ) : (
+            <button
+              className="coach-secondary"
+              onClick={completeOnboarding}
+            >
+              {locale === "en" ? "Skip guide" : "跳过引导"}
+            </button>
+          )}
+        </aside>
       )}
       <section className="portfolio-strip">
         <div>
@@ -3073,7 +3207,7 @@ export default function GameClient({
                   )}
                 </div>
               </details>
-              <div className={`decision-journal probability-contract ${recordView ? "active" : ""}`}>
+              <div className={`decision-journal probability-contract ${recordView ? "active" : ""} ${onboardingStep === 1 ? "coach-focus" : ""}`}>
                 <div className="optional-view-head">
                   <div>
                     <span>决策契约 <em>推进前锁定</em></span>
@@ -3104,7 +3238,10 @@ export default function GameClient({
                         <button
                           key={value}
                           className={outlook === value ? "selected" : ""}
-                          onClick={() => setOutlook(value)}
+                          onClick={() => {
+                            setOutlook(value);
+                            if (onboardingStep === 1) setOnboardingStep(2);
+                          }}
                         >
                           <span>
                             {value === "up"
@@ -3174,7 +3311,7 @@ export default function GameClient({
                 ))}
               </div>
               <button
-                className={`primary-action ${mode}`}
+                className={`primary-action ${mode} ${onboardingStep === 2 ? "coach-focus" : ""}`}
                 disabled={tradeDisabled}
                 onClick={() => advance("trade")}
               >
@@ -3184,7 +3321,7 @@ export default function GameClient({
                 {!isRevealing && <span>→</span>}
               </button>
               <button
-                className="hold-action"
+                className={`hold-action ${onboardingStep === 2 ? "coach-focus" : ""}`}
                 disabled={isRevealing || remainingDays <= 0}
                 onClick={() => advance("hold")}
               >
@@ -3264,14 +3401,22 @@ export default function GameClient({
               <div>
                 <small>BLIND TRADING · GAME MODES</small>
                 <h1>
-                  {locale === "en"
-                    ? "Choose one way to play"
-                    : "选择一种玩法"}
+                  {firstVisit && !showAllModes
+                    ? locale === "en"
+                      ? "Make your first market call"
+                      : "完成你的第一次市场判断"
+                    : locale === "en"
+                      ? "Choose one way to play"
+                      : "选择一种玩法"}
                 </h1>
                 <p>
-                  {locale === "en"
-                    ? "Each mode has one clear purpose. Switch anytime from the Mode button."
-                    : "每种模式只解决一个目标，可随时从顶部“模式”按钮切换。"}
+                  {firstVisit && !showAllModes
+                    ? locale === "en"
+                      ? "Learn the complete game loop on one real chart. No account, no ranking, no lecture."
+                      : "用一张真实历史图学会完整循环：无需注册、不计排名，也没有大段说明。"
+                    : locale === "en"
+                      ? "Each mode has one clear purpose. Switch anytime from the Mode button."
+                      : "每种模式只解决一个目标，可随时从顶部“模式”按钮切换。"}
                 </p>
               </div>
               <button
@@ -3282,7 +3427,53 @@ export default function GameClient({
                 ×
               </button>
             </header>
-            <div className="mode-card-grid">
+            {firstVisit && !showAllModes && (
+              <section className="guided-start-card">
+                <div className="guided-start-copy">
+                  <small>60-SECOND GUIDED RUN</small>
+                  <h2>
+                    {locale === "en"
+                      ? "Read it. Call it. Reveal it."
+                      : "读图、判断、揭示。"}
+                  </h2>
+                  <p>
+                    {locale === "en"
+                      ? "You will make one forecast and reveal what really happened next. The chart is historical, the ticker stays hidden, and the run is unranked."
+                      : "你将做出一次判断，再揭示真实后续走势。行情来自真实历史，股票身份保持隐藏，本局不计排名。"}
+                  </p>
+                  <div className="guided-start-steps">
+                    <span><i>1</i>{locale === "en" ? "Read the chart" : "观察图表"}</span>
+                    <span><i>2</i>{locale === "en" ? "Lock your view" : "锁定判断"}</span>
+                    <span><i>3</i>{locale === "en" ? "Reveal reality" : "揭示真实走势"}</span>
+                  </div>
+                </div>
+                <div className="guided-start-actions">
+                  <button
+                    className="guided-start-primary"
+                    disabled={challengeLoading}
+                    onClick={() => void startGuidedChart()}
+                  >
+                    {challengeLoading
+                      ? locale === "en"
+                        ? "Loading a real chart…"
+                        : "正在加载真实行情…"
+                      : locale === "en"
+                        ? "Start my first chart →"
+                        : "开始首次引导局 →"}
+                  </button>
+                  <button
+                    className="guided-start-skip"
+                    onClick={() => {
+                      completeOnboarding();
+                      setShowAllModes(true);
+                    }}
+                  >
+                    {locale === "en" ? "I already know how to play" : "我已经会玩了"}
+                  </button>
+                </div>
+              </section>
+            )}
+            {(showAllModes || !firstVisit) && <div className="mode-card-grid">
               <button
                 className="mode-card featured"
                 disabled={challengeLoading}
@@ -3392,8 +3583,13 @@ export default function GameClient({
                     : "无需注册 · 服务器复算"}
                 </strong>
               </article>
-            </div>
+            </div>}
             <footer className="mode-hub-footer">
+              {firstVisit && !showAllModes && (
+                <button onClick={() => setShowAllModes(true)}>
+                  {locale === "en" ? "Browse all game modes" : "浏览全部游戏模式"}
+                </button>
+              )}
               <button
                 onClick={() => {
                   setModeHubOpen(false);
