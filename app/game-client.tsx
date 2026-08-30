@@ -35,6 +35,11 @@ import {
 } from "./game-config";
 import { buildTradeAnalysis } from "./trade-analysis";
 import { Localized, type Locale } from "./i18n";
+import {
+  socialShareHref,
+  taggedChallengeUrl,
+  type ShareChannel,
+} from "./share-links";
 
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -42,6 +47,7 @@ const delay = (ms: number) =>
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
 type GameMode = "daily" | "practice";
+type ShareSetupStatus = "idle" | "loading" | "ready" | "error";
 const DAILY_ORDER_ALLOCATIONS = [
   0.25,
   0.5,
@@ -1410,6 +1416,9 @@ export default function GameClient({
     [shareStatus, setShareStatus] = useState("");
   const [cardStatus, setCardStatus] = useState("");
   const [duelRoomShareStatus, setDuelRoomShareStatus] = useState("");
+  const [duelShareUrl, setDuelShareUrl] = useState("");
+  const [shareSetupStatus, setShareSetupStatus] =
+    useState<ShareSetupStatus>("idle");
   const [installPrompt, setInstallPrompt] =
     useState<InstallPromptEvent | null>(null);
   const [installStatus, setInstallStatus] = useState("");
@@ -1434,6 +1443,7 @@ export default function GameClient({
     marketDate(initialChallenge.market),
   );
   const submissionRef = useRef(false);
+  const duelSharePromiseRef = useRef<Promise<string> | null>(null);
   const resumeAttemptRef = useRef(new Set<MarketKind>());
   const initialUrlHandledRef = useRef(false);
   const challengeRequestCacheRef = useRef(
@@ -1998,6 +2008,63 @@ export default function GameClient({
     today,
   ]);
 
+  const prepareDuelShareUrl = useCallback(async () => {
+    if (gameMode !== "daily") return location.href;
+    if (duelShareUrl) return duelShareUrl;
+    if (duelCode) {
+      const url = `${location.origin}/d/${encodeURIComponent(duelCode)}`;
+      setDuelShareUrl(url);
+      setShareSetupStatus("ready");
+      return url;
+    }
+    if (!playerId) throw new Error("player unavailable");
+    if (duelSharePromiseRef.current) return duelSharePromiseRef.current;
+    setShareSetupStatus("loading");
+    const request = fetch("/api/duels", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ date: today, market, playerId }),
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("duel unavailable");
+        const duel = (await response.json()) as { code: string };
+        const url = `${location.origin}/d/${encodeURIComponent(duel.code)}`;
+        setDuelShareUrl(url);
+        setShareSetupStatus("ready");
+        return url;
+      })
+      .catch((error) => {
+        duelSharePromiseRef.current = null;
+        setShareSetupStatus("error");
+        throw error;
+      });
+    duelSharePromiseRef.current = request;
+    return request;
+  }, [duelCode, duelShareUrl, gameMode, market, playerId, today]);
+
+  useEffect(() => {
+    if (
+      gameMode !== "daily" ||
+      scoreStatus !== "done" ||
+      duelShareUrl ||
+      shareSetupStatus !== "idle"
+    )
+      return;
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (!cancelled) void prepareDuelShareUrl().catch(() => undefined);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    duelShareUrl,
+    gameMode,
+    prepareDuelShareUrl,
+    scoreStatus,
+    shareSetupStatus,
+  ]);
+
   const resetSession = useCallback((nextSession: ChallengeSession) => {
     submissionRef.current = false;
     const restored = restoreGameState(nextSession);
@@ -2038,6 +2105,9 @@ export default function GameClient({
     setShareStatus("");
     setCardStatus("");
     setDuelRoomShareStatus("");
+    setDuelShareUrl("");
+    setShareSetupStatus("idle");
+    duelSharePromiseRef.current = null;
     setReplayLimit(8);
     setScoreStatus("idle");
     setScoreboard(null);
@@ -2574,7 +2644,7 @@ export default function GameClient({
       await finishGame(true);
   };
 
-  const shareResult = async () => {
+  const resultShareCopy = () => {
     const marks = resultShareMarks;
     const sequence = marks
       .slice(0, DAILY_CHALLENGE_DECISIONS)
@@ -2599,46 +2669,58 @@ export default function GameClient({
       locale === "en"
         ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
         : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
-    try {
-      let shareUrl = location.href;
-      if (gameMode === "daily" && playerId) {
+    const compactText =
+      locale === "en"
+        ? `I scored ${skillScore} in Blind Trading ${sequence} Same hidden chart, five calls. Can you beat me?`
+        : `我在盲盘挑战得到 ${skillScore} 分 ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
+    return { compactText, text, title };
+  };
+
+  const resultChannelHref = (
+    channel: Exclude<ShareChannel, "native" | "copy">,
+  ) => {
+    if (!duelShareUrl) return undefined;
+    const copy = resultShareCopy();
+    return socialShareHref(
+      channel,
+      duelShareUrl,
+      channel === "x" ? copy.compactText : copy.text,
+    );
+  };
+
+  const shareResult = async (channel: "native" | "copy") => {
+    const { text, title } = resultShareCopy();
+    let shareUrl = location.href;
+    if (gameMode === "daily") {
+      if (!duelShareUrl) {
         setShareStatus(
-          locale === "en" ? "Preparing challenge…" : "正在生成挑战码…",
+          locale === "en" ? "Preparing challenge…" : "正在生成挑战链接…",
         );
-        const response = await fetch("/api/duels", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ date: today, market, playerId }),
-        });
-        if (!response.ok) throw new Error("duel unavailable");
-        const duel = (await response.json()) as { code: string };
-        shareUrl = `${location.origin}/d/${encodeURIComponent(duel.code)}`;
+        try {
+          await prepareDuelShareUrl();
+          setShareStatus(
+            locale === "en"
+              ? "Challenge ready · tap again to share"
+              : "挑战已准备好 · 再点一次分享",
+          );
+        } catch {
+          setShareStatus(
+            locale === "en" ? "Could not prepare · tap to retry" : "准备失败 · 点击重试",
+          );
+        }
+        return;
       }
-      const image = await createResultShareCard({
-        locale,
-        date: today,
-        market,
-        score: skillScore,
-        calibration: Math.round(decisionStats.calibration),
-        risk: Math.round(processScores.risk),
-        percentile: scoreboard?.playerScore?.percentile,
-        marks,
-      });
-      const file = image
-        ? new File([image], `blind-trading-${today}.png`, {
-            type: "image/png",
-          })
-        : null;
-      if (navigator.share) {
-        const data: ShareData = { title, text, url: shareUrl };
-        if (file && navigator.canShare?.({ files: [file] }))
-          data.files = [file];
-        await navigator.share(data);
+      shareUrl = duelShareUrl;
+    }
+    const taggedUrl = taggedChallengeUrl(shareUrl, channel);
+    try {
+      if (channel === "native" && navigator.share) {
+        await navigator.share({ title, text, url: taggedUrl });
         setShareStatus(
           locale === "en" ? "Challenge sent" : "挑战已发出",
         );
       } else {
-        await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+        await navigator.clipboard.writeText(`${text}\n${taggedUrl}`);
         setShareStatus(
           locale === "en" ? "Challenge link copied" : "挑战链接已复制",
         );
@@ -5563,13 +5645,66 @@ export default function GameClient({
                       ? "Copy or save score card"
                       : "复制或保存成绩卡")}
                 </button>
+                <nav
+                  className="result-share-channels"
+                  aria-label={
+                    locale === "en" ? "Share challenge directly" : "直接分享挑战"
+                  }
+                >
+                  <span>
+                    {shareSetupStatus === "loading"
+                      ? locale === "en"
+                        ? "Preparing your spoiler-free challenge…"
+                        : "正在准备无剧透挑战链接…"
+                      : shareSetupStatus === "error"
+                        ? locale === "en"
+                          ? "Challenge link needs a retry below"
+                          : "挑战链接需要在下方重试"
+                        : locale === "en"
+                          ? "Send directly"
+                          : "直接发送"}
+                  </span>
+                  <div>
+                    <a
+                      href={resultChannelHref("x")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={!duelShareUrl}
+                    >
+                      X
+                    </a>
+                    <a
+                      href={resultChannelHref("whatsapp")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={!duelShareUrl}
+                    >
+                      WhatsApp
+                    </a>
+                    <a
+                      href={resultChannelHref("telegram")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={!duelShareUrl}
+                    >
+                      Telegram
+                    </a>
+                    <button
+                      type="button"
+                      disabled={!duelShareUrl}
+                      onClick={() => void shareResult("copy")}
+                    >
+                      {locale === "en" ? "Copy link" : "复制链接"}
+                    </button>
+                  </div>
+                </nav>
               </section>
             )}
             <div className="result-actions three">
               <button
                 className="primary-action"
                 disabled={gameMode === "daily" && scoreStatus !== "done"}
-                onClick={shareResult}
+                onClick={() => void shareResult("native")}
               >
                 {shareStatus ||
                   (gameMode === "daily"

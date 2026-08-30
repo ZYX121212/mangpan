@@ -157,13 +157,18 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /crowd-replay-note/);
   assert.match(page, /Crowd edge/);
   assert.match(page, /createResultShareCard/);
-  assert.match(page, /navigator\.canShare/);
+  assert.match(page, /navigator\.share/);
   assert.match(page, /saveResultCard/);
   assert.match(page, /ClipboardItem/);
   assert.match(page, /URL\.createObjectURL/);
   assert.match(page, /resultShareMarks/);
   assert.match(page, /result-share-kit/);
   assert.match(page, /SHARE WITHOUT SPOILERS/);
+  assert.match(page, /prepareDuelShareUrl/);
+  assert.match(page, /shareSetupStatus/);
+  assert.match(page, /result-share-channels/);
+  assert.match(page, /taggedChallengeUrl/);
+  assert.match(page, /Challenge ready · tap again to share/);
   assert.match(page, /YOUR DUEL ROOM/);
   assert.match(page, /shareDuelRoom/);
   assert.match(page, /duelRoomShareStatus/);
@@ -377,7 +382,7 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   ]);
   assert.match(page, /initialDuel\?: \{ code: string; date: string \}/);
   assert.match(page, /initialDuel\?\.code \|\| params\.get\("duel"\)/);
-  assert.match(page, /shareUrl = `\$\{location\.origin\}\/d\//);
+  assert.match(page, /`\$\{location\.origin\}\/d\//);
   assert.match(page, /`\/d\/\$\{encodeURIComponent\(code\)\}`/);
   assert.doesNotMatch(page, /shareUrl = .*\?duel=/);
   assert.match(duelPage, /generateMetadata/);
