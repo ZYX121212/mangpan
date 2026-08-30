@@ -256,6 +256,37 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 @media(max-width:1100px){.mode-lobby-groups{grid-template-columns:1fr}.mode-family-cards,.mode-family.training .mode-family-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.mode-family.training .mode-lobby-card{grid-column:1/-1}.mode-family .mode-lobby-card{min-height:205px}}
 @media(max-width:560px){.mode-family-cards,.mode-family.training .mode-family-cards{grid-template-columns:1fr}.mode-family.training .mode-lobby-card{grid-column:auto}.mode-family .mode-lobby-card{min-height:190px;padding:17px}.mode-family .mode-lobby-card h3{margin-top:24px}}
 
+/* A bounded five-chart run turns open-ended practice into a clear 8–12 minute session. */
+.mode-lobby-card.run{border-color:#b7a76d;background:linear-gradient(145deg,#fff8df,#eadba8)}
+.market-run-banner{min-height:46px;margin:8px 0 0;padding:7px 12px;display:grid;grid-template-columns:auto minmax(110px,1fr) auto auto;align-items:center;gap:9px;border:1px solid #b7a66d;border-radius:10px;background:linear-gradient(135deg,#2f3028,#55513a);color:#fff}
+.market-run-banner>span{color:#d7c995;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em}
+.market-run-banner>b{font-size:11px}
+.market-run-banner>div{display:flex;gap:5px}
+.market-run-banner i{width:25px;height:25px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.22);border-radius:7px;color:#bdbbad;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;font-style:normal}
+.market-run-banner i.complete{border-color:#bfae72;background:#bfae72;color:#25261f}
+.market-run-banner i.current{border-color:#fff;color:#fff;box-shadow:0 0 0 2px rgba(255,255,255,.12)}
+.market-run-banner>strong{color:#e3dfd0;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}
+.market-run-stage-rule{min-height:38px;margin-top:8px;padding:7px 10px;display:flex;align-items:center;justify-content:space-between;border:1px solid #d7c995;border-radius:8px;background:#fff9e7;color:#6f6546}
+.market-run-stage-rule span{font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.08em}
+.market-run-stage-rule b{font-size:9px}
+.market-run-result{margin:16px 0;padding:16px;border:1px solid #cbbd87;border-radius:13px;background:linear-gradient(145deg,#fffaf0,#eee2b9);text-align:left}
+.market-run-result>header{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.market-run-result>header small{display:block;color:#8c7b47;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em}
+.market-run-result>header b{display:block;margin-top:5px;font-size:18px}
+.market-run-result>header strong{font:900 40px ui-monospace,SFMono-Regular,Menlo,monospace;color:#48432f}
+.market-run-scoreline{margin-top:13px;display:grid;grid-template-columns:repeat(5,1fr);gap:5px}
+.market-run-scoreline span{min-width:0;padding:7px 4px;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:5px;border:1px solid #d9cfaa;border-radius:7px;background:rgba(255,255,255,.45)}
+.market-run-scoreline i{width:17px;height:17px;display:grid;place-items:center;border-radius:5px;background:#e5ddc1;color:#7d7458;font:800 7px ui-monospace,SFMono-Regular,Menlo,monospace;font-style:normal}
+.market-run-scoreline b{text-align:center;font:800 10px ui-monospace,SFMono-Regular,Menlo,monospace}
+.market-run-scoreline span.complete{border-color:#8a805c;background:#fffdf6}
+.market-run-result>p{margin:11px 0 0;color:#756d53;font-size:9px;line-height:1.55}
+.market-run-result.complete{border-color:#676a58;background:linear-gradient(145deg,#2f312a,#4a4d3f);color:#fff}
+.market-run-result.complete>header small,.market-run-result.complete>p{color:#cfccbd}
+.market-run-result.complete>header strong{color:#dbc77f}
+.market-run-result.complete .market-run-scoreline span{border-color:rgba(255,255,255,.16);background:rgba(255,255,255,.06)}
+.market-run-result.complete .market-run-scoreline i{background:#c7b875;color:#272820}
+@media(max-width:720px){.market-run-banner{grid-template-columns:auto 1fr auto}.market-run-banner>strong{display:none}.market-run-banner i{width:22px;height:22px}.market-run-scoreline{gap:3px}.market-run-scoreline span{grid-template-columns:1fr}.market-run-scoreline i{display:none}}
+
 /* Friend Duel opens a private same-chart room before either player finishes. */
 .duel-create-action{min-height:76px;margin-top:22px;padding:13px 16px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto auto;align-content:center;border-radius:12px;background:linear-gradient(135deg,#292c25,#42473b);color:#fff;text-decoration:none;box-shadow:0 14px 30px rgba(39,42,35,.16);transition:transform .18s ease,box-shadow .18s ease}
 .duel-create-action:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(39,42,35,.22)}

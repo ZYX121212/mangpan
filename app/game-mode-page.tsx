@@ -5,9 +5,10 @@ import {
   startPracticeSession,
 } from "./challenge-sessions";
 import { marketDate, type MarketKind } from "./game-config";
+import { MARKET_RUN_STAGES } from "./market-run";
 import { opaquePlayerId } from "./request-identity";
 
-export type GameEntryMode = "daily" | "practice" | "training";
+export type GameEntryMode = "daily" | "practice" | "training" | "run";
 
 export default async function GameModePage({
   mode,
@@ -32,8 +33,8 @@ export default async function GameModePage({
       : await startPracticeSession(
           `${mode}-${crypto.randomUUID()}`,
           market,
-          "random",
-          "standard",
+          mode === "run" ? MARKET_RUN_STAGES[0].scenario : "random",
+          mode === "run" ? MARKET_RUN_STAGES[0].difficulty : "standard",
           playerId,
           initialGuide,
         );

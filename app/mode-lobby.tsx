@@ -49,18 +49,18 @@ const MODES = [
   },
   {
     number: "02",
-    href: "/practice",
-    eyebrow: { en: "NO PRESSURE", zh: "自由探索" },
-    title: { en: "Endless Practice", zh: "无限练习" },
+    href: "/run",
+    eyebrow: { en: "FIVE MARKETS · ONE SCORE", zh: "五关一总分" },
+    title: { en: "Market Run", zh: "市场闯关" },
     description: {
-      en: "Read random real charts at your own pace. Change stocks, test ideas, and stop whenever you want.",
-      zh: "按自己的节奏探索随机真实行情；随时换股、验证想法，不影响每日排名。",
+      en: "Clear five real mystery charts in one run. Each stage gets harder, and every decision builds your final grade.",
+      zh: "连续挑战五张真实神秘行情；难度逐关提升，每次判断都会计入最终评级。",
     },
-    meta: { en: "Unlimited · unranked", zh: "不限次数 · 不排名" },
-    action: { en: "Start practicing", zh: "进入自由练习" },
-    tone: "practice",
+    meta: { en: "5 stages · about 8–12 min", zh: "5 关 · 约 8–12 分钟" },
+    action: { en: "Start a market run", zh: "开始市场闯关" },
+    tone: "run",
     family: "solo",
-    event: "lobby_mode_practice",
+    event: "lobby_mode_run",
   },
   {
     number: "03",
@@ -115,8 +115,8 @@ const MODE_FAMILIES = [
     number: "A",
     title: { en: "Play solo", zh: "单人游玩" },
     description: {
-      en: "Compete once today or explore without pressure.",
-      zh: "完成今日竞技，或无压力自由探索。",
+      en: "Compete once today or build a five-chart run.",
+      zh: "完成今日竞技，或挑战五关连续行情。",
     },
   },
   {
@@ -165,6 +165,10 @@ export default function ModeLobby() {
         localStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
         localStorage.getItem("mangpan-active-session-us") ||
         localStorage.getItem("mangpan-active-session-cn") ||
+        localStorage.getItem("mangpan-run-active-session-us") ||
+        localStorage.getItem("mangpan-run-active-session-cn") ||
+        localStorage.getItem("mangpan-market-run-us") ||
+        localStorage.getItem("mangpan-market-run-cn") ||
         localStorage.getItem("mangpan-scenario-progress") ||
         localStorage.getItem("mangpan-player-name"),
       );
@@ -283,7 +287,7 @@ export default function ModeLobby() {
 
   const dailyReturnHref =
     dailyState.phase === "complete"
-      ? `/practice?market=${market}`
+      ? `/run?market=${market}`
       : `/daily?market=${market}`;
 
   return (
@@ -429,9 +433,9 @@ export default function ModeLobby() {
             </aside>
             <Link href={dailyReturnHref} onClick={openDailyReturn}>
               {dailyState.phase === "complete"
-                ? locale === "en"
-                  ? "Keep sharp in practice →"
-                  : "进入自由练习 →"
+                  ? locale === "en"
+                    ? "Start a Market Run →"
+                    : "开始市场闯关 →"
                 : dailyState.phase === "active"
                   ? locale === "en"
                     ? "Continue today’s chart →"

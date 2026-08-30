@@ -61,7 +61,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /color = buy \? buyColor : sellColor/);
   assert.match(
     page,
-    /<main className="shell" data-market=\{market\} data-game-mode=\{gameMode\}>/,
+    /<main[\s\S]*className="shell"[\s\S]*data-market=\{market\}[\s\S]*data-game-mode=\{gameMode\}[\s\S]*data-entry-mode=\{initialMode\}/,
   );
   assert.match(page, /DAILY_ORDER_ALLOCATIONS = \[\s*0\.25,\s*0\.5,\s*1,/);
   assert.match(page, /gameMode !== "daily" && \(/);
@@ -801,7 +801,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(pageRoute, /<ModeLobby \/>/);
   assert.match(modeLobby, /FIVE WAYS TO PLAY/);
   assert.match(modeLobby, /href: "\/daily"/);
-  assert.match(modeLobby, /href: "\/practice"/);
+  assert.match(modeLobby, /href: "\/run"/);
+  assert.doesNotMatch(modeLobby, /title: \{ en: "Endless Practice"/);
   assert.match(modeLobby, /href: "\/training"/);
   assert.match(modeLobby, /href: "\/duel"/);
   assert.match(modeLobby, /href: "\/crew"/);
@@ -818,7 +819,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /Play together/);
   assert.match(modeLobby, /data-mode-family/);
   assert.match(modeLobby, /"lobby_mode_daily"/);
-  assert.match(modeLobby, /"lobby_mode_practice"/);
+  assert.match(modeLobby, /"lobby_mode_run"/);
   assert.match(modeLobby, /"lobby_mode_training"/);
   assert.match(modeLobby, /"lobby_mode_duel"/);
   assert.match(modeLobby, /"lobby_mode_crew"/);
@@ -827,8 +828,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /fetch\(`\/api\/scores\?\$\{query\}`/);
   assert.match(modeLobby, /"lobby_daily_cta"/);
   assert.match(modeLobby, /Continue today’s chart/);
-  assert.match(modeLobby, /Keep sharp in practice/);
-  assert.match(modeLobby, /dailyState\.phase === "complete"[\s\S]*`\/practice\?market=\$\{market\}`/);
+  assert.match(modeLobby, /Start a Market Run/);
+  assert.match(modeLobby, /dailyState\.phase === "complete"[\s\S]*`\/run\?market=\$\{market\}`/);
   assert.doesNotMatch(page, /guided-start-card|mode-hub-backdrop/);
   assert.match(gameModePage, /marketDate\(market\)/);
   assert.match(gameModePage, /startDailySession/);

@@ -3,6 +3,7 @@ export type ActivationEventType =
   | "lobby_daily_cta"
   | "lobby_mode_daily"
   | "lobby_mode_practice"
+  | "lobby_mode_run"
   | "lobby_mode_training"
   | "lobby_mode_duel"
   | "lobby_mode_crew"
@@ -15,6 +16,9 @@ export type ActivationEventType =
   | "daily_first_move"
   | "daily_second_move"
   | "practice_second_move"
+  | "run_start"
+  | "run_stage_complete"
+  | "run_complete"
   | "daily_complete"
   | "daily_score_card_share"
   | "daily_style_card_share"
@@ -25,7 +29,7 @@ export type ActivationEventType =
   | "crew_invite_share"
   | "crew_daily_checkin"
   | "crew_result_return";
-export type ActivationSource = "lobby" | "direct" | "duel" | "crew";
+export type ActivationSource = "lobby" | "direct" | "duel" | "crew" | "run";
 
 export function trackActivationEvent(
   playerId: string,
