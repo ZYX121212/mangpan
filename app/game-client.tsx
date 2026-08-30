@@ -34,6 +34,7 @@ import {
   type ReplayAction,
 } from "./game-config";
 import { buildTradeAnalysis } from "./trade-analysis";
+import { decisionStyleFor, type DecisionStyle } from "./decision-style";
 import { trackActivationEvent } from "./activation-events";
 import { Localized, type Locale } from "./i18n";
 import {
@@ -403,6 +404,7 @@ async function createResultShareCard({
   percentile,
   marks,
   challengeUrl,
+  decisionStyle,
 }: {
   locale: Locale;
   date: string;
@@ -413,6 +415,7 @@ async function createResultShareCard({
   percentile?: number;
   marks: number[];
   challengeUrl?: string;
+  decisionStyle: DecisionStyle;
 }) {
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -452,6 +455,13 @@ async function createResultShareCard({
     locale === "en" ? "DECISION SCORE" : "决策评分",
     76,
     558,
+  );
+  context.fillStyle = "#4f514a";
+  context.font = "800 21px Arial, sans-serif";
+  context.fillText(
+    `${locale === "en" ? "DECISION STYLE" : "今日决策风格"} · ${decisionStyle.title.toUpperCase()}`,
+    72,
+    602,
   );
   const metrics = [
     [locale === "en" ? "CALIBRATION" : "概率校准", calibration],
@@ -1943,6 +1953,35 @@ export default function GameClient({
       processScores.discipline * 0.25 +
       processScores.performance * 0.05,
   );
+  const decisionStyle = useMemo(
+    () =>
+      decisionStyleFor(
+        {
+          calibration: decisionStats.calibration,
+          risk: processScores.risk,
+          discipline: processScores.discipline,
+          accuracy: decisionStats.accuracy,
+          confidentMisses: decisionStats.confidentMisses,
+          trades,
+          peakExposure,
+          contrarianCalls: crowdComparison.contrarianCalls,
+          contrarianWins: crowdComparison.contrarianWins,
+        },
+        locale,
+      ),
+    [
+      crowdComparison.contrarianCalls,
+      crowdComparison.contrarianWins,
+      decisionStats.accuracy,
+      decisionStats.calibration,
+      decisionStats.confidentMisses,
+      locale,
+      peakExposure,
+      processScores.discipline,
+      processScores.risk,
+      trades,
+    ],
+  );
   const weakestSkill = (
     [
       { key: "risk", label: "风险控制", scenario: "crash" },
@@ -2880,14 +2919,18 @@ export default function GameClient({
         ? `Crowd edge ${crowdComparison.beatCrowd} · Contrarian wins ${crowdComparison.contrarianWins}/${crowdComparison.contrarianCalls}`
         : `领先人群 ${crowdComparison.beatCrowd} 次 · 逆向命中 ${crowdComparison.contrarianWins}/${crowdComparison.contrarianCalls}`
       : "";
+    const styleLine =
+      locale === "en"
+        ? `Decision style · ${decisionStyle.title}`
+        : `今日决策风格 · ${decisionStyle.title}`;
     const text =
       locale === "en"
-        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
-        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
+        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
+        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
     const compactText =
       locale === "en"
-        ? `I scored ${skillScore} in Blind Trading${chainLabel} ${sequence} Same hidden chart, five calls. Can you beat me?`
-        : `我在盲盘挑战得到 ${skillScore} 分${chainLabel} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
+        ? `My Blind Trading style is ${decisionStyle.title} · ${skillScore}${chainLabel} ${sequence} Same hidden chart, five calls. Can you beat me?`
+        : `我是${decisionStyle.title}，盲盘挑战 ${skillScore} 分${chainLabel} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
     return { compactText, text, title };
   };
 
@@ -2988,6 +3031,7 @@ export default function GameClient({
       percentile: scoreboard?.playerScore?.percentile,
       marks: resultShareMarks,
       challengeUrl: duelShareUrl || undefined,
+      decisionStyle,
     });
 
   const downloadResultCard = (image: Blob) => {
@@ -5893,11 +5937,27 @@ export default function GameClient({
                 )}
               </div>
             )}
-            <div className="profile-card">
-              <small>本局交易画像</small>
-              <b>{profile.title}</b>
-              <p>{profile.text}</p>
-            </div>
+            {gameMode === "daily" ? (
+              <div className="profile-card decision-style-card">
+                <i aria-hidden="true">{decisionStyle.badge}</i>
+                <div>
+                  <small>
+                    {locale === "en"
+                      ? "TODAY'S DECISION STYLE"
+                      : "今日决策风格"}
+                  </small>
+                  <b>{decisionStyle.title}</b>
+                  <p>{decisionStyle.description}</p>
+                  <em>{decisionStyle.nextGoal}</em>
+                </div>
+              </div>
+            ) : (
+              <div className="profile-card">
+                <small>本局交易画像</small>
+                <b>{profile.title}</b>
+                <p>{profile.text}</p>
+              </div>
+            )}
             <button
               className="analysis-action"
               onClick={() => setAnalysisOpen(true)}
@@ -6079,8 +6139,8 @@ export default function GameClient({
                   </small>
                   <b>
                     {locale === "en"
-                      ? "Your five-decision story"
-                      : "你的五次决策轨迹"}
+                      ? `${decisionStyle.title} · your five-decision story`
+                      : `${decisionStyle.title} · 你的五次决策轨迹`}
                   </b>
                   <span
                     className="share-mark-preview"
@@ -6111,8 +6171,8 @@ export default function GameClient({
                   </span>
                   <p>
                     {locale === "en"
-                      ? "Shows your score and calibration—not the ticker or the answer."
-                      : "只展示得分与校准，不泄露股票名或答案。"}
+                      ? "Shows your decision style, score, and calibration—not the ticker or the answer."
+                      : "展示决策风格、得分与校准，不泄露股票名或答案。"}
                   </p>
                 </div>
                 <div className="result-card-actions">

@@ -172,6 +172,10 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /crowd-replay-note/);
   assert.match(page, /Crowd edge/);
   assert.match(page, /createResultShareCard/);
+  assert.match(page, /decisionStyleFor/);
+  assert.match(page, /TODAY'S DECISION STYLE/);
+  assert.match(page, /decisionStyle\.nextGoal/);
+  assert.match(page, /Decision style ·/);
   assert.match(page, /navigator\.share/);
   assert.match(page, /saveResultCard/);
   assert.match(page, /shareResultCard/);
@@ -798,6 +802,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.duel-room-stats/);
   assert.match(styles, /\.duel-room-funnel/);
   assert.match(styles, /\.result-share-kit/);
+  assert.match(styles, /\.decision-style-card/);
   assert.match(styles, /\.result-card-actions/);
   assert.match(styles, /\.streak-week footer/);
   assert.match(styles, /\.career-freeze-card/);
