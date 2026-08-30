@@ -9,6 +9,23 @@ export const MAX_ACTIONS = 10_000;
 export const DAILY_CHALLENGE_DECISIONS = 5;
 
 export type MarketKind = "cn" | "us";
+export const MARKET_COLORS = {
+  us: {
+    up: "#129a76",
+    down: "#df4a56",
+    buy: "#129a76",
+    sell: "#df4a56",
+  },
+  cn: {
+    up: "#df4a56",
+    down: "#129a76",
+    buy: "#df4a56",
+    sell: "#129a76",
+  },
+} as const satisfies Record<
+  MarketKind,
+  { up: string; down: string; buy: string; sell: string }
+>;
 export const ORDER_ALLOCATIONS = [0.25, 1 / 3, 0.5, 0.75, 1] as const;
 export type OrderAllocation = (typeof ORDER_ALLOCATIONS)[number];
 export type MarketOutlook = "up" | "range" | "down";

@@ -12,6 +12,7 @@ import {
   DAILY_CHALLENGE_DECISIONS,
   INITIAL_BARS,
   INITIAL_CASH,
+  MARKET_COLORS,
   ORDER_ALLOCATIONS,
   clamp,
   forecastForAction,
@@ -711,6 +712,8 @@ function CandleChart({
   const [viewSize, setViewSize] = useState(INITIAL_BARS);
   const [rightOffset, setRightOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const { up: upColor, down: downColor, buy: buyColor, sell: sellColor } =
+    MARKET_COLORS[market];
   const scheduleDraw = useCallback(() => {
     if (drawFrameRef.current != null) return;
     drawFrameRef.current = window.requestAnimationFrame(() => {
@@ -833,7 +836,7 @@ function CandleChart({
       shown.forEach((d, i) => {
         const x = slot * i + slot / 2,
           up = d.close >= d.open,
-          color = up ? "#df4a56" : "#129a76";
+          color = up ? upColor : downColor;
         ctx.strokeStyle = color;
         ctx.fillStyle = color;
         ctx.lineWidth = 1;
@@ -888,14 +891,14 @@ function CandleChart({
         ly = priceY(last.close);
       ctx.save();
       ctx.setLineDash([4, 4]);
-      ctx.strokeStyle = last.close >= last.open ? "#df4a56" : "#129a76";
+      ctx.strokeStyle = last.close >= last.open ? upColor : downColor;
       ctx.globalAlpha = 0.65;
       ctx.beginPath();
       ctx.moveTo(0, ly);
       ctx.lineTo(w - right, ly);
       ctx.stroke();
       ctx.restore();
-      ctx.fillStyle = last.close >= last.open ? "#df4a56" : "#129a76";
+      ctx.fillStyle = last.close >= last.open ? upColor : downColor;
       ctx.fillRect(w - right, ly - 10, right, 20);
       ctx.fillStyle = "white";
       ctx.fillText(last.close.toFixed(2), w - right + 7, ly + 4);
@@ -907,7 +910,7 @@ function CandleChart({
           if (!candle) return;
           const x = slot * localIndex + slot / 2,
             buy = marker.type === "B",
-            color = buy ? "#df4a56" : "#129a76",
+            color = buy ? buyColor : sellColor,
             wickY = priceY(buy ? candle.low : candle.high),
             markerY = buy
               ? Math.min(priceBottom - 11, wickY + 18)
@@ -968,11 +971,15 @@ function CandleChart({
     scheduleDraw();
   }, [
     data,
+    buyColor,
+    downColor,
     effectiveView,
     hover,
     locale,
     markers,
     scheduleDraw,
+    sellColor,
+    upColor,
     viewEnd,
     viewStart,
   ]);
@@ -2734,7 +2741,7 @@ export default function GameClient({
     Boolean(quantityError);
   return (
     <Localized locale={locale}>
-    <main className="shell">
+    <main className="shell" data-market={market}>
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">K</span>
@@ -3072,6 +3079,19 @@ export default function GameClient({
             <span>MA5 {ma5?.toFixed(2)}</span>
             <span>MA10 {ma10?.toFixed(2)}</span>
             <span>MA20 {ma20?.toFixed(2)}</span>
+            <span
+              className="market-color-key"
+              aria-label={
+                locale === "en"
+                  ? `${market === "us" ? "US" : "China A-share"} market colors: up and buy are ${market === "us" ? "green" : "red"}; down and sell are ${market === "us" ? "red" : "green"}`
+                  : `${market === "us" ? "美股" : "A股"}配色：上涨与买入为${market === "us" ? "绿色" : "红色"}，下跌与卖出为${market === "us" ? "红色" : "绿色"}`
+              }
+            >
+              <i className="market-up-swatch" aria-hidden="true" />
+              {locale === "en" ? "UP" : "涨"}
+              <i className="market-down-swatch" aria-hidden="true" />
+              {locale === "en" ? "DOWN" : "跌"}
+            </span>
             <em>
               相对量{" "}
               {current.volume

@@ -4,11 +4,27 @@ import test from "node:test";
 import {
   DAILY_CHALLENGE_DECISIONS,
   INITIAL_CASH,
+  MARKET_COLORS,
   probabilityCalibrationScore,
   probabilityForecast,
   orderQuantity,
   transactionQuote,
 } from "../app/game-config.ts";
+
+test("uses the color convention of the selected stock market", () => {
+  assert.deepEqual(MARKET_COLORS.us, {
+    up: "#129a76",
+    down: "#df4a56",
+    buy: "#129a76",
+    sell: "#df4a56",
+  });
+  assert.deepEqual(MARKET_COLORS.cn, {
+    up: "#df4a56",
+    down: "#129a76",
+    buy: "#df4a56",
+    sell: "#129a76",
+  });
+});
 
 test("probability contract rewards calibration and penalizes confident errors", () => {
   assert.equal(DAILY_CHALLENGE_DECISIONS, 5);

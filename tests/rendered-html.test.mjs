@@ -56,6 +56,14 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /向左查看更早K线/);
   assert.match(page, /向右查看更新K线/);
   assert.match(page, /定位K线历史位置/);
+  assert.match(page, /MARKET_COLORS\[market\]/);
+  assert.match(page, /color = up \? upColor : downColor/);
+  assert.match(page, /color = buy \? buyColor : sellColor/);
+  assert.match(page, /<main className="shell" data-market=\{market\}>/);
+  assert.match(page, /market-color-key/);
+  assert.match(page, /market colors: up and buy are/);
+  assert.match(page, /market-up-swatch/);
+  assert.match(page, /market-down-swatch/);
   assert.match(page, /onPointerDown/);
   assert.match(page, /touchPointsRef/);
   assert.match(page, /Math\.hypot/);
@@ -514,6 +522,13 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
+  assert.match(styles, /--up:var\(--green\)/);
+  assert.match(styles, /--down:var\(--red\)/);
+  assert.match(styles, /\.shell\[data-market="cn"\]\{--up:var\(--red\)/);
+  assert.match(styles, /\.up\{color:var\(--up\)!important\}/);
+  assert.match(styles, /\.down\{color:var\(--down\)!important\}/);
+  assert.match(styles, /\.crowd-up\{background:var\(--up\)\}/);
+  assert.match(styles, /\.crowd-down\{background:var\(--down\)\}/);
   assert.match(styles, /Desktop trading terminal/);
   assert.match(styles, /\.shell\{height:100dvh;min-height:0/);
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
