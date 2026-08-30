@@ -115,6 +115,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /NEXT DAILY MYSTERY/);
   assert.match(page, /7-DAY TARGET/);
   assert.match(page, /daily-return-loop/);
+  assert.match(page, /career-freeze-card/);
+  assert.match(page, /STREAK PROTECTION/);
+  assert.match(page, /STREAK SAVED/);
+  assert.match(page, /FREEZE EARNED/);
+  assert.match(page, /streakProtection\.nextFreezeIn/);
   assert.match(page, /beforeinstallprompt/);
   assert.match(page, /appinstalled/);
   assert.match(page, /installGame/);
@@ -482,6 +487,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /respondentPlayerId: playerId/);
   assert.match(scoreRoute, /rankFor\(opponentId\)/);
   assert.match(scoreRoute, /buildAchievements/);
+  assert.match(scoreRoute, /calculateStreakProtection/);
+  assert.match(scoreRoute, /streakHistory\.results/);
+  assert.match(scoreRoute, /ORDER BY challenge_date ASC/);
   assert.match(scoreRoute, /weeklyRewards/);
   assert.match(scoreRoute, /lifetimeRewardXp/);
   assert.match(scoreRoute, /achievementXp/);
@@ -518,6 +526,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.duel-target-score/);
   assert.match(styles, /\.duel-room-stats/);
   assert.match(styles, /\.result-share-kit/);
+  assert.match(styles, /\.streak-week footer/);
+  assert.match(styles, /\.career-freeze-card/);
   assert.match(styles, /\.share-mark-preview/);
   assert.match(
     styles,

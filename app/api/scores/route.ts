@@ -22,6 +22,7 @@ import {
   requestPlayerId,
   validPlayerId,
 } from "../../request-identity";
+import { calculateStreakProtection } from "../../streak-protection";
 
 type ScoreRow = typeof dailyScores.$inferSelect;
 
@@ -58,12 +59,6 @@ function cleanNickname(value: unknown, playerId: string) {
     .trim()
     .slice(0, 12);
   return cleaned || fallback;
-}
-
-function previousDate(date: string) {
-  const value = new Date(`${date}T00:00:00Z`);
-  value.setUTCDate(value.getUTCDate() - 1);
-  return value.toISOString().slice(0, 10);
 }
 
 function addDays(date: string, days: number) {
@@ -268,21 +263,6 @@ async function buildWeeklyLeague(
   };
 }
 
-function calculateStreak(dates: string[], today: string) {
-  const uniqueDates = [...new Set(dates)].sort().reverse();
-  if (!uniqueDates.length) return 0;
-  const yesterday = previousDate(today);
-  if (uniqueDates[0] !== today && uniqueDates[0] !== yesterday) return 0;
-  let expected = uniqueDates[0];
-  let streak = 0;
-  for (const date of uniqueDates) {
-    if (date !== expected) break;
-    streak++;
-    expected = previousDate(expected);
-  }
-  return streak;
-}
-
 function weeklyProfile(rows: ScoreRow[]) {
   if (!rows.length)
     return {
@@ -423,20 +403,21 @@ async function buildScoreboard(
       best_return: number;
     };
     const suffix = `%@${GAME_VERSION}@${market}`;
-    const [history, career, training, duelSummary] = await Promise.all([
-      db
-        .select()
-        .from(dailyScores)
-        .where(
-          and(
-            eq(dailyScores.playerId, playerId),
-            like(dailyScores.challengeDate, suffix),
-          ),
-        )
-        .orderBy(desc(dailyScores.challengeDate))
-        .limit(120),
-      getD1Database()
-        .prepare(`SELECT COUNT(*) AS completed_days,
+    const [history, career, training, duelSummary, streakHistory] =
+      await Promise.all([
+        db
+          .select()
+          .from(dailyScores)
+          .where(
+            and(
+              eq(dailyScores.playerId, playerId),
+              like(dailyScores.challengeDate, suffix),
+            ),
+          )
+          .orderBy(desc(dailyScores.challengeDate))
+          .limit(120),
+        getD1Database()
+          .prepare(`SELECT COUNT(*) AS completed_days,
           COALESCE(SUM(score), 0) AS score_sum,
           COALESCE(ROUND(AVG(score)), 0) AS average_score,
           COALESCE(MAX(score), 0) AS best_score,
@@ -446,24 +427,31 @@ async function buildScoreboard(
           COALESCE(MAX(return_rate), 0) AS best_return
           FROM daily_scores INDEXED BY daily_scores_player_history_idx
           WHERE player_id = ? AND challenge_date LIKE ?`)
-        .bind(playerId, suffix)
-        .first<CareerRow>(),
-      getTrainingProfile(playerId, market),
-      getD1Database()
-        .prepare(
-          "SELECT COUNT(*) AS total FROM duel_challenges WHERE challenger_player_id = ? AND market = ?",
-        )
-        .bind(playerId, market)
-        .first<{ total: number }>(),
-    ]);
+          .bind(playerId, suffix)
+          .first<CareerRow>(),
+        getTrainingProfile(playerId, market),
+        getD1Database()
+          .prepare(
+            "SELECT COUNT(*) AS total FROM duel_challenges WHERE challenger_player_id = ? AND market = ?",
+          )
+          .bind(playerId, market)
+          .first<{ total: number }>(),
+        getD1Database()
+          .prepare(
+            `SELECT challenge_date FROM daily_scores INDEXED BY daily_scores_player_history_idx
+          WHERE player_id = ? AND challenge_date LIKE ? ORDER BY challenge_date ASC`,
+          )
+          .bind(playerId, suffix)
+          .all<{ challenge_date: string }>(),
+      ]);
     const completedDays = Number(career?.completed_days || 0);
     const averageScore = Number(career?.average_score || 0);
     const bestScore = Number(career?.best_score || 0);
     const benchmarkWins = Number(career?.benchmark_wins || 0);
     const riskControlled = Number(career?.risk_controlled || 0);
     const duelCreated = Number(duelSummary?.total || 0);
-    const streak = calculateStreak(
-      history.map((row) => row.challengeDate.split("@")[0]),
+    const streakProtection = calculateStreakProtection(
+      streakHistory.results.map((row) => row.challenge_date.split("@")[0]),
       chinaDate(),
     );
     const achievements = buildAchievements({
@@ -485,7 +473,8 @@ async function buildScoreboard(
       achievementXp;
     stats = {
       completedDays,
-      streak,
+      streak: streakProtection.streak,
+      streakProtection,
       averageScore,
       bestScore,
       xp,

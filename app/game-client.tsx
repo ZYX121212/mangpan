@@ -169,6 +169,13 @@ type Scoreboard = {
   stats: null | {
     completedDays: number;
     streak: number;
+    streakProtection: {
+      availableFreezes: number;
+      nextFreezeIn: number;
+      freezeUsedToday: boolean;
+      freezeEarnedToday: boolean;
+      protectedMissedDays: number;
+    };
     averageScore: number;
     bestScore: number;
     xp: number;
@@ -1520,6 +1527,13 @@ export default function GameClient({
     duelCode && scoreboard?.duelCode?.toUpperCase() === duelCode,
   );
   const currentStreak = scoreboard?.stats?.streak ?? 0;
+  const streakProtection = scoreboard?.stats?.streakProtection ?? {
+    availableFreezes: 0,
+    nextFreezeIn: 5,
+    freezeUsedToday: false,
+    freezeEarnedToday: false,
+    protectedMissedDays: 0,
+  };
   const completedDailyChallenges = scoreboard?.stats?.completedDays ?? 0;
   const dailyDecisionTarget =
     session.maxDecisions ?? DAILY_CHALLENGE_DECISIONS;
@@ -4404,6 +4418,40 @@ export default function GameClient({
                     <small>最佳评分</small>
                   </div>
                 </div>
+                <section
+                  className={`career-freeze-card ${
+                    streakProtection.freezeUsedToday ||
+                    streakProtection.protectedMissedDays
+                      ? "protected"
+                      : ""
+                  }`}
+                >
+                  <span aria-hidden="true">◇</span>
+                  <div>
+                    <small>
+                      {locale === "en"
+                        ? "STREAK PROTECTION"
+                        : "连续挑战保护"}
+                    </small>
+                    <b>
+                      {streakProtection.availableFreezes}/2{" "}
+                      {locale === "en" ? "freezes ready" : "次保护可用"}
+                    </b>
+                    <p>
+                      {streakProtection.protectedMissedDays
+                        ? locale === "en"
+                          ? "A freeze is holding your streak. Finish today to keep it moving."
+                          : "保护已为你保住连续记录，完成今天的挑战即可继续。"
+                        : streakProtection.availableFreezes >= 2
+                          ? locale === "en"
+                            ? "Protection is full. Two missed days can be covered automatically."
+                            : "保护已满，可自动覆盖两次漏玩的日期。"
+                          : locale === "en"
+                            ? `Next freeze in ${streakProtection.nextFreezeIn} daily challenges.`
+                            : `再完成 ${streakProtection.nextFreezeIn} 次每日挑战获得下一次保护。`}
+                    </p>
+                  </div>
+                </section>
                 <div className="profile-card career-profile">
                   <small>近 7 局决策画像</small>
                   <b>{scoreboard.stats.profile.title}</b>
@@ -5185,6 +5233,46 @@ export default function GameClient({
                       />
                     ))}
                   </div>
+                  <footer
+                    className={
+                      streakProtection.freezeEarnedToday ||
+                      streakProtection.freezeUsedToday
+                        ? "highlight"
+                        : ""
+                    }
+                  >
+                    <span>
+                      {streakProtection.freezeUsedToday
+                        ? locale === "en"
+                          ? "STREAK SAVED"
+                          : "连续记录已保住"
+                        : streakProtection.freezeEarnedToday
+                          ? locale === "en"
+                            ? "FREEZE EARNED"
+                            : "获得一次保护"
+                          : locale === "en"
+                            ? "STREAK FREEZE"
+                            : "连续挑战保护"}
+                    </span>
+                    <b>{streakProtection.availableFreezes}/2</b>
+                    <small>
+                      {streakProtection.freezeUsedToday
+                        ? locale === "en"
+                          ? "A missed day was covered automatically."
+                          : "已自动覆盖一次漏玩日期。"
+                        : streakProtection.freezeEarnedToday
+                          ? locale === "en"
+                            ? "One missed day is now covered automatically."
+                            : "之后漏玩一天时将自动保护连续记录。"
+                          : streakProtection.availableFreezes >= 2
+                            ? locale === "en"
+                              ? "Protection full"
+                              : "保护已满"
+                            : locale === "en"
+                              ? `Next in ${streakProtection.nextFreezeIn} daily challenges`
+                              : `再完成 ${streakProtection.nextFreezeIn} 次获得`}
+                    </small>
+                  </footer>
                 </div>
               </section>
             )}
