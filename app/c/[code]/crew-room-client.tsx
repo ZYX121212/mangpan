@@ -152,12 +152,12 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
             </div>
             <div>
               <button onClick={() => void share("invite")}>{locale === "en" ? "Invite first teammate →" : "邀请首位队友 →"}</button>
-              <Link href={`/daily?market=${crew.market}`}>{viewerCompletedToday ? (locale === "en" ? "Review today’s result while you wait →" : "等待时查看今日结果 →") : (locale === "en" ? "Play today’s chart while you wait →" : "等待时完成今日盲盘 →")}</Link>
+              <Link href={`/daily?market=${crew.market}&crew=${crew.code}`}>{viewerCompletedToday ? (locale === "en" ? "Review today’s result while you wait →" : "等待时查看今日结果 →") : (locale === "en" ? "Play today’s chart while you wait →" : "等待时完成今日盲盘 →")}</Link>
             </div>
           </div>
         ) : (
           <div className="crew-member-actions">
-            <Link href={`/daily?market=${crew.market}`}>{viewerCompletedToday ? (locale === "en" ? "Review today’s result →" : "查看今日结果 →") : (locale === "en" ? "Play today’s chart →" : "完成今日盲盘 →")}</Link>
+            <Link href={`/daily?market=${crew.market}&crew=${crew.code}`}>{viewerCompletedToday ? (locale === "en" ? "Review today’s result →" : "查看今日结果 →") : (locale === "en" ? "Play today’s chart →" : "完成今日盲盘 →")}</Link>
             {remaining.length > 0 && <button onClick={() => void share("nudge")}>{locale === "en" ? `Nudge ${remaining.length} waiting →` : `提醒 ${remaining.length} 位待完成人员 →`}</button>}
           </div>
         )}

@@ -211,3 +211,17 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 .crew-activation-gate button{min-height:48px;padding:0 16px;border:0;border-radius:10px;background:#f4f0dd;color:#283028;cursor:pointer;font-size:10px;font-weight:900}
 .crew-activation-gate a{color:#c6cec3;font-size:8px;font-weight:800;text-align:center;text-decoration:underline;text-underline-offset:3px}
 @media(max-width:620px){.crew-activation-gate{grid-template-columns:1fr;padding:18px;gap:18px}}
+
+/* Carry the social promise through Daily settlement instead of dropping it after play. */
+.crew-result-loop{margin:0 0 14px;padding:15px;display:grid;grid-template-columns:46px minmax(0,1fr) auto;align-items:center;gap:13px;border:1px solid #c8d2c5;border-radius:13px;background:linear-gradient(135deg,#eef5ea,#e5eee2);text-align:left}
+.crew-result-loop.complete{border-color:#91ad92;background:linear-gradient(135deg,#e8f3e4,#d8ead6);box-shadow:0 12px 30px rgba(67,100,69,.1)}
+.crew-result-flame{width:46px;height:46px;display:grid;place-items:center;border-radius:13px;background:#344334;font-size:22px;filter:saturate(.65)}
+.crew-result-loop.complete .crew-result-flame{background:#486249;filter:none}
+.crew-result-loop small,.crew-result-loop b{display:block}
+.crew-result-loop small{color:#667565;font:800 7px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em}
+.crew-result-loop b{margin-top:5px;color:#2e382e;font-size:12px;line-height:1.25}
+.crew-result-loop p{margin:5px 0 0;color:#687168;font-size:8px;line-height:1.45}
+.crew-result-loop>a{min-height:39px;padding:0 13px;display:inline-flex;align-items:center;justify-content:center;border-radius:9px;background:#334034;color:#fff;font-size:8px;font-weight:850;text-decoration:none;white-space:nowrap}
+@media(max-width:620px){.crew-result-loop{grid-template-columns:40px minmax(0,1fr)}.crew-result-flame{width:40px;height:40px}.crew-result-loop>a{grid-column:1/-1;width:100%}}
+.daily-flash-banner>span{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:620px){.daily-flash-banner>span{max-width:calc(100vw - 110px)}}

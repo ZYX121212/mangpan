@@ -14,11 +14,16 @@ export default async function GameModePage({
   searchParams,
 }: {
   mode: GameEntryMode;
-  searchParams?: Promise<{ market?: string; guide?: string }>;
+  searchParams?: Promise<{ market?: string; guide?: string; crew?: string }>;
 }) {
   const params = await searchParams;
   const market: MarketKind = params?.market === "cn" ? "cn" : "us";
   const initialGuide = mode === "practice" && params?.guide === "1";
+  const requestedCrewCode = params?.crew?.trim().toUpperCase();
+  const initialCrewCode =
+    mode === "daily" && requestedCrewCode && /^[A-Z0-9]{8}$/.test(requestedCrewCode)
+      ? requestedCrewCode
+      : undefined;
   const user = await getChatGPTUser();
   const playerId = user ? await opaquePlayerId(user.userId) : undefined;
   const challenge =
@@ -38,6 +43,7 @@ export default async function GameModePage({
       initialIdentity={playerId ? { playerId, cloud: true } : null}
       initialMode={mode}
       initialGuide={initialGuide}
+      initialCrewCode={initialCrewCode}
     />
   );
 }

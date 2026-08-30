@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function DailyPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ market?: string }>;
+  searchParams?: Promise<{ market?: string; crew?: string }>;
 }) {
   return <GameModePage mode="daily" searchParams={searchParams} />;
 }

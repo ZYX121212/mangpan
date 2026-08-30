@@ -36,6 +36,7 @@ import {
 import { buildTradeAnalysis } from "./trade-analysis";
 import { decisionStyleFor, type DecisionStyle } from "./decision-style";
 import { trackActivationEvent } from "./activation-events";
+import type { CrewSummary } from "./crew-service";
 import { Localized, type Locale } from "./i18n";
 import {
   shareSourceLabel,
@@ -1525,6 +1526,7 @@ export default function GameClient({
   initialDuel,
   initialMode = "daily",
   initialGuide = false,
+  initialCrewCode,
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
@@ -1536,6 +1538,7 @@ export default function GameClient({
   };
   initialMode?: "daily" | "practice" | "training";
   initialGuide?: boolean;
+  initialCrewCode?: string;
 }) {
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
@@ -1626,6 +1629,7 @@ export default function GameClient({
   const [duelInviteOpen, setDuelInviteOpen] = useState(false);
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
     [scoreboardOpen, setScoreboardOpen] = useState(false);
+  const [crewResult, setCrewResult] = useState<CrewSummary | null>(null);
   const [boardTab, setBoardTab] = useState<"daily" | "weekly">("daily");
   const [replayLimit, setReplayLimit] = useState(8);
   const [scoreStatus, setScoreStatus] = useState<
@@ -2266,27 +2270,39 @@ export default function GameClient({
     trackActivationEvent(
       playerId,
       "daily_first_move",
-      initialDuel ? "duel" : "direct",
+      initialCrewCode ? "crew" : initialDuel ? "duel" : "direct",
     );
-  }, [actions.length, gameMode, initialDuel, playerId]);
+  }, [actions.length, gameMode, initialCrewCode, initialDuel, playerId]);
 
   useEffect(() => {
     if (!playerId || guidedRunActive || actions.length < 2) return;
     trackActivationEvent(
       playerId,
       gameMode === "daily" ? "daily_second_move" : "practice_second_move",
-      initialDuel ? "duel" : "direct",
+      initialCrewCode ? "crew" : initialDuel ? "duel" : "direct",
     );
-  }, [actions.length, gameMode, guidedRunActive, initialDuel, playerId]);
+  }, [actions.length, gameMode, guidedRunActive, initialCrewCode, initialDuel, playerId]);
 
   useEffect(() => {
     if (!playerId || gameMode !== "daily" || scoreStatus !== "done") return;
     trackActivationEvent(
       playerId,
       "daily_complete",
-      initialDuel ? "duel" : "direct",
+      initialCrewCode ? "crew" : initialDuel ? "duel" : "direct",
     );
-  }, [gameMode, initialDuel, playerId, scoreStatus]);
+  }, [gameMode, initialCrewCode, initialDuel, playerId, scoreStatus]);
+
+  useEffect(() => {
+    if (!initialCrewCode || !playerId || scoreStatus === "loading") return;
+    void fetch(
+      `/api/crews?code=${encodeURIComponent(initialCrewCode)}&playerId=${encodeURIComponent(playerId)}`,
+    )
+      .then((response) => response.json())
+      .then((payload: { crew?: CrewSummary }) => {
+        if (payload.crew?.isMember) setCrewResult(payload.crew);
+      })
+      .catch(() => undefined);
+  }, [initialCrewCode, playerId, scoreStatus]);
 
   useEffect(() => {
     if (
@@ -3493,9 +3509,31 @@ export default function GameClient({
         </div>
       ) : gameMode === "daily" && !activeDuel ? (
         <div className="daily-flash-banner">
-          <span>DAILY MARKET MYSTERY</span>
-          <b>同一张图 · 5 次决策 · 约 90 秒</b>
-          <small>全球玩家同题，股票与日期将在结算后揭晓</small>
+          <span>
+            {initialCrewCode
+              ? crewResult
+                ? `${crewResult.name} · CREW RUN`
+                : "CREW DAILY COMMITMENT"
+              : "DAILY MARKET MYSTERY"}
+          </span>
+          <b>
+            {initialCrewCode
+              ? locale === "en"
+                ? "One hidden chart · your finish counts for the crew"
+                : "一张隐藏行情 · 你的完成将计入小队"
+              : "同一张图 · 5 次决策 · 约 90 秒"}
+          </b>
+          <small>
+            {initialCrewCode
+              ? crewResult
+                ? locale === "en"
+                  ? `${crewResult.completedToday}/${crewResult.memberCount} crew members checked in today`
+                  : `今天已有 ${crewResult.completedToday}/${crewResult.memberCount} 位成员完成`
+                : locale === "en"
+                  ? "Finish five decisions to keep the shared flame alive"
+                  : "完成五次决策，守住共同火焰"
+              : "全球玩家同题，股票与日期将在结算后揭晓"}
+          </small>
           <strong>{session.decisionsUsed}/{dailyDecisionTarget}</strong>
         </div>
       ) : null}
@@ -6061,6 +6099,46 @@ export default function GameClient({
                   <p>完成校验后显示今日排名</p>
                 )}
               </div>
+            )}
+            {gameMode === "daily" && scoreStatus === "done" && initialCrewCode && (
+              <section className={`crew-result-loop ${crewResult?.allDoneToday ? "complete" : "waiting"}`}>
+                <span className="crew-result-flame" aria-hidden="true">🔥</span>
+                <div>
+                  <small>{crewResult?.allDoneToday ? "CREW FLAME EXTENDED" : "CREW CHECK-IN RECORDED"}</small>
+                  <b>
+                    {crewResult
+                      ? crewResult.allDoneToday
+                        ? locale === "en"
+                          ? `Everyone showed up · ${crewResult.currentStreak}-day Crew Streak`
+                          : `全员到齐 · 小队连续 ${crewResult.currentStreak} 天`
+                        : locale === "en"
+                          ? `${crewResult.completedToday}/${crewResult.memberCount} checked in today`
+                          : `今天已有 ${crewResult.completedToday}/${crewResult.memberCount} 人完成`
+                      : locale === "en"
+                        ? "Your daily finish now counts for the crew"
+                        : "今日完成已计入小队"}
+                  </b>
+                  <p>
+                    {crewResult?.allDoneToday
+                      ? locale === "en"
+                        ? "The shared commitment is complete. See the flame you extended together."
+                        : "共同约定已经完成，去看看你们一起延续的火焰。"
+                      : locale === "en"
+                        ? "Your part is done. Return to the crew to see who is still on the way."
+                        : "你已经完成自己的部分，返回小队查看还有谁正在赶来。"}
+                  </p>
+                </div>
+                <Link
+                  href={`/c/${initialCrewCode}`}
+                  onClick={() => {
+                    if (playerId) trackActivationEvent(playerId, "crew_result_return", "crew");
+                  }}
+                >
+                  {crewResult?.allDoneToday
+                    ? locale === "en" ? "See the crew flame →" : "查看共同火焰 →"
+                    : locale === "en" ? "Return to my crew →" : "返回我的小队 →"}
+                </Link>
+              </section>
             )}
             {gameMode === "daily" ? (
               <div className="profile-card decision-style-card">

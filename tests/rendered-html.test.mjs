@@ -682,7 +682,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(gameModePage, /initialMode=\{mode\}/);
   assert.match(gameModePage, /params\?\.guide === "1"/);
   assert.match(gameModePage, /initialGuide=\{initialGuide\}/);
+  assert.match(gameModePage, /\^\[A-Z0-9\]\{8\}\$/);
+  assert.match(gameModePage, /initialCrewCode=\{initialCrewCode\}/);
   assert.match(dailyPage, /mode="daily"/);
+  assert.match(dailyPage, /crew\?: string/);
   assert.match(practicePage, /mode="practice"/);
   assert.match(trainingPage, /mode="training"/);
   assert.match(duelLobby, /location\.assign\(`\/d\//);
@@ -696,9 +699,17 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(crewRoom, /crew\.memberCount === 1/);
   assert.match(crewRoom, /crew_first_invite_share/);
   assert.match(crewRoom, /crew_invite_share/);
+  assert.match(crewRoom, /&crew=\$\{crew\.code\}/);
+  assert.match(page, /crew-result-loop/);
+  assert.match(page, /CREW DAILY COMMITMENT/);
+  assert.match(page, /CREW CHECK-IN RECORDED/);
+  assert.match(page, /crew_result_return/);
   assert.match(activationRoute, /crew_first_invite_share/);
   assert.match(activationClient, /crew_first_invite_share/);
+  assert.match(activationRoute, /crew_result_return/);
+  assert.match(activationClient, /crew_result_return/);
   assert.match(styles, /\.crew-activation-gate/);
+  assert.match(styles, /\.crew-result-loop/);
   assert.match(crewRoute, /opengraph-image/);
   assert.match(crewApi, /createCrew/);
   assert.match(crewApi, /joinCrew/);

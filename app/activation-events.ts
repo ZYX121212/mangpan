@@ -14,7 +14,8 @@ export type ActivationEventType =
   | "crew_join"
   | "crew_first_invite_share"
   | "crew_invite_share"
-  | "crew_daily_checkin";
+  | "crew_daily_checkin"
+  | "crew_result_return";
 export type ActivationSource = "lobby" | "direct" | "duel" | "crew";
 
 export function trackActivationEvent(

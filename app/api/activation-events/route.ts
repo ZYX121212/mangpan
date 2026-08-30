@@ -18,7 +18,8 @@ export type ActivationEventType =
   | "crew_join"
   | "crew_first_invite_share"
   | "crew_invite_share"
-  | "crew_daily_checkin";
+  | "crew_daily_checkin"
+  | "crew_result_return";
 export type ActivationSource = "lobby" | "direct" | "duel" | "crew";
 
 const EVENT_TYPES = new Set<ActivationEventType>([
@@ -38,6 +39,7 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "crew_first_invite_share",
   "crew_invite_share",
   "crew_daily_checkin",
+  "crew_result_return",
 ]);
 const SOURCES = new Set<ActivationSource>(["lobby", "direct", "duel", "crew"]);
 const headers = { "cache-control": "no-store" };
