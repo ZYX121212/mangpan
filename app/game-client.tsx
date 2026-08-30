@@ -1587,9 +1587,6 @@ export default function GameClient({
   const [crowdHistory, setCrowdHistory] = useState<CrowdForecast[]>(
     initialChallenge.crowdForecasts ?? [],
   );
-  const [modeHubOpen, setModeHubOpen] = useState(false);
-  const [firstVisit, setFirstVisit] = useState(false);
-  const [showAllModes, setShowAllModes] = useState(false);
   const [onboardingStep, setOnboardingStep] =
     useState<OnboardingStep>(0);
   const [guidedRunActive, setGuidedRunActive] = useState(initialGuide);
@@ -1626,7 +1623,6 @@ export default function GameClient({
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
     [duelCode, setDuelCode] = useState("");
-  const [duelJoinInput, setDuelJoinInput] = useState("");
   const [duelInviteOpen, setDuelInviteOpen] = useState(false);
   const [duelGuidePending, setDuelGuidePending] = useState(false);
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
@@ -1684,7 +1680,7 @@ export default function GameClient({
     return () => window.clearInterval(timer);
   }, [market]);
   useEffect(() => {
-    if (!onboardingStep || modeHubOpen) return;
+    if (!onboardingStep) return;
     const frame = window.requestAnimationFrame(() => {
       const selector =
         onboardingStep === 1
@@ -1700,7 +1696,7 @@ export default function GameClient({
       });
     });
     return () => window.cancelAnimationFrame(frame);
-  }, [modeHubOpen, onboardingStep]);
+  }, [onboardingStep]);
   useEffect(() => {
     if (!decisionRevealOpen) return;
     const timer = window.setTimeout(() => setDecisionRevealOpen(false), 5600);
@@ -2172,12 +2168,7 @@ export default function GameClient({
     const challenger = initialDuel?.code || params.get("duel") || "";
     const duelDate = initialDuel?.date || params.get("date");
     queueMicrotask(() => {
-      setFirstVisit(!onboardingComplete && !challenger);
-      setShowAllModes(onboardingComplete || Boolean(challenger));
-      setModeHubOpen(false);
       if (initialGuide) {
-        setFirstVisit(true);
-        setShowAllModes(false);
         setRecordView(true);
         setRevealDays(3);
         setOnboardingStep(1);
@@ -2187,10 +2178,8 @@ export default function GameClient({
         /^[A-Z0-9]{8,12}$/i.test(challenger)
       ) {
         setDuelCode(challenger.toUpperCase());
-        setDuelJoinInput(challenger.toUpperCase());
         setDuelGuidePending(!onboardingComplete);
         setDuelInviteOpen(true);
-        setModeHubOpen(false);
       }
       setPlayerId(id);
       setNickname(storedNickname);
@@ -2653,38 +2642,8 @@ export default function GameClient({
     );
   };
 
-  const chooseMode = async (nextMode: "daily" | "practice" | "training") => {
-    if (
-      nextMode !== "training" &&
-      nextMode !== gameMode &&
-      actions.length > 0 &&
-      !finished &&
-      !window.confirm(
-        locale === "en"
-          ? "Leave this run and switch modes? Your current run will not be scored."
-          : "离开当前对局并切换模式？本局将不会计入成绩。",
-      )
-    )
-      return;
-    if (nextMode === "training") {
-      setModeHubOpen(false);
-      setTrainingOpen(true);
-      return;
-    }
-    setModeHubOpen(false);
-    if (nextMode === gameMode && !finished) return;
-    setDuelCode("");
-    history.replaceState(
-      null,
-      "",
-      location.pathname.startsWith("/d/") ? "/" : location.pathname,
-    );
-    await resetGame(nextMode, market, "random", "standard");
-  };
-
   const completeOnboarding = () => {
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "complete");
-    setFirstVisit(false);
     setOnboardingStep(0);
     setGuidedRunActive(false);
     const params = new URLSearchParams(location.search);
@@ -2696,14 +2655,6 @@ export default function GameClient({
         `${location.pathname}${params.size ? `?${params}` : ""}`,
       );
     }
-  };
-
-  const startGuidedChart = async () => {
-    setRevealDays(3);
-    setRecordView(true);
-    setOnboardingStep(1);
-    setGuidedRunActive(true);
-    await chooseMode("practice");
   };
 
   const enterDailyAfterGuide = async () => {
@@ -2722,25 +2673,9 @@ export default function GameClient({
     setGuidedRunActive(true);
   };
 
-  const joinDuel = async () => {
-    const code = duelJoinInput.trim().toUpperCase();
-    if (!/^[A-Z0-9]{8,12}$/.test(code)) return;
-    setDuelCode(code);
-    setDuelInviteOpen(true);
-    setModeHubOpen(false);
-    history.replaceState(
-      null,
-      "",
-      `/d/${encodeURIComponent(code)}`,
-    );
-    if (gameMode !== "daily" || finished)
-      await resetGame("daily", market, "random", "standard");
-  };
-
   const leaveDuel = () => {
     setDuelInviteOpen(false);
     setDuelCode("");
-    setDuelJoinInput("");
     setScoreboard((value) =>
       value ? { ...value, opponent: null, duelCode: null } : value,
     );
@@ -4722,224 +4657,6 @@ export default function GameClient({
           </dialog>
         )}
 
-      {modeHubOpen && (
-        <dialog open className="modal-backdrop mode-hub-backdrop">
-          <section className="mode-hub">
-            <header className="mode-hub-head">
-              <div>
-                <small>BLIND TRADING · GAME MODES</small>
-                <h1>
-                  {firstVisit && !showAllModes
-                    ? locale === "en"
-                      ? "Make your first market call"
-                      : "完成你的第一次市场判断"
-                    : locale === "en"
-                      ? "Choose one way to play"
-                      : "选择一种玩法"}
-                </h1>
-                <p>
-                  {firstVisit && !showAllModes
-                    ? locale === "en"
-                      ? "Learn the complete game loop on one real chart. No account, no ranking, no lecture."
-                      : "用一张真实历史图学会完整循环：无需注册、不计排名，也没有大段说明。"
-                    : locale === "en"
-                      ? "Each mode has one clear purpose. Switch anytime from the Mode button."
-                      : "每种模式只解决一个目标，可随时从顶部“模式”按钮切换。"}
-                </p>
-              </div>
-              <button
-                className="mode-hub-close"
-                onClick={() => setModeHubOpen(false)}
-                aria-label={locale === "en" ? "Close mode menu" : "关闭模式菜单"}
-              >
-                ×
-              </button>
-            </header>
-            {firstVisit && !showAllModes && (
-              <section className="guided-start-card">
-                <div className="guided-start-copy">
-                  <small>60-SECOND GUIDED RUN</small>
-                  <h2>
-                    {locale === "en"
-                      ? "Read it. Call it. Reveal it."
-                      : "读图、判断、揭示。"}
-                  </h2>
-                  <p>
-                    {locale === "en"
-                      ? "You will make one forecast and reveal what really happened next. The chart is historical, the ticker stays hidden, and the run is unranked."
-                      : "你将做出一次判断，再揭示真实后续走势。行情来自真实历史，股票身份保持隐藏，本局不计排名。"}
-                  </p>
-                  <div className="guided-start-steps">
-                    <span><i>1</i>{locale === "en" ? "Read the chart" : "观察图表"}</span>
-                    <span><i>2</i>{locale === "en" ? "Lock your view" : "锁定判断"}</span>
-                    <span><i>3</i>{locale === "en" ? "Reveal reality" : "揭示真实走势"}</span>
-                  </div>
-                </div>
-                <div className="guided-start-actions">
-                  <button
-                    className="guided-start-primary"
-                    disabled={challengeLoading}
-                    onClick={() => void startGuidedChart()}
-                  >
-                    {challengeLoading
-                      ? locale === "en"
-                        ? "Loading a real chart…"
-                        : "正在加载真实行情…"
-                      : locale === "en"
-                        ? "Start my first chart →"
-                        : "开始首次引导局 →"}
-                  </button>
-                  <button
-                    className="guided-start-skip"
-                    onClick={() => {
-                      completeOnboarding();
-                      setShowAllModes(true);
-                    }}
-                  >
-                    {locale === "en" ? "I already know how to play" : "我已经会玩了"}
-                  </button>
-                </div>
-              </section>
-            )}
-            {(showAllModes || !firstVisit) && <div className="mode-card-grid">
-              <button
-                className="mode-card featured"
-                disabled={challengeLoading}
-                onClick={() => void chooseMode("daily")}
-              >
-                <span>01</span>
-                <small>{locale === "en" ? "THE GLOBAL PUZZLE" : "全球同题"}</small>
-                <h2>{locale === "en" ? "Daily Challenge" : "每日挑战"}</h2>
-                <p>
-                  {locale === "en"
-                    ? "Five decisions on the same mystery chart as everyone else. Lock first, then see the global crowd."
-                    : "所有玩家面对同一张神秘图，完成五次决策；先锁定观点，再看全球共识。"}
-                </p>
-                <div className="mode-daily-status">
-                  <span>
-                    <small>{locale === "en" ? "YOUR STREAK" : "连续挑战"}</small>
-                    <b>
-                      {currentStreak
-                        ? `🔥 ${currentStreak} ${locale === "en" ? (currentStreak === 1 ? "day" : "days") : "天"}`
-                        : locale === "en"
-                          ? "Start today"
-                          : "今天开始"}
-                    </b>
-                  </span>
-                  <span>
-                    <small>
-                      {locale === "en" ? "NEXT" : "下一题"} · {marketResetLabel}
-                    </small>
-                    <b>{dailyCountdown}</b>
-                  </span>
-                </div>
-                <i>{locale === "en" ? "Play today's chart →" : "开始今日同题 →"}</i>
-              </button>
-              <button
-                className="mode-card"
-                disabled={challengeLoading}
-                onClick={() => void chooseMode("practice")}
-              >
-                <span>02</span>
-                <small>{locale === "en" ? "NO PRESSURE" : "自由探索"}</small>
-                <h2>{locale === "en" ? "Endless Practice" : "无限练习"}</h2>
-                <p>
-                  {locale === "en"
-                    ? "Explore random real charts at your own pace. Change stocks or stop whenever you want."
-                    : "按自己的节奏探索随机真实行情，随时换股或结束，不进入每日排名。"}
-                </p>
-                <strong>
-                  {locale === "en" ? "Unlimited · unranked" : "不限次数 · 不排名"}
-                </strong>
-                <i>{locale === "en" ? "Start practicing →" : "进入自由练习 →"}</i>
-              </button>
-              <button
-                className="mode-card"
-                onClick={() => void chooseMode("training")}
-              >
-                <span>03</span>
-                <small>{locale === "en" ? "BUILD A SKILL" : "专项提升"}</small>
-                <h2>{locale === "en" ? "Training Lab" : "训练学院"}</h2>
-                <p>
-                  {locale === "en"
-                    ? "Pattern quizzes and focused lessons for trends, reversals, crashes, and volatile markets."
-                    : "用形态盲测与专项课程训练趋势、拐点、急跌和高波动行情。"}
-                </p>
-                <strong>
-                  {locale === "en" ? "12 lessons · adaptive review" : "12 课 · 错因重练"}
-                </strong>
-                <i>{locale === "en" ? "Choose a lesson →" : "选择训练课程 →"}</i>
-              </button>
-              <article className="mode-card duel-mode-card">
-                <span>04</span>
-                <small>
-                  {locale === "en" ? "SAME CHART, TWO READS" : "同图不同判断"}
-                </small>
-                <h2>{locale === "en" ? "Friend Duel" : "好友对决"}</h2>
-                <p>
-                  {locale === "en"
-                    ? "Open a friend's invite link or enter their code. Both of you get the exact same chart."
-                    : "打开好友邀请链接或输入挑战码；双方看到完全相同的历史行情。"}
-                </p>
-                <div className="duel-join-row">
-                  <input
-                    value={duelJoinInput}
-                    maxLength={12}
-                    autoCapitalize="characters"
-                    spellCheck={false}
-                    placeholder={locale === "en" ? "INVITE CODE" : "输入挑战码"}
-                    aria-label={locale === "en" ? "Friend invite code" : "好友挑战码"}
-                    onChange={(event) =>
-                      setDuelJoinInput(
-                        event.target.value
-                          .toUpperCase()
-                          .replace(/[^A-Z0-9]/g, ""),
-                      )
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") void joinDuel();
-                    }}
-                  />
-                  <button
-                    disabled={!/^[A-Z0-9]{8,12}$/.test(duelJoinInput)}
-                    onClick={() => void joinDuel()}
-                  >
-                    {locale === "en" ? "Join" : "加入"}
-                  </button>
-                </div>
-                <strong>
-                  {locale === "en"
-                    ? "No sign-up · verified scores"
-                    : "无需注册 · 服务器复算"}
-                </strong>
-              </article>
-            </div>}
-            <footer className="mode-hub-footer">
-              {firstVisit && !showAllModes && (
-                <button onClick={() => setShowAllModes(true)}>
-                  {locale === "en" ? "Browse all game modes" : "浏览全部游戏模式"}
-                </button>
-              )}
-              <button
-                onClick={() => {
-                  setModeHubOpen(false);
-                  setScoreboardOpen(true);
-                }}
-              >
-                {locale === "en" ? "Leaderboard & profile" : "排行榜与个人档案"}
-              </button>
-              <button
-                onClick={() => {
-                  setModeHubOpen(false);
-                  setRulesOpen(true);
-                }}
-              >
-                {locale === "en" ? "How to play" : "查看游戏规则"}
-              </button>
-            </footer>
-          </section>
-        </dialog>
-      )}
 
       {trainingOpen && (
         <dialog

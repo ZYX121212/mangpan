@@ -120,19 +120,9 @@ test("contains the complete blind chart game shell", async () => {
     /setTimeout\(\(\) => setDecisionRevealOpen\(false\), 5600\)/,
   );
   assert.match(page, /advanced\.crowdForecast/);
-  assert.match(page, /Choose one way to play/);
-  assert.match(page, /Daily Challenge/);
-  assert.match(page, /Endless Practice/);
-  assert.match(page, /Training Lab/);
-  assert.match(page, /Friend Duel/);
-  assert.match(page, /mode-card-grid/);
   assert.match(page, /mangpan-guided-first-chart-v1/);
   assert.match(page, /useState\(false\)/);
   assert.match(page, /mangpan-active-session-us/);
-  assert.match(page, /60-SECOND GUIDED RUN/);
-  assert.match(page, /guided-start-card/);
-  assert.match(page, /startGuidedChart/);
-  assert.match(page, /await chooseMode\("practice"\)/);
   assert.match(page, /GUIDED FIRST CHART/);
   assert.match(page, /onboardingStep === 1/);
   assert.match(page, /onboardingStep === 2/);
@@ -140,10 +130,6 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /scrollIntoView/);
   assert.match(page, /enterDailyAfterGuide/);
   assert.match(page, /Play today's global challenge/);
-  assert.match(page, /duelJoinInput/);
-  assert.match(page, /chooseMode\("daily"\)/);
-  assert.match(page, /chooseMode\("practice"\)/);
-  assert.match(page, /chooseMode\("training"\)/);
   assert.match(page, /marketCountdown\(initialChallenge\.market\)/);
   assert.match(page, /marketCountdown\(market\)/);
   assert.match(page, /marketDate\(market\)/);
@@ -165,7 +151,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /install-return-card/);
   assert.match(page, /KEEP YOUR STREAK CLOSE/);
   assert.match(page, /Add to home screen/);
-  assert.match(page, /mode-daily-status/);
+  assert.doesNotMatch(page, /modeHubOpen|mode-card-grid|chooseMode|duelJoinInput/);
   assert.match(page, /YOU VS THE CROWD/);
   assert.match(page, /crowd-result-card/);
   assert.match(page, /crowdComparison\.beatCrowd/);
@@ -411,7 +397,7 @@ test("keeps the English launch surface free of uncovered static Chinese copy", a
 });
 
 test("gives every friend duel a personalized, spoiler-free route", async () => {
-  const [page, duelPage, duelImage, duelInvites, styles] = await Promise.all([
+  const [page, duelPage, duelImage, duelInvites, duelLobby, styles] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/d/[code]/page.tsx", import.meta.url), "utf8"),
     readFile(
@@ -419,6 +405,7 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
       "utf8",
     ),
     readFile(new URL("../app/duel-invites.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/duel/duel-lobby.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(
@@ -427,7 +414,7 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   );
   assert.match(page, /initialDuel\?\.code \|\| params\.get\("duel"\)/);
   assert.match(page, /`\$\{location\.origin\}\/d\//);
-  assert.match(page, /`\/d\/\$\{encodeURIComponent\(code\)\}`/);
+  assert.match(duelLobby, /location\.assign\(`\/d\//);
   assert.doesNotMatch(page, /shareUrl = .*\?duel=/);
   assert.match(duelPage, /generateMetadata/);
   assert.match(duelPage, /scored \$\{invite\.targetScore\}\. Can you beat it\?/);
@@ -676,6 +663,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /Play one chart/);
   assert.match(modeLobby, /trackActivationEvent\(id, "lobby_view", "lobby"\)/);
   assert.match(modeLobby, /"guide_start", "lobby"/);
+  assert.match(modeLobby, /mode-lobby-grid/);
+  assert.doesNotMatch(page, /guided-start-card|mode-hub-backdrop/);
   assert.match(gameModePage, /marketDate\(market\)/);
   assert.match(gameModePage, /startDailySession/);
   assert.match(gameModePage, /startPracticeSession/);
@@ -851,7 +840,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(styles, /\.trade-panel>\*\{flex-shrink:0\}/);
   assert.match(styles, /\.probability-contract\{flex:0 0 auto\}/);
-  assert.match(styles, /\.guided-start-card/);
+  assert.doesNotMatch(styles, /\.guided-start-card|\.mode-hub|\.mode-card-grid/);
   assert.match(styles, /\.first-play-actions/);
   assert.match(styles, /\.first-run-coach/);
   assert.match(styles, /\.decision-reveal-card/);
