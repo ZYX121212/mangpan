@@ -284,6 +284,31 @@ test("keeps the English launch surface free of uncovered static Chinese copy", a
   assert.match(i18n, /Up \/ Range \/ Down Probabilities × Realized Move/);
 });
 
+test("gives every friend duel a personalized, spoiler-free route", async () => {
+  const [page, duelPage, duelInvites, styles] = await Promise.all([
+    readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/d/[code]/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/duel-invites.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /initialDuel\?: \{ code: string; date: string \}/);
+  assert.match(page, /initialDuel\?\.code \|\| params\.get\("duel"\)/);
+  assert.match(page, /shareUrl = `\$\{location\.origin\}\/d\//);
+  assert.match(page, /`\/d\/\$\{encodeURIComponent\(code\)\}`/);
+  assert.doesNotMatch(page, /shareUrl = .*\?duel=/);
+  assert.match(duelPage, /generateMetadata/);
+  assert.match(duelPage, /scored \$\{invite\.targetScore\}\. Can you beat it\?/);
+  assert.match(duelPage, /No ticker, no future, no sign-up/);
+  assert.match(duelPage, /images: \[\]/);
+  assert.match(duelPage, /robots: \{ index: false, follow: false \}/);
+  assert.match(duelPage, /initialDuel=\{\{ code: invite\.code, date: invite\.date \}\}/);
+  assert.match(duelPage, /CHALLENGE EXPIRED/);
+  assert.match(duelInvites, /duelChallenges\.code/);
+  assert.match(duelInvites, /dailyScores\.challengeDate/);
+  assert.match(duelInvites, /challengerNickname: score\.nickname/);
+  assert.match(styles, /\.duel-route-state/);
+});
+
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
   const [
     page,
@@ -433,7 +458,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /share-anywhere-v18/);
+  assert.match(config, /identifies puzzle generation and scoring compatibility/);
+  assert.match(config, /duel-landing-v17/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);

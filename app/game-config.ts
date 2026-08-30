@@ -1,5 +1,7 @@
 export const INITIAL_CASH = 1_000_000;
-export const GAME_VERSION = "share-anywhere-v18";
+// This identifies puzzle generation and scoring compatibility, not UI releases.
+// Keep it stable unless market selection, candle generation, or scoring changes.
+export const GAME_VERSION = "duel-landing-v17";
 export const INITIAL_BARS = 120;
 export const MIN_FUTURE_BARS = 60;
 export const MIN_GAME_BARS = INITIAL_BARS + MIN_FUTURE_BARS;

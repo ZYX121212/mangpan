@@ -1315,9 +1315,11 @@ function CandleChart({
 export default function GameClient({
   initialChallenge,
   initialIdentity,
+  initialDuel,
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
+  initialDuel?: { code: string; date: string };
 }) {
   const today = initialChallenge.date;
   const [locale, setLocale] = useState<Locale>("en");
@@ -1838,16 +1840,18 @@ export default function GameClient({
       storedProgress = {};
     }
     const params = new URLSearchParams(location.search);
-    const challenger = params.get("duel") || "";
+    const challenger = initialDuel?.code || params.get("duel") || "";
+    const duelDate = initialDuel?.date || params.get("date");
     queueMicrotask(() => {
       setFirstVisit(!onboardingComplete && !challenger);
       setShowAllModes(onboardingComplete || Boolean(challenger));
       setModeHubOpen(!onboardingComplete && !challenger);
       if (
-        params.get("date") === today &&
+        duelDate === today &&
         /^[A-Z0-9]{8,12}$/i.test(challenger)
       ) {
         setDuelCode(challenger.toUpperCase());
+        setDuelJoinInput(challenger.toUpperCase());
         setDuelInviteOpen(true);
         setModeHubOpen(false);
       }
@@ -1855,7 +1859,7 @@ export default function GameClient({
       setNickname(storedNickname);
       setScenarioProgress(storedProgress);
     });
-  }, [initialIdentity, today]);
+  }, [initialDuel?.code, initialDuel?.date, initialIdentity, today]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -2135,7 +2139,11 @@ export default function GameClient({
       resetSession(loadedSession);
       setTrainingOpen(false);
       setDuelCode("");
-      history.replaceState(null, "", location.pathname);
+      history.replaceState(
+        null,
+        "",
+        location.pathname.startsWith("/d/") ? "/" : location.pathname,
+      );
     } finally {
       setChallengeLoading(false);
     }
@@ -2145,7 +2153,11 @@ export default function GameClient({
     if (nextMarket === market || challengeLoading || isRevealing) return;
     setDuelCode("");
     void resetGame(gameMode, nextMarket, session.scenario, session.difficulty);
-    history.replaceState(null, "", location.pathname);
+    history.replaceState(
+      null,
+      "",
+      location.pathname.startsWith("/d/") ? "/" : location.pathname,
+    );
   };
 
   const chooseMode = async (nextMode: "daily" | "practice" | "training") => {
@@ -2169,7 +2181,11 @@ export default function GameClient({
     setModeHubOpen(false);
     if (nextMode === gameMode && !finished) return;
     setDuelCode("");
-    history.replaceState(null, "", location.pathname);
+    history.replaceState(
+      null,
+      "",
+      location.pathname.startsWith("/d/") ? "/" : location.pathname,
+    );
     await resetGame(nextMode, market, "random", "standard");
   };
 
@@ -2200,7 +2216,7 @@ export default function GameClient({
     history.replaceState(
       null,
       "",
-      `${location.pathname}?duel=${encodeURIComponent(code)}&date=${today}&market=${market}`,
+      `/d/${encodeURIComponent(code)}`,
     );
     if (gameMode !== "daily" || finished)
       await resetGame("daily", market, "random", "standard");
@@ -2213,7 +2229,7 @@ export default function GameClient({
     setScoreboard((value) =>
       value ? { ...value, opponent: null, duelCode: null } : value,
     );
-    history.replaceState(null, "", location.pathname);
+    history.replaceState(null, "", "/");
   };
 
   const startQuiz = async (focus?: QuizScenario) => {
@@ -2532,7 +2548,7 @@ export default function GameClient({
         });
         if (!response.ok) throw new Error("duel unavailable");
         const duel = (await response.json()) as { code: string };
-        shareUrl = `${location.origin}${location.pathname}?duel=${encodeURIComponent(duel.code)}&date=${today}&market=${market}`;
+        shareUrl = `${location.origin}/d/${encodeURIComponent(duel.code)}`;
       }
       const image = await createResultShareCard({
         locale,
