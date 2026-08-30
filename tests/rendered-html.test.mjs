@@ -212,7 +212,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /realistic-execution-v7/);
+  assert.match(config, /realistic-execution-v8/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
   assert.match(config, /gross \* 0\.0000206/);
