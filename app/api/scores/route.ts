@@ -1,8 +1,9 @@
-import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, like, lt, or, sql } from "drizzle-orm";
 import { ensureDatabase, getD1Database, getDb } from "../../../db";
 import {
   dailyScores,
   duelChallenges,
+  duelEvents,
   duelResponses,
   players,
   weeklyRewards,
@@ -38,7 +39,10 @@ type ScoreRow = typeof dailyScores.$inferSelect;
 
 type DuelRoom = {
   isHost: boolean;
+  viewCount: number;
+  startCount: number;
   responseCount: number;
+  shareCount: number;
   bestNickname: string | null;
   bestScore: number | null;
   rematchCount: number;
@@ -613,6 +617,7 @@ async function resolveDuelContext(
     sourceRows,
     [respondent],
     [{ rematchCount }],
+    [eventFunnel],
     shareRoom,
   ] = await Promise.all([
     db
@@ -650,6 +655,14 @@ async function resolveDuelContext(
       .select({ rematchCount: count() })
       .from(duelChallenges)
       .where(eq(duelChallenges.parentCode, duel.code)),
+    db
+      .select({
+        viewCount: sql<number>`COUNT(DISTINCT CASE WHEN ${duelEvents.eventType} = 'view' AND ${duelEvents.playerId} <> ${duel.challengerPlayerId} THEN ${duelEvents.playerId} END)`,
+        startCount: sql<number>`COUNT(DISTINCT CASE WHEN ${duelEvents.eventType} = 'start' AND ${duelEvents.playerId} <> ${duel.challengerPlayerId} THEN ${duelEvents.playerId} END)`,
+        shareCount: sql<number>`COUNT(CASE WHEN ${duelEvents.eventType} = 'share' THEN 1 END)`,
+      })
+      .from(duelEvents)
+      .where(eq(duelEvents.duelCode, duel.code)),
     playerId
       ? findPlayerDuelRoom(playerId, duel.challengeId)
       : Promise.resolve(null),
@@ -699,7 +712,10 @@ async function resolveDuelContext(
     shareDuel: shareRoom ? publicShareDuelRoom(shareRoom) : null,
     room: {
       isHost,
+      viewCount: Number(eventFunnel?.viewCount ?? 0),
+      startCount: Number(eventFunnel?.startCount ?? 0),
       responseCount: total,
+      shareCount: Number(eventFunnel?.shareCount ?? 0),
       bestNickname: best?.nickname ?? null,
       bestScore: best?.score ?? null,
       rematchCount,

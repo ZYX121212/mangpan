@@ -468,6 +468,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     challengeRoute,
     quizRoute,
     duelRoute,
+    duelEventRoute,
     duelService,
     identity,
     sessions,
@@ -494,6 +495,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     duelIndexMigration,
     cascadeMigration,
     duelMetricsMigration,
+    duelEventsMigration,
+    privacy,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -507,6 +510,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     readFile(new URL("../app/api/challenge/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/quiz/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/duels/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/duel-events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/duel-service.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/request-identity.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/challenge-sessions.ts", import.meta.url), "utf8"),
@@ -572,6 +576,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
       new URL("../drizzle/0016_wild_edwin_jarvis.sql", import.meta.url),
       "utf8",
     ),
+    readFile(
+      new URL("../drizzle/0017_glossy_madrox.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8"),
   ]);
 
   assert.match(page, /ticker-mask/);
@@ -649,6 +658,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /resolveDuelContext/);
   assert.match(scoreRoute, /responseCount/);
   assert.match(scoreRoute, /rematchCount/);
+  assert.match(scoreRoute, /viewCount/);
+  assert.match(scoreRoute, /startCount/);
+  assert.match(scoreRoute, /shareCount/);
+  assert.match(scoreRoute, /COUNT\(DISTINCT CASE WHEN/);
+  assert.match(scoreRoute, /duelEvents\.playerId[^\n]*<>/);
   assert.match(scoreRoute, /duelRoom: duelRoom \?\? null/);
   assert.match(scoreRoute, /payload\.duelCode/);
   assert.match(scoreRoute, /normalizeShareSource\(payload\.duelSource\)/);
@@ -707,6 +721,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /dailyProgress/);
   assert.match(schema, /duelChallenges/);
   assert.match(schema, /duelResponses/);
+  assert.match(schema, /duelEvents/);
+  assert.match(schema, /duel_events_room_player_event_source_unique/);
+  assert.match(schema, /duel_events_room_event_idx/);
   assert.match(schema, /source: text\("source"\)\.notNull\(\)\.default\("direct"\)/);
   assert.match(schema, /returnRate: real\("return_rate"\)\.notNull\(\)\.default\(0\)/);
   assert.match(schema, /weeklyRewards/);
@@ -731,6 +748,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.duel-invite-card/);
   assert.match(styles, /\.duel-target-score/);
   assert.match(styles, /\.duel-room-stats/);
+  assert.match(styles, /\.duel-room-funnel/);
   assert.match(styles, /\.result-share-kit/);
   assert.match(styles, /\.streak-week footer/);
   assert.match(styles, /\.career-freeze-card/);
@@ -831,7 +849,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelMetricsMigration, /ADD `target_return_rate`/);
   assert.match(duelMetricsMigration, /ADD `target_max_drawdown`/);
   assert.match(duelMetricsMigration, /UPDATE `duel_challenges`/);
+  assert.match(duelEventsMigration, /CREATE TABLE `duel_events`/);
+  assert.match(duelEventsMigration, /duel_events_room_player_event_source_unique/);
+  assert.match(duelEventsMigration, /duel_events_room_event_idx/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_responses/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS duel_events/);
   assert.match(database, /PRAGMA table_info\(duel_challenges\)/);
   assert.match(database, /ALTER TABLE duel_challenges ADD COLUMN challenge_id/);
   assert.match(database, /focused-daily-v18/);
@@ -843,6 +865,18 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(database, /ALTER TABLE duel_responses ADD COLUMN source/);
   assert.match(database, /ALTER TABLE duel_responses ADD COLUMN return_rate/);
   assert.match(database, /PRAGMA optimize/);
+  assert.match(duelEventRoute, /EVENT_TYPES/);
+  assert.match(duelEventRoute, /requestPlayerId/);
+  assert.match(duelEventRoute, /\.onConflictDoNothing\(\{/);
+  assert.match(duelEventRoute, /duelEvents\.eventType/);
+  assert.match(page, /keepalive: true/);
+  assert.match(page, /trackDuelEvent/);
+  assert.match(page, /recordDuelShare\("x"\)/);
+  assert.match(page, /recordDuelShare\("whatsapp"\)/);
+  assert.match(page, /recordDuelShare\("telegram"\)/);
+  assert.match(page, /CHALLENGE JOURNEY/);
+  assert.match(privacy, /device fingerprints/);
+  assert.match(privacy, /third-party advertising trackers/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);

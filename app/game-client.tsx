@@ -46,6 +46,21 @@ import {
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
 
+function trackDuelEvent(
+  code: string,
+  playerId: string,
+  eventType: "view" | "start" | "share",
+  source: ShareSource,
+) {
+  if (!code || !playerId) return;
+  void fetch("/api/duel-events", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code, playerId, eventType, source }),
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
 type GameMode = "daily" | "practice";
@@ -149,7 +164,10 @@ type Scoreboard = {
   };
   duelRoom: null | {
     isHost: boolean;
+    viewCount: number;
+    startCount: number;
     responseCount: number;
+    shareCount: number;
     bestNickname: string | null;
     bestScore: number | null;
     rematchCount: number;
@@ -1981,6 +1999,26 @@ export default function GameClient({
   }, [duelCode, market, playerId, today]);
 
   useEffect(() => {
+    if (!playerId || !initialDuel?.code) return;
+    trackDuelEvent(
+      initialDuel.code,
+      playerId,
+      "view",
+      initialDuel.source,
+    );
+  }, [initialDuel?.code, initialDuel?.source, playerId]);
+
+  useEffect(() => {
+    if (!playerId || !initialDuel?.code || !actions.length) return;
+    trackDuelEvent(
+      initialDuel.code,
+      playerId,
+      "start",
+      initialDuel.source,
+    );
+  }, [actions.length, initialDuel?.code, initialDuel?.source, playerId]);
+
+  useEffect(() => {
     if (
       !playerId ||
       !finished ||
@@ -2722,6 +2760,12 @@ export default function GameClient({
     );
   };
 
+  const recordDuelShare = (channel: ShareChannel) => {
+    const shareCode = scoreboard?.shareDuel?.code ?? duelCode;
+    if (shareCode && playerId)
+      trackDuelEvent(shareCode, playerId, "share", channel);
+  };
+
   const shareResult = async (channel: "native" | "copy") => {
     const { text, title } = resultShareCopy();
     let shareUrl = location.href;
@@ -2750,11 +2794,13 @@ export default function GameClient({
     try {
       if (channel === "native" && navigator.share) {
         await navigator.share({ title, text, url: taggedUrl });
+        recordDuelShare("native");
         setShareStatus(
           locale === "en" ? "Challenge sent" : "挑战已发出",
         );
       } else {
         await navigator.clipboard.writeText(`${text}\n${taggedUrl}`);
+        recordDuelShare("copy");
         setShareStatus(
           locale === "en" ? "Challenge link copied" : "挑战链接已复制",
         );
@@ -2846,12 +2892,20 @@ export default function GameClient({
         : `${responses ? `已有 ${responses} 位好友完成。` : ""}同一张隐藏行情，五次决策。你能超过 ${scoreboard.playerScore.score} 分吗？`;
     try {
       if (navigator.share) {
-        await navigator.share({ title, text, url: shareUrl });
+        await navigator.share({
+          title,
+          text,
+          url: taggedChallengeUrl(shareUrl, "native"),
+        });
+        recordDuelShare("native");
         setDuelRoomShareStatus(
           locale === "en" ? "Duel shared" : "擂台已分享",
         );
       } else {
-        await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
+        await navigator.clipboard.writeText(
+          `${text}\n${taggedChallengeUrl(shareUrl, "copy")}`,
+        );
+        recordDuelShare("copy");
         setDuelRoomShareStatus(
           locale === "en" ? "Duel link copied" : "擂台链接已复制",
         );
@@ -3972,16 +4026,12 @@ export default function GameClient({
                       <b>{scoreboard.playerScore.score}</b>
                     </article>
                     <article>
-                      <small>{locale === "en" ? "RESPONSES" : "完成应战"}</small>
-                      <b>{scoreboard.duelRoom.responseCount}</b>
-                    </article>
-                    <article>
-                      <small>{locale === "en" ? "REMATCHES" : "发起接力"}</small>
-                      <b>{scoreboard.duelRoom.rematchCount}</b>
-                    </article>
-                    <article>
                       <small>{locale === "en" ? "ROOM CODE" : "擂台码"}</small>
                       <b>{duelCode}</b>
+                    </article>
+                    <article>
+                      <small>{locale === "en" ? "SHARES SENT" : "分享动作"}</small>
+                      <b>{scoreboard.duelRoom.shareCount}</b>
                     </article>
                     <article>
                       <small>{locale === "en" ? "TOP SOURCE" : "主要来源"}</small>
@@ -3992,6 +4042,73 @@ export default function GameClient({
                       </b>
                     </article>
                   </div>
+                  {(() => {
+                    const reached = Math.max(
+                      scoreboard.duelRoom.viewCount,
+                      scoreboard.duelRoom.startCount,
+                      scoreboard.duelRoom.responseCount,
+                    );
+                    const started = Math.max(
+                      scoreboard.duelRoom.startCount,
+                      scoreboard.duelRoom.responseCount,
+                    );
+                    const stages = [
+                      [locale === "en" ? "VIEWED" : "已打开", reached],
+                      [locale === "en" ? "STARTED" : "已开始", started],
+                      [
+                        locale === "en" ? "FINISHED" : "已完成",
+                        scoreboard.duelRoom.responseCount,
+                      ],
+                      [
+                        locale === "en" ? "RELAYED" : "已接力",
+                        scoreboard.duelRoom.rematchCount,
+                      ],
+                    ] as const;
+                    return (
+                      <section className="duel-room-funnel" aria-label={
+                        locale === "en"
+                          ? "Friend challenge conversion funnel"
+                          : "好友挑战转化漏斗"
+                      }>
+                        <header>
+                          <div>
+                            <small>{locale === "en" ? "CHALLENGE JOURNEY" : "好友传播进度"}</small>
+                            <b>
+                              {reached
+                                ? locale === "en"
+                                  ? `${scoreboard.duelRoom.responseCount} of ${reached} visitors finished`
+                                  : `${reached} 人打开，${scoreboard.duelRoom.responseCount} 人完成`
+                                : locale === "en"
+                                  ? "Share once to start the chain"
+                                  : "分享一次，开始第一轮接力"}
+                            </b>
+                          </div>
+                          <strong>
+                            {reached
+                              ? `${Math.round((scoreboard.duelRoom.responseCount / reached) * 100)}%`
+                              : "—"}
+                          </strong>
+                        </header>
+                        <div>
+                          {stages.map(([label, value]) => (
+                            <article key={label}>
+                              <span>
+                                <small>{label}</small>
+                                <b>{value}</b>
+                              </span>
+                              <i>
+                                <em
+                                  style={{
+                                    width: `${reached ? Math.max(value ? 8 : 0, Math.min(100, (value / reached) * 100)) : 0}%`,
+                                  }}
+                                />
+                              </i>
+                            </article>
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })()}
                   <p className="duel-spoiler-note">
                     {locale === "en"
                       ? "The room reveals scores only. The ticker, answer, and every player’s trades stay spoiler-free."
@@ -5748,6 +5865,7 @@ export default function GameClient({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
+                      onClick={() => duelShareUrl && recordDuelShare("x")}
                     >
                       X
                     </a>
@@ -5756,6 +5874,9 @@ export default function GameClient({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
+                      onClick={() =>
+                        duelShareUrl && recordDuelShare("whatsapp")
+                      }
                     >
                       WhatsApp
                     </a>
@@ -5764,6 +5885,9 @@ export default function GameClient({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
+                      onClick={() =>
+                        duelShareUrl && recordDuelShare("telegram")
+                      }
                     >
                       Telegram
                     </a>

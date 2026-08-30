@@ -120,6 +120,13 @@
       "when": 1788093153344,
       "tag": "0016_wild_edwin_jarvis",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "6",
+      "when": 1788094464289,
+      "tag": "0017_glossy_madrox",
+      "breakpoints": true
     }
   ]
 }

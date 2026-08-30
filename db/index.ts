@@ -193,6 +193,20 @@ export function ensureDatabase() {
       database.prepare(
         "CREATE INDEX IF NOT EXISTS duel_responses_duel_score_idx ON duel_responses (duel_code, score)",
       ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS duel_events (
+        id TEXT PRIMARY KEY NOT NULL,
+        duel_code TEXT NOT NULL REFERENCES duel_challenges(code),
+        player_id TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        source TEXT NOT NULL DEFAULT 'direct',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS duel_events_room_player_event_source_unique ON duel_events (duel_code, player_id, event_type, source)",
+      ),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS duel_events_room_event_idx ON duel_events (duel_code, event_type)",
+      ),
       database.prepare(`CREATE TABLE IF NOT EXISTS weekly_rewards (
         id TEXT PRIMARY KEY NOT NULL,
         player_id TEXT NOT NULL,

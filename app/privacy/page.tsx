@@ -14,7 +14,9 @@ export default function PrivacyPage() {
         <p>
           Blind Trading stores the player name you choose, gameplay decisions,
           scores, training progress, challenge participation, and related
-          timestamps. If you use Sign in with ChatGPT, the hosting platform
+          timestamps. For friend challenges, it also records whether an anonymous
+          player opened or started a room and which share button was used, so the
+          room host can see aggregate challenge progress. If you use Sign in with ChatGPT, the hosting platform
           provides an account identifier so progress can sync; Blind Trading stores
           a one-way derived player identifier rather than the original account ID.
         </p>
@@ -33,9 +35,14 @@ export default function PrivacyPage() {
         <ul>
           <li>Operate sessions, leaderboards, training, and friend challenges.</li>
           <li>Prevent duplicate or manipulated score submissions.</li>
+          <li>Show room hosts aggregate friend-challenge conversion progress.</li>
           <li>Maintain reliability, security, and product performance.</li>
         </ul>
-        <p>We do not sell personal information or use it to execute trades.</p>
+        <p>
+          We do not sell personal information, use it to execute trades, or use IP
+          addresses, device fingerprints, or third-party advertising trackers to
+          measure friend challenges.
+        </p>
       </section>
       <section>
         <h2>Public information</h2>
