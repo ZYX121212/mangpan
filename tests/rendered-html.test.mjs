@@ -71,6 +71,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /Choose your forecast first/);
   assert.match(page, /Next 3 trading days/);
   assert.match(page, /market-color-key/);
+  assert.match(page, /const historicalDuel = Boolean/);
+  assert.match(page, /session\.date !== currentMarketDate && !initialDuel/);
+  assert.match(page, /Room rank #/);
+  assert.match(page, /First attempt locked/);
+  assert.match(page, /Archived friend duel/);
   assert.match(page, /market colors: up and buy are/);
   assert.match(page, /market-up-swatch/);
   assert.match(page, /market-down-swatch/);
@@ -410,8 +415,9 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
     duelPage,
     /initialDuel=\{\{ code: invite\.code, date: invite\.date, source \}\}/,
   );
-  assert.match(duelPage, /CHALLENGE EXPIRED/);
-  assert.match(duelPage, /marketDate\(invite\.market\)/);
+  assert.doesNotMatch(duelPage, /CHALLENGE EXPIRED/);
+  assert.doesNotMatch(duelPage, /marketDate\(invite\.market\)/);
+  assert.match(duelPage, /startDailySession\(\s*invite\.date,/);
   assert.match(duelInvites, /duelChallenges\.code/);
   assert.match(duelInvites, /dailyScores\.challengeDate/);
   assert.match(duelInvites, /challengerNickname: score\.nickname/);
@@ -475,6 +481,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     weeklyRewardMigration,
     duelRoomMigration,
     attributionMigration,
+    archivedDuelMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -532,6 +539,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
       new URL("../drizzle/0011_easy_tyger_tiger.sql", import.meta.url),
       "utf8",
     ),
+    readFile(
+      new URL("../drizzle/0012_chemical_richard_fisk.sql", import.meta.url),
+      "utf8",
+    ),
   ]);
 
   assert.match(page, /ticker-mask/);
@@ -568,7 +579,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /href="\/"/);
   assert.doesNotMatch(page, /onClick=\{\(\) => setModeHubOpen\(true\)\}/);
   assert.match(challengeRoute, /marketDate\(market\)/);
-  assert.match(scoreRoute, /marketDate\(payload\.market\)/);
+  assert.match(scoreRoute, /isCurrentChallenge = date === marketDate\(market\)/);
+  assert.match(scoreRoute, /历史挑战仅可通过有效好友房间提交/);
   assert.match(duelRoute, /marketDate\(payload\.market\)/);
   assert.match(config, /us: "America\/New_York"/);
   assert.match(config, /cn: "Asia\/Shanghai"/);
@@ -603,6 +615,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /source: duelSource/);
   assert.match(scoreRoute, /groupBy\(duelResponses\.source\)/);
   assert.match(scoreRoute, /sources: sourceRows/);
+  assert.match(scoreRoute, /duelResponseSummary/);
+  assert.match(scoreRoute, /playerOverride/);
+  assert.match(scoreRoute, /opponentOverride/);
+  assert.match(scoreRoute, /if \(isCurrentChallenge\)\s*await db/);
+  assert.match(scoreRoute, /returnRate: officialScore\.returnRate/);
+  assert.match(scoreRoute, /\.onConflictDoNothing\(\{\s*target: \[\s*duelResponses\.duelCode/);
   assert.match(scoreRoute, /COUNT\(DISTINCT duel_challenges\.code\)/);
   assert.match(scoreRoute, /INNER JOIN duel_responses/);
   assert.match(scoreRoute, /收到 1 位好友的有效同图应战/);
@@ -627,6 +645,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(sessions, /每日挑战须先锁定方向与信心/);
   assert.match(sessions, /DAILY_ALLOCATIONS = \[0\.25, 0\.5, 1\]/);
   assert.match(sessions, /session\.mode === "daily" \? 3 : action\.days \|\| 3/);
+  assert.match(sessions, /const contributesToDailyMission/);
+  assert.match(sessions, /session\.challengeDate === marketDate/);
   assert.match(config, /GAME_VERSION = "focused-daily-v18"/);
   assert.doesNotMatch(sessions, /请完整记录方向、依据和信心/);
   assert.match(schema, /game_sessions/);
@@ -637,6 +657,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /duelChallenges/);
   assert.match(schema, /duelResponses/);
   assert.match(schema, /source: text\("source"\)\.notNull\(\)\.default\("direct"\)/);
+  assert.match(schema, /returnRate: real\("return_rate"\)\.notNull\(\)\.default\(0\)/);
   assert.match(schema, /weeklyRewards/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
@@ -734,9 +755,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelRoomMigration, /duel_responses_duel_player_unique/);
   assert.match(duelRoomMigration, /duel_responses_duel_score_idx/);
   assert.match(attributionMigration, /ALTER TABLE `duel_responses` ADD `source`/);
+  assert.match(archivedDuelMigration, /ADD `return_rate`/);
+  assert.match(archivedDuelMigration, /ADD `max_drawdown`/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_responses/);
   assert.match(database, /PRAGMA table_info\(duel_responses\)/);
   assert.match(database, /ALTER TABLE duel_responses ADD COLUMN source/);
+  assert.match(database, /ALTER TABLE duel_responses ADD COLUMN return_rate/);
   assert.match(database, /PRAGMA optimize/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);

@@ -247,6 +247,9 @@ export const duelResponses = sqliteTable(
     respondentPlayerId: text("respondent_player_id").notNull(),
     nickname: text("nickname").notNull(),
     score: integer("score").notNull(),
+    returnRate: real("return_rate").notNull().default(0),
+    excess: real("excess").notNull().default(0),
+    maxDrawdown: real("max_drawdown").notNull().default(0),
     source: text("source").notNull().default("direct"),
     createdAt: text("created_at")
       .notNull()

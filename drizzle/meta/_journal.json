@@ -85,6 +85,13 @@
       "when": 1788088357352,
       "tag": "0011_easy_tyger_tiger",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1788089528701,
+      "tag": "0012_chemical_richard_fisk",
+      "breakpoints": true
     }
   ]
 }

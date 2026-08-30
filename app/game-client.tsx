@@ -1524,8 +1524,11 @@ export default function GameClient({
     [numberLocale],
   );
   const today = gameMode === "daily" ? session.date : currentMarketDate;
+  const historicalDuel = Boolean(
+    initialDuel && gameMode === "daily" && session.date !== currentMarketDate,
+  );
   const dailyExpired =
-    gameMode === "daily" && session.date !== currentMarketDate;
+    gameMode === "daily" && session.date !== currentMarketDate && !initialDuel;
   const marketLabel = market === "cn" ? "A股" : "美股";
   const marketResetLabel =
     locale === "en"
@@ -3161,9 +3164,17 @@ export default function GameClient({
         <div className="challenge">
           <span>
             {gameMode === "daily"
-              ? scoreboard?.playerScore
-                ? `${marketLabel}已上榜 · 第 ${scoreboard.playerScore.rank} 名`
-                : `${marketLabel}每日同题 · #${today.slice(5).replace("-", "")}`
+              ? historicalDuel
+                ? scoreboard?.playerScore
+                  ? locale === "en"
+                    ? `Archived duel · Room #${scoreboard.playerScore.rank}`
+                    : `历史好友对决 · 房间第 ${scoreboard.playerScore.rank} 名`
+                  : locale === "en"
+                    ? `Archived friend duel · ${today}`
+                    : `历史好友对决 · ${today}`
+                : scoreboard?.playerScore
+                  ? `${marketLabel}已上榜 · 第 ${scoreboard.playerScore.rank} 名`
+                  : `${marketLabel}每日同题 · #${today.slice(5).replace("-", "")}`
               : `${marketLabel}${scenarioLabel}`}
           </span>
           <small>
@@ -5351,11 +5362,26 @@ export default function GameClient({
                 ) : scoreboard?.playerScore ? (
                   <>
                     <div>
-                      <small>{marketLabel}今日首次成绩</small>
-                      <b>第 {scoreboard.playerScore.rank} 名</b>
+                      <small>
+                        {historicalDuel
+                          ? locale === "en"
+                            ? `${market === "us" ? "US stock" : "China A-share"} archived friend duel`
+                            : `${marketLabel}历史好友对决`
+                          : `${marketLabel}今日首次成绩`}
+                      </small>
+                      <b>
+                        {historicalDuel
+                          ? locale === "en"
+                            ? `Room rank #${scoreboard.playerScore.rank}`
+                            : `房间第 ${scoreboard.playerScore.rank} 名`
+                          : `第 ${scoreboard.playerScore.rank} 名`}
+                      </b>
                       <span>
-                        超过 {scoreboard.playerScore.percentile}% 玩家 · 共{" "}
-                        {scoreboard.total} 人
+                        {historicalDuel
+                          ? locale === "en"
+                            ? `First attempt locked · ${scoreboard.duelRoom?.responseCount ?? 0} completed`
+                            : `首次成绩已锁定 · ${scoreboard.duelRoom?.responseCount ?? 0} 人完成`
+                          : `超过 ${scoreboard.playerScore.percentile}% 玩家 · 共 ${scoreboard.total} 人`}
                       </span>
                     </div>
                     {activeDuel && (

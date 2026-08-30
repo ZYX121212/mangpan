@@ -4,7 +4,6 @@ import GameClient from "../../game-client";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { startDailySession } from "../../challenge-sessions";
 import { getPublicDuelInvite } from "../../duel-invites";
-import { marketDate } from "../../game-config";
 import { opaquePlayerId } from "../../request-identity";
 import { normalizeShareSource } from "../../share-links";
 
@@ -85,7 +84,7 @@ export async function generateMetadata({
   };
 }
 
-function DuelUnavailable({ expired }: { expired: boolean }) {
+function DuelUnavailable() {
   return (
     <main className="duel-route-state">
       <Link className="duel-route-brand" href="/" aria-label="Blind Trading home">
@@ -93,8 +92,8 @@ function DuelUnavailable({ expired }: { expired: boolean }) {
         <b>BLIND TRADING</b>
       </Link>
       <section>
-        <small>{expired ? "CHALLENGE EXPIRED" : "CHALLENGE UNAVAILABLE"}</small>
-        <h1>{expired ? "This duel has closed." : "We couldn’t find this duel."}</h1>
+        <small>CHALLENGE UNAVAILABLE</small>
+        <h1>We couldn’t find this duel.</h1>
         <p>
           Daily charts reset together for everyone. Today’s mystery market is
           ready—and you can send a fresh same-chart challenge after you finish.
@@ -118,9 +117,7 @@ export default async function DuelPage({
     Array.isArray(query.via) ? query.via[0] : query.via,
   );
   const invite = await getPublicDuelInvite(code);
-  if (!invite) return <DuelUnavailable expired={false} />;
-  if (invite.date !== marketDate(invite.market))
-    return <DuelUnavailable expired />;
+  if (!invite) return <DuelUnavailable />;
   const user = await getChatGPTUser();
   const playerId = user ? await opaquePlayerId(user.userId) : undefined;
   const challenge = await startDailySession(

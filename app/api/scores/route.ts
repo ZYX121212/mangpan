@@ -38,6 +38,35 @@ type DuelRoom = {
   sources: { source: ShareSource; count: number }[];
 };
 
+type ScoreSummary = {
+  nickname: string;
+  score: number;
+  returnRate: number;
+  excess: number;
+  maxDrawdown: number;
+  rank: number;
+  percentile: number;
+};
+
+type DuelResponseRow = typeof duelResponses.$inferSelect;
+
+function duelResponseSummary(
+  row: DuelResponseRow,
+  rank: number,
+  total: number,
+): ScoreSummary {
+  return {
+    nickname: row.nickname,
+    score: row.score,
+    returnRate: row.returnRate,
+    excess: row.excess,
+    maxDrawdown: row.maxDrawdown,
+    rank,
+    percentile:
+      total <= 1 ? 100 : Math.round(((total - rank) / (total - 1)) * 100),
+  };
+}
+
 function scoreDate(date: string, market: MarketKind) {
   return `${date}@${GAME_VERSION}@${market}`;
 }
@@ -316,6 +345,8 @@ async function buildScoreboard(
   opponentId?: string,
   duelCode?: string,
   duelRoom?: DuelRoom | null,
+  playerOverride?: ScoreSummary | null,
+  opponentOverride?: ScoreSummary | null,
 ) {
   const db = getDb();
   const storageDate = scoreDate(date, market);
@@ -388,13 +419,19 @@ async function buildScoreboard(
     };
   };
 
-  const [playerScore, opponent] = await Promise.all([
+  const [rankedPlayerScore, rankedOpponent] = await Promise.all([
     rankFor(playerId),
     opponentId && opponentId !== playerId
       ? rankFor(opponentId)
       : Promise.resolve(null),
   ]);
-  const weekly = await buildWeeklyLeague(date, market, playerId);
+  const playerScore = rankedPlayerScore ?? playerOverride ?? null;
+  const opponent = rankedOpponent ?? opponentOverride ?? null;
+  const weekly = await buildWeeklyLeague(
+    marketDate(market),
+    market,
+    playerId,
+  );
   let stats = null;
   if (playerId) {
     type CareerRow = {
@@ -538,7 +575,7 @@ async function resolveDuelContext(
     .limit(1);
   if (!duel || duel.challengeDate !== date || duel.market !== market)
     return null;
-  const [[{ total }], [best], sourceRows] = await Promise.all([
+  const [[{ total }], [best], sourceRows, [respondent]] = await Promise.all([
     db
       .select({ total: count() })
       .from(duelResponses)
@@ -558,8 +595,48 @@ async function resolveDuelContext(
       .from(duelResponses)
       .where(eq(duelResponses.duelCode, duel.code))
       .groupBy(duelResponses.source),
+    playerId
+      ? db
+          .select()
+          .from(duelResponses)
+          .where(
+            and(
+              eq(duelResponses.duelCode, duel.code),
+              eq(duelResponses.respondentPlayerId, playerId),
+            ),
+          )
+          .limit(1)
+      : Promise.resolve([] as DuelResponseRow[]),
   ]);
   const isHost = duel.challengerPlayerId === playerId;
+  let respondentScore: ScoreSummary | null = null;
+  if (respondent) {
+    const [{ above }] = await db
+      .select({ above: count() })
+      .from(duelResponses)
+      .where(
+        and(
+          eq(duelResponses.duelCode, duel.code),
+          or(
+            gt(duelResponses.score, respondent.score),
+            and(
+              eq(duelResponses.score, respondent.score),
+              or(
+                lt(duelResponses.createdAt, respondent.createdAt),
+                and(
+                  eq(duelResponses.createdAt, respondent.createdAt),
+                  lt(
+                    duelResponses.respondentPlayerId,
+                    respondent.respondentPlayerId,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    respondentScore = duelResponseSummary(respondent, Number(above) + 1, total);
+  }
   return {
     duel,
     opponentId: isHost
@@ -567,6 +644,9 @@ async function resolveDuelContext(
       : duel.challengerPlayerId !== playerId
         ? duel.challengerPlayerId
         : undefined,
+    playerOverride: respondentScore,
+    opponentOverride:
+      isHost && best ? duelResponseSummary(best, 1, total) : null,
     room: {
       isHost,
       responseCount: total,
@@ -620,6 +700,8 @@ export async function GET(request: Request) {
         duelContext?.opponentId,
         duelCode,
         duelContext?.room,
+        duelContext?.playerOverride,
+        duelContext?.opponentOverride,
       ),
     );
   } catch (error) {
@@ -644,12 +726,8 @@ export async function POST(request: Request) {
     };
     if (!validMarket(payload.market))
       return Response.json({ error: "市场无效" }, { status: 400 });
-    if (
-      !validDate(typeof payload.date === "string" ? payload.date : null) ||
-      payload.date !== marketDate(payload.market)
-    ) {
-      return Response.json({ error: "仅可提交今日正式挑战" }, { status: 400 });
-    }
+    if (!validDate(typeof payload.date === "string" ? payload.date : null))
+      return Response.json({ error: "挑战日期无效" }, { status: 400 });
     const resolvedPlayerId = await requestPlayerId(request, payload.playerId);
     if (!resolvedPlayerId)
       return Response.json({ error: "玩家标识无效" }, { status: 400 });
@@ -678,6 +756,12 @@ export async function POST(request: Request) {
       : null;
     if (duelCode && !duelContext)
       return Response.json({ error: "挑战码已过期" }, { status: 404 });
+    const isCurrentChallenge = date === marketDate(market);
+    if (!isCurrentChallenge && !duelContext)
+      return Response.json(
+        { error: "历史挑战仅可通过有效好友房间提交" },
+        { status: 400 },
+      );
     const challenge = await getSessionForScore(payload.sessionId, playerId);
     if (
       challenge.session.challengeDate !== date ||
@@ -698,37 +782,52 @@ export async function POST(request: Request) {
         target: players.id,
         set: { nickname, updatedAt: new Date().toISOString() },
       });
-    await db
-      .insert(dailyScores)
-      .values({
-        id: `${storageDate}:${playerId}`,
-        challengeDate: storageDate,
-        playerId,
-        nickname,
-        score: result.score,
-        returnRate: result.returnRate,
-        benchmark: result.benchmark,
-        excess: result.excess,
-        maxDrawdown: result.maxDrawdown,
-        trades: result.trades,
-        rounds: result.rounds,
-        actionPath: JSON.stringify(challenge.actions),
-      })
-      .onConflictDoNothing({
-        target: [dailyScores.challengeDate, dailyScores.playerId],
-      });
+    if (isCurrentChallenge)
+      await db
+        .insert(dailyScores)
+        .values({
+          id: `${storageDate}:${playerId}`,
+          challengeDate: storageDate,
+          playerId,
+          nickname,
+          score: result.score,
+          returnRate: result.returnRate,
+          benchmark: result.benchmark,
+          excess: result.excess,
+          maxDrawdown: result.maxDrawdown,
+          trades: result.trades,
+          rounds: result.rounds,
+          actionPath: JSON.stringify(challenge.actions),
+        })
+        .onConflictDoNothing({
+          target: [dailyScores.challengeDate, dailyScores.playerId],
+        });
 
     if (duelContext && duelContext.duel.challengerPlayerId !== playerId) {
-      const [officialScore] = await db
-        .select({ nickname: dailyScores.nickname, score: dailyScores.score })
-        .from(dailyScores)
-        .where(
-          and(
-            eq(dailyScores.challengeDate, storageDate),
-            eq(dailyScores.playerId, playerId),
-          ),
-        )
-        .limit(1);
+      const [officialScore] = isCurrentChallenge
+        ? await db
+            .select({
+              nickname: dailyScores.nickname,
+              score: dailyScores.score,
+              returnRate: dailyScores.returnRate,
+              excess: dailyScores.excess,
+              maxDrawdown: dailyScores.maxDrawdown,
+            })
+            .from(dailyScores)
+            .where(
+              and(
+                eq(dailyScores.challengeDate, storageDate),
+                eq(dailyScores.playerId, playerId),
+              ),
+            )
+            .limit(1)
+        : [{
+            nickname,
+            score: result.score,
+            returnRate: result.returnRate,
+            excess: result.excess,
+            maxDrawdown: result.maxDrawdown,
+          }];
       if (officialScore)
         await db
           .insert(duelResponses)
@@ -738,17 +837,16 @@ export async function POST(request: Request) {
             respondentPlayerId: playerId,
             nickname: officialScore.nickname,
             score: officialScore.score,
+            returnRate: officialScore.returnRate,
+            excess: officialScore.excess,
+            maxDrawdown: officialScore.maxDrawdown,
             source: duelSource,
           })
-          .onConflictDoUpdate({
+          .onConflictDoNothing({
             target: [
               duelResponses.duelCode,
               duelResponses.respondentPlayerId,
             ],
-            set: {
-              nickname: officialScore.nickname,
-              score: officialScore.score,
-            },
           });
       duelContext = await resolveDuelContext(
         duelContext.duel.code,
@@ -766,6 +864,8 @@ export async function POST(request: Request) {
         duelContext?.opponentId,
         duelCode,
         duelContext?.room,
+        duelContext?.playerOverride,
+        duelContext?.opponentOverride,
       ),
     );
   } catch (error) {

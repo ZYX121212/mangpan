@@ -176,6 +176,9 @@ export function ensureDatabase() {
         respondent_player_id TEXT NOT NULL,
         nickname TEXT NOT NULL,
         score INTEGER NOT NULL,
+        return_rate REAL NOT NULL DEFAULT 0,
+        excess REAL NOT NULL DEFAULT 0,
+        max_drawdown REAL NOT NULL DEFAULT 0,
         source TEXT NOT NULL DEFAULT 'direct',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
@@ -224,6 +227,15 @@ export function ensureDatabase() {
         await database
           .prepare("ALTER TABLE duel_responses ADD COLUMN source TEXT NOT NULL DEFAULT 'direct'")
           .run();
+      }
+      for (const [name, sql] of [
+        ["return_rate", "ALTER TABLE duel_responses ADD COLUMN return_rate REAL NOT NULL DEFAULT 0"],
+        ["excess", "ALTER TABLE duel_responses ADD COLUMN excess REAL NOT NULL DEFAULT 0"],
+        ["max_drawdown", "ALTER TABLE duel_responses ADD COLUMN max_drawdown REAL NOT NULL DEFAULT 0"],
+      ] as const) {
+        if (!duelResponseColumns.results.some((column) => column.name === name)) {
+          await database.prepare(sql).run();
+        }
       }
       return result;
     })

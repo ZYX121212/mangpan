@@ -652,7 +652,10 @@ export async function advanceSession(
   if (updated.meta.changes !== 1)
     throw new Error("检测到重复推进，请以最新行情继续决策");
   const activityPlayerId = playerId ?? session.playerId ?? undefined;
-  const dailyMission = activityPlayerId
+  const contributesToDailyMission =
+    session.mode !== "daily" ||
+    session.challengeDate === marketDate(session.market as MarketKind);
+  const dailyMission = activityPlayerId && contributesToDailyMission
     ? await recordDailyActivity(
         activityPlayerId,
         session.market as MarketKind,
