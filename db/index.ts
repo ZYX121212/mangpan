@@ -170,6 +170,20 @@ export function ensureDatabase() {
       database.prepare(
         "CREATE INDEX IF NOT EXISTS duel_challenges_date_market_idx ON duel_challenges (challenge_date, market)",
       ),
+      database.prepare(`CREATE TABLE IF NOT EXISTS weekly_rewards (
+        id TEXT PRIMARY KEY NOT NULL,
+        player_id TEXT NOT NULL,
+        market TEXT NOT NULL,
+        week_start TEXT NOT NULL,
+        reward_xp INTEGER NOT NULL DEFAULT 120,
+        awarded_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare(
+        "CREATE UNIQUE INDEX IF NOT EXISTS weekly_rewards_player_market_week_unique ON weekly_rewards (player_id, market, week_start)",
+      ),
+      database.prepare(
+        "CREATE INDEX IF NOT EXISTS weekly_rewards_player_market_idx ON weekly_rewards (player_id, market)",
+      ),
       database.prepare(
         "DROP INDEX IF EXISTS daily_challenges_date_market_unique",
       ),

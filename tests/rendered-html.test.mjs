@@ -62,6 +62,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /匿名挑战码/);
   assert.match(page, /DECISION REPLAY · 决策时间线/);
   assert.match(page, /继续查看后续/);
+  assert.match(page, /ACHIEVEMENT WALL · 云端成就/);
+  assert.match(page, /已解锁 \{scoreboard\.stats\.unlockedAchievements\}\/10/);
+  assert.match(page, /WEEKLY OBJECTIVES · 周目标/);
+  assert.match(page, /全部完成 \+120 XP/);
+  assert.match(page, /单局最佳收益/);
   assert.match(page, /mangpan-active-session-/);
   assert.match(page, /mangpan-scenario-progress/);
   assert.match(page, /四维诊断/);
@@ -95,6 +100,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     sessionIndexMigration,
     dailyProgressMigration,
     duelMigration,
+    weeklyRewardMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -131,6 +137,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     ),
     readFile(
       new URL("../drizzle/0008_warm_old_lace.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0009_reflective_madripoor.sql", import.meta.url),
       "utf8",
     ),
   ]);
@@ -170,6 +180,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /ROW_NUMBER\(\) OVER/);
   assert.match(scoreRoute, /每周取最佳 5 局/);
   assert.match(scoreRoute, /duelChallenges/);
+  assert.match(scoreRoute, /buildAchievements/);
+  assert.match(scoreRoute, /weeklyRewards/);
+  assert.match(scoreRoute, /lifetimeRewardXp/);
+  assert.match(scoreRoute, /achievementXp/);
+  assert.match(scoreRoute, /\.limit\(120\)/);
+  assert.match(scoreRoute, /FROM daily_scores INDEXED BY daily_scores_player_history_idx/);
   assert.match(identity, /oai-authenticated-user-id/);
   assert.match(identity, /crypto\.subtle\.digest/);
   assert.match(sessions, /maskCandle/);
@@ -180,6 +196,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /patternQuizzes/);
   assert.match(schema, /dailyProgress/);
   assert.match(schema, /duelChallenges/);
+  assert.match(schema, /weeklyRewards/);
   assert.match(schema, /daily_scores_date_player_unique/);
   assert.match(hosting, /"d1": "DB"/);
   assert.match(styles, /\.rules-modal li span\{[^}]*grid-column:2/);
@@ -232,6 +249,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(dailyProgressMigration, /CREATE TABLE `daily_progress`/);
   assert.match(duelMigration, /CREATE TABLE `duel_challenges`/);
   assert.match(duelMigration, /duel_challenges_player_date_market_unique/);
+  assert.match(weeklyRewardMigration, /CREATE TABLE `weekly_rewards`/);
+  assert.match(weeklyRewardMigration, /weekly_rewards_player_market_week_unique/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);

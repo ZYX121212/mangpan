@@ -1,6 +1,11 @@
 import { and, asc, count, desc, eq, gt, like, lt, or } from "drizzle-orm";
 import { ensureDatabase, getD1Database, getDb } from "../../../db";
-import { dailyScores, duelChallenges, players } from "../../../db/schema";
+import {
+  dailyScores,
+  duelChallenges,
+  players,
+  weeklyRewards,
+} from "../../../db/schema";
 import {
   getSessionForScore,
   getTrainingProfile,
@@ -74,8 +79,49 @@ type WeeklyRow = {
   average_score: number;
   average_return: number;
   average_excess: number;
+  activity_days: number;
+  benchmark_wins: number;
+  risk_controlled: number;
   position: number;
 };
+
+type AchievementInput = {
+  completedDays: number;
+  bestScore: number;
+  benchmarkWins: number;
+  riskControlled: number;
+  recognitionCorrect: number;
+  masteredCourses: number;
+  duelCreated: number;
+};
+
+function buildAchievements(input: AchievementInput) {
+  const definitions = [
+    ["first_finish", "首次结算", "完成第 1 局正式挑战", input.completedDays, 1, 30],
+    ["seven_days", "稳定打卡", "累计完成 7 局正式挑战", input.completedDays, 7, 80],
+    ["benchmark_10", "基准猎手", "累计 10 局跑赢同期股票", input.benchmarkWins, 10, 120],
+    ["score_85", "高分操盘手", "单局操盘评分达到 85", input.bestScore, 85, 120],
+    ["risk_5", "回撤守门员", "5 局有交易且最大回撤不超过 5%", input.riskControlled, 5, 100],
+    ["quiz_20", "形态观察家", "累计识别正确 20 道形态", input.recognitionCorrect, 20, 100],
+    ["course_4", "课程探索者", "掌握 4 个训练课目", input.masteredCourses, 4, 100],
+    ["course_12", "全情景大师", "掌握全部 12 个训练课目", input.masteredCourses, 12, 200],
+    ["duel_host", "同图擂主", "成功发起 1 次匿名同图挑战", input.duelCreated, 1, 60],
+    ["thirty_days", "长期主义", "累计完成 30 局正式挑战", input.completedDays, 30, 150],
+  ] as const;
+  return definitions.map(([key, title, description, rawProgress, target, rewardXp], index) => {
+    const progress = Math.max(0, Number(rawProgress));
+    return {
+      key,
+      badge: String(index + 1).padStart(2, "0"),
+      title,
+      description,
+      progress: Math.min(target, progress),
+      target,
+      rewardXp,
+      unlocked: progress >= target,
+    };
+  });
+}
 
 async function buildWeeklyLeague(
   date: string,
@@ -89,13 +135,20 @@ async function buildWeeklyLeague(
     `%@${GAME_VERSION}@${market}`,
   ] as const;
   const cte = `WITH eligible AS (
-    SELECT player_id, score, return_rate, excess, created_at,
+    SELECT player_id, score, return_rate, excess, max_drawdown, trades, created_at,
       ROW_NUMBER() OVER (
         PARTITION BY player_id
         ORDER BY score DESC, created_at ASC
       ) AS day_rank
     FROM daily_scores INDEXED BY daily_scores_leaderboard_idx
     WHERE challenge_date >= ? AND challenge_date < ? AND challenge_date LIKE ?
+  ), activity AS (
+    SELECT player_id,
+      COUNT(*) AS activity_days,
+      SUM(CASE WHEN excess > 0 THEN 1 ELSE 0 END) AS benchmark_wins,
+      SUM(CASE WHEN max_drawdown >= -5 AND trades > 0 THEN 1 ELSE 0 END) AS risk_controlled
+    FROM eligible
+    GROUP BY player_id
   ), weekly AS (
     SELECT player_id,
       SUM(score) AS points,
@@ -107,15 +160,17 @@ async function buildWeeklyLeague(
     WHERE day_rank <= 5
     GROUP BY player_id
   ), ranked AS (
-    SELECT weekly.*,
+    SELECT weekly.*, activity.activity_days, activity.benchmark_wins,
+      activity.risk_controlled,
       RANK() OVER (
-        ORDER BY points DESC, completed_days DESC, average_excess DESC, player_id ASC
+        ORDER BY points DESC, completed_days DESC, average_excess DESC, weekly.player_id ASC
       ) AS position
-    FROM weekly
+    FROM weekly JOIN activity ON activity.player_id = weekly.player_id
   )`;
   const columns = `SELECT ranked.player_id, players.nickname, ranked.points,
     ranked.completed_days, ranked.average_score, ranked.average_return,
-    ranked.average_excess, ranked.position
+    ranked.average_excess, ranked.activity_days, ranked.benchmark_wins,
+    ranked.risk_controlled, ranked.position
     FROM ranked JOIN players ON players.id = ranked.player_id`;
   const database = getD1Database();
   const [topResult, player, totalRow] = await Promise.all([
@@ -144,6 +199,47 @@ async function buildWeeklyLeague(
     averageExcess: Number(row.average_excess),
     isPlayer: row.player_id === playerId,
   });
+  const games = Math.min(3, Number(player?.activity_days || 0));
+  const benchmarkWins = Math.min(2, Number(player?.benchmark_wins || 0));
+  const riskControlled = Math.min(1, Number(player?.risk_controlled || 0));
+  const completed =
+    Number(games >= 3) +
+    Number(benchmarkWins >= 2) +
+    Number(riskControlled >= 1);
+  if (playerId && completed === 3) {
+    await getDb()
+      .insert(weeklyRewards)
+      .values({
+        id: `${playerId}:${market}:${range.start}`,
+        playerId,
+        market,
+        weekStart: range.start,
+        rewardXp: 120,
+      })
+      .onConflictDoNothing({
+        target: [
+          weeklyRewards.playerId,
+          weeklyRewards.market,
+          weeklyRewards.weekStart,
+        ],
+      });
+  }
+  const [currentReward, lifetimeReward] = playerId
+    ? await Promise.all([
+        getD1Database()
+          .prepare(
+            "SELECT reward_xp FROM weekly_rewards WHERE player_id = ? AND market = ? AND week_start = ? LIMIT 1",
+          )
+          .bind(playerId, market, range.start)
+          .first<{ reward_xp: number }>(),
+        getD1Database()
+          .prepare(
+            "SELECT COALESCE(SUM(reward_xp), 0) AS xp FROM weekly_rewards WHERE player_id = ? AND market = ?",
+          )
+          .bind(playerId, market)
+          .first<{ xp: number }>(),
+      ])
+    : [null, null];
   return {
     start: range.start,
     end: range.end,
@@ -151,6 +247,14 @@ async function buildWeeklyLeague(
     total: Number(totalRow?.total || 0),
     leaderboard: (topResult.results as WeeklyRow[]).map(format),
     player: player ? format(player) : null,
+    mission: {
+      games,
+      benchmarkWins,
+      riskControlled,
+      completed,
+      rewardXp: Number(currentReward?.reward_xp || 0),
+    },
+    lifetimeRewardXp: Number(lifetimeReward?.xp || 0),
   };
 }
 
@@ -294,46 +398,105 @@ async function buildScoreboard(
       ? rankFor(opponentId)
       : Promise.resolve(null),
   ]);
+  const weekly = await buildWeeklyLeague(date, market, playerId);
   let stats = null;
   if (playerId) {
-    const history = await db
-      .select()
-      .from(dailyScores)
-      .where(
-        and(
-          eq(dailyScores.playerId, playerId),
-          like(dailyScores.challengeDate, `%@${GAME_VERSION}@${market}`),
-        ),
-      )
-      .orderBy(desc(dailyScores.challengeDate))
-      .limit(60);
-    const averageScore = history.length
-      ? Math.round(
-          history.reduce((sum, row) => sum + row.score, 0) / history.length,
+    type CareerRow = {
+      completed_days: number;
+      score_sum: number;
+      average_score: number;
+      best_score: number;
+      benchmark_wins: number;
+      risk_controlled: number;
+      total_trades: number;
+      best_return: number;
+    };
+    const suffix = `%@${GAME_VERSION}@${market}`;
+    const [history, career, training, duelSummary] = await Promise.all([
+      db
+        .select()
+        .from(dailyScores)
+        .where(
+          and(
+            eq(dailyScores.playerId, playerId),
+            like(dailyScores.challengeDate, suffix),
+          ),
         )
-      : 0;
-    const training = await getTrainingProfile(playerId, market);
+        .orderBy(desc(dailyScores.challengeDate))
+        .limit(120),
+      getD1Database()
+        .prepare(`SELECT COUNT(*) AS completed_days,
+          COALESCE(SUM(score), 0) AS score_sum,
+          COALESCE(ROUND(AVG(score)), 0) AS average_score,
+          COALESCE(MAX(score), 0) AS best_score,
+          COALESCE(SUM(CASE WHEN excess > 0 THEN 1 ELSE 0 END), 0) AS benchmark_wins,
+          COALESCE(SUM(CASE WHEN max_drawdown >= -5 AND trades > 0 THEN 1 ELSE 0 END), 0) AS risk_controlled,
+          COALESCE(SUM(trades), 0) AS total_trades,
+          COALESCE(MAX(return_rate), 0) AS best_return
+          FROM daily_scores INDEXED BY daily_scores_player_history_idx
+          WHERE player_id = ? AND challenge_date LIKE ?`)
+        .bind(playerId, suffix)
+        .first<CareerRow>(),
+      getTrainingProfile(playerId, market),
+      getD1Database()
+        .prepare(
+          "SELECT COUNT(*) AS total FROM duel_challenges WHERE challenger_player_id = ? AND market = ?",
+        )
+        .bind(playerId, market)
+        .first<{ total: number }>(),
+    ]);
+    const completedDays = Number(career?.completed_days || 0);
+    const averageScore = Number(career?.average_score || 0);
+    const bestScore = Number(career?.best_score || 0);
+    const benchmarkWins = Number(career?.benchmark_wins || 0);
+    const riskControlled = Number(career?.risk_controlled || 0);
+    const duelCreated = Number(duelSummary?.total || 0);
+    const streak = calculateStreak(
+      history.map((row) => row.challengeDate.split("@")[0]),
+      chinaDate(),
+    );
+    const achievements = buildAchievements({
+      completedDays,
+      bestScore,
+      benchmarkWins,
+      riskControlled,
+      recognitionCorrect: training.recognition.correct,
+      masteredCourses: training.mastered,
+      duelCreated,
+    });
+    const achievementXp = achievements
+      .filter((achievement) => achievement.unlocked)
+      .reduce((sum, achievement) => sum + achievement.rewardXp, 0);
     const xp =
-      history.reduce((sum, row) => sum + row.score, 0) + training.missionXp;
+      Number(career?.score_sum || 0) +
+      training.missionXp +
+      weekly.lifetimeRewardXp +
+      achievementXp;
     stats = {
-      completedDays: history.length,
-      streak: calculateStreak(
-        history.map((row) => row.challengeDate.split("@")[0]),
-        chinaDate(),
-      ),
+      completedDays,
+      streak,
       averageScore,
-      bestScore: history.length
-        ? Math.max(...history.map((row) => row.score))
-        : 0,
+      bestScore,
       xp,
       level: Math.floor(xp / 300) + 1,
       levelProgress: xp % 300,
       profile: weeklyProfile(history),
       training,
+      achievements,
+      unlockedAchievements: achievements.filter(
+        (achievement) => achievement.unlocked,
+      ).length,
+      achievementXp,
+      records: {
+        benchmarkWins,
+        riskControlled,
+        totalTrades: Number(career?.total_trades || 0),
+        bestReturn: Number(career?.best_return || 0),
+        duelCreated,
+      },
     };
   }
 
-  const weekly = await buildWeeklyLeague(date, market, playerId);
   return {
     date,
     total,

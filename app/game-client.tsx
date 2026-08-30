@@ -97,6 +97,16 @@ type WeeklyScore = {
   averageExcess: number;
   isPlayer?: boolean;
 };
+type Achievement = {
+  key: string;
+  badge: string;
+  title: string;
+  description: string;
+  progress: number;
+  target: number;
+  rewardXp: number;
+  unlocked: boolean;
+};
 type Scoreboard = {
   total: number;
   leaderboard: RankedScore[];
@@ -110,6 +120,14 @@ type Scoreboard = {
     total: number;
     leaderboard: WeeklyScore[];
     player: WeeklyScore | null;
+    mission: {
+      games: number;
+      benchmarkWins: number;
+      riskControlled: number;
+      completed: number;
+      rewardXp: number;
+    };
+    lifetimeRewardXp: number;
   };
   stats: null | {
     completedDays: number;
@@ -121,6 +139,16 @@ type Scoreboard = {
     levelProgress: number;
     profile: { title: string; text: string };
     training: TrainingProfile;
+    achievements: Achievement[];
+    unlockedAchievements: number;
+    achievementXp: number;
+    records: {
+      benchmarkWins: number;
+      riskControlled: number;
+      totalTrades: number;
+      bestReturn: number;
+      duelCreated: number;
+    };
   };
 };
 type TrainingProfile = {
@@ -2906,7 +2934,13 @@ export default function GameClient({
               <li>
                 <b>每周联赛</b>
                 <span>
-                  A 股与美股分开排名，每周取个人最佳 5 局累计积分；先比总分，再比完成天数与平均超额收益。
+                  A 股与美股分开排名，每周取个人最佳 5 局累计积分；完成 3 局、2 局跑赢基准和 1 局低回撤目标可获得 120 XP。
+                </span>
+              </li>
+              <li>
+                <b>成长成就</b>
+                <span>
+                  正式局、风险纪录、形态识别、训练课程和好友挑战共同解锁 10 项云端成就；每项奖励只计入一次。
                 </span>
               </li>
               <li>
@@ -2993,6 +3027,27 @@ export default function GameClient({
                   <b>{scoreboard.stats.profile.title}</b>
                   <p>{scoreboard.stats.profile.text}</p>
                 </div>
+                <section className="personal-records">
+                  <div>
+                    <small>跑赢基准</small>
+                    <b>{scoreboard.stats.records.benchmarkWins} 局</b>
+                  </div>
+                  <div>
+                    <small>低回撤局</small>
+                    <b>{scoreboard.stats.records.riskControlled} 局</b>
+                  </div>
+                  <div>
+                    <small>累计成交</small>
+                    <b>{scoreboard.stats.records.totalTrades} 次</b>
+                  </div>
+                  <div>
+                    <small>单局最佳收益</small>
+                    <b className={scoreboard.stats.records.bestReturn >= 0 ? "up" : "down"}>
+                      {scoreboard.stats.records.bestReturn >= 0 ? "+" : ""}
+                      {scoreboard.stats.records.bestReturn.toFixed(1)}%
+                    </b>
+                  </div>
+                </section>
                 <div className="growth-track">
                   <div>
                     <span>交易等级 LV.{scoreboard.stats.level}</span>
@@ -3007,9 +3062,43 @@ export default function GameClient({
                   </i>
                   <small>
                     再获得 {300 - scoreboard.stats.levelProgress} XP 升级 ·
-                    正式局评分与每日任务共同积累
+                    正式局、任务、联赛与成就共同积累
                   </small>
                 </div>
+                <details className="achievement-wall">
+                  <summary>
+                    <span>
+                      <small>ACHIEVEMENT WALL · 云端成就</small>
+                      <b>已解锁 {scoreboard.stats.unlockedAchievements}/10</b>
+                    </span>
+                    <strong>+{scoreboard.stats.achievementXp} XP · 展开查看</strong>
+                  </summary>
+                  <div className="achievement-grid">
+                    {scoreboard.stats.achievements.map((achievement) => (
+                      <article
+                        key={achievement.key}
+                        className={achievement.unlocked ? "unlocked" : "locked"}
+                      >
+                        <i>{achievement.unlocked ? "✓" : achievement.badge}</i>
+                        <div>
+                          <b>{achievement.title}</b>
+                          <small>{achievement.description}</small>
+                          <span>
+                            <em
+                              style={{
+                                width: `${Math.min(100, (achievement.progress / achievement.target) * 100)}%`,
+                              }}
+                            />
+                          </span>
+                        </div>
+                        <strong>
+                          {achievement.progress}/{achievement.target}
+                          <small>+{achievement.rewardXp} XP</small>
+                        </strong>
+                      </article>
+                    ))}
+                  </div>
+                </details>
                 <section className="cloud-training-card">
                   <div className="cloud-training-head">
                     <div>
@@ -3149,6 +3238,38 @@ export default function GameClient({
                     <strong>完成今日挑战即可入榜</strong>
                   )}
                 </div>
+                <section
+                  className={`weekly-mission ${scoreboard?.weekly.mission.completed === 3 ? "complete" : ""}`}
+                >
+                  <div className="weekly-mission-head">
+                    <span>
+                      <small>WEEKLY OBJECTIVES · 周目标</small>
+                      <b>完成 {scoreboard?.weekly.mission.completed || 0}/3 项</b>
+                    </span>
+                    <strong>
+                      {scoreboard?.weekly.mission.rewardXp
+                        ? "+120 XP 已获得"
+                        : "全部完成 +120 XP"}
+                    </strong>
+                  </div>
+                  <div className="weekly-task-list">
+                    <div className={(scoreboard?.weekly.mission.games || 0) >= 3 ? "done" : ""}>
+                      <i>{(scoreboard?.weekly.mission.games || 0) >= 3 ? "✓" : "01"}</i>
+                      <span>完成 3 局正式挑战</span>
+                      <b>{scoreboard?.weekly.mission.games || 0}/3</b>
+                    </div>
+                    <div className={(scoreboard?.weekly.mission.benchmarkWins || 0) >= 2 ? "done" : ""}>
+                      <i>{(scoreboard?.weekly.mission.benchmarkWins || 0) >= 2 ? "✓" : "02"}</i>
+                      <span>2 局跑赢同期股票</span>
+                      <b>{scoreboard?.weekly.mission.benchmarkWins || 0}/2</b>
+                    </div>
+                    <div className={(scoreboard?.weekly.mission.riskControlled || 0) >= 1 ? "done" : ""}>
+                      <i>{(scoreboard?.weekly.mission.riskControlled || 0) >= 1 ? "✓" : "03"}</i>
+                      <span>1 局有交易且回撤 ≤ 5%</span>
+                      <b>{scoreboard?.weekly.mission.riskControlled || 0}/1</b>
+                    </div>
+                  </div>
+                </section>
                 <div className="board-head">
                   <b>{marketLabel}本周联赛</b>
                   <span>{scoreboard?.weekly.total || 0} 人参赛</span>

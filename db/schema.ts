@@ -236,3 +236,28 @@ export const duelChallenges = sqliteTable(
     ),
   ],
 );
+
+export const weeklyRewards = sqliteTable(
+  "weekly_rewards",
+  {
+    id: text("id").primaryKey(),
+    playerId: text("player_id").notNull(),
+    market: text("market").notNull(),
+    weekStart: text("week_start").notNull(),
+    rewardXp: integer("reward_xp").notNull().default(120),
+    awardedAt: text("awarded_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("weekly_rewards_player_market_week_unique").on(
+      table.playerId,
+      table.market,
+      table.weekStart,
+    ),
+    index("weekly_rewards_player_market_idx").on(
+      table.playerId,
+      table.market,
+    ),
+  ],
+);
