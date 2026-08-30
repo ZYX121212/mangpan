@@ -1382,6 +1382,7 @@ export default function GameClient({
     useState<TrainingProfile | null>(null);
   const [revealPulse, setRevealPulse] = useState(0),
     [shareStatus, setShareStatus] = useState("");
+  const [cardStatus, setCardStatus] = useState("");
   const [actions, setActions] = useState<ReplayAction[]>([]),
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
@@ -1628,6 +1629,13 @@ export default function GameClient({
   const decisionReplay = useMemo(
     () => buildDecisionReplay(actions, stock, normalized, initialVisibleCount),
     [actions, initialVisibleCount, normalized, stock],
+  );
+  const resultShareMarks = useMemo(
+    () =>
+      feedbackHistory.length
+        ? feedbackHistory.map((item) => item.calibration)
+        : decisionReplay.map((item) => (item.matched ? 75 : 30)),
+    [decisionReplay, feedbackHistory],
   );
   const crowdByRound = useMemo(
     () => new Map(crowdHistory.map((item) => [item.round, item])),
@@ -1966,6 +1974,7 @@ export default function GameClient({
     setCrowdHistory(nextSession.crowdForecasts ?? []);
     setRevealPulse(0);
     setShareStatus("");
+    setCardStatus("");
     setReplayLimit(8);
     setScoreStatus("idle");
     setScoreboard(null);
@@ -2486,9 +2495,7 @@ export default function GameClient({
   };
 
   const shareResult = async () => {
-    const marks = feedbackHistory.length
-      ? feedbackHistory.map((item) => item.calibration)
-      : decisionReplay.map((item) => (item.matched ? 75 : 30));
+    const marks = resultShareMarks;
     const sequence = marks
       .slice(0, DAILY_CHALLENGE_DECISIONS)
       .map((value) => (value >= 70 ? "🟩" : value >= 45 ? "🟨" : "🟥"))
@@ -2563,6 +2570,49 @@ export default function GameClient({
           : locale === "en"
             ? "Could not share. Try again."
             : "生成失败，请稍后重试",
+      );
+    }
+  };
+
+  const saveResultCard = async () => {
+    setCardStatus(locale === "en" ? "Preparing image…" : "正在生成图片…");
+    try {
+      const image = await createResultShareCard({
+        locale,
+        date: today,
+        market,
+        score: skillScore,
+        calibration: Math.round(decisionStats.calibration),
+        risk: Math.round(processScores.risk),
+        percentile: scoreboard?.playerScore?.percentile,
+        marks: resultShareMarks,
+      });
+      if (!image) throw new Error("image unavailable");
+      if (typeof ClipboardItem !== "undefined" && navigator.clipboard?.write) {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ "image/png": image }),
+          ]);
+          setCardStatus(
+            locale === "en" ? "Image copied" : "图片已复制",
+          );
+          return;
+        } catch {
+          // Browsers without image clipboard support fall back to a download.
+        }
+      }
+      const href = URL.createObjectURL(image);
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = `blind-trading-${today}.png`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(href), 0);
+      setCardStatus(locale === "en" ? "Image saved" : "图片已保存");
+    } catch {
+      setCardStatus(
+        locale === "en" ? "Could not create image" : "图片生成失败",
       );
     }
   };
@@ -3409,9 +3459,17 @@ export default function GameClient({
       </section>
       <footer className="source-note">
         <span>
-          A股 {MARKET_UNIVERSE_SIZE.cn.toLocaleString(numberLocale)}{" "}
-          只全市场股票池 · 美股 {MARKET_UNIVERSE_SIZE.us} 只 ·
-          每局按需加载真实日线 · 不构成投资建议
+          {locale === "en" ? (
+            <>
+              China A-shares {MARKET_UNIVERSE_SIZE.cn.toLocaleString(numberLocale)} stocks · U.S. stocks {MARKET_UNIVERSE_SIZE.us} · Real daily data loaded on demand · Not investment advice
+            </>
+          ) : (
+            <>
+              A股 {MARKET_UNIVERSE_SIZE.cn.toLocaleString(numberLocale)}{" "}
+              只全市场股票池 · 美股 {MARKET_UNIVERSE_SIZE.us} 只 ·
+              每局按需加载真实日线 · 不构成投资建议
+            </>
+          )}
         </span>
         <nav aria-label="Legal">
           <a href="/privacy" target="_blank" rel="noreferrer">隐私政策</a>
@@ -4953,6 +5011,64 @@ export default function GameClient({
               次交易 · 成本 {currencySymbol}
               {nf.format(feesPaid + slippagePaid)}
             </div>
+            {gameMode === "daily" && scoreStatus === "done" && (
+              <section className="result-share-kit">
+                <div>
+                  <small>
+                    {locale === "en"
+                      ? "SHARE WITHOUT SPOILERS"
+                      : "无剧透分享"}
+                  </small>
+                  <b>
+                    {locale === "en"
+                      ? "Your five-decision story"
+                      : "你的五次决策轨迹"}
+                  </b>
+                  <span
+                    className="share-mark-preview"
+                    aria-label={
+                      locale === "en"
+                        ? "Five-decision calibration preview"
+                        : "五次决策校准预览"
+                    }
+                  >
+                    {Array.from(
+                      { length: DAILY_CHALLENGE_DECISIONS },
+                      (_, index) => {
+                        const value = resultShareMarks[index] ?? 50;
+                        return (
+                          <i
+                            key={index}
+                            className={
+                              value >= 70
+                                ? "good"
+                                : value >= 45
+                                  ? "mixed"
+                                  : "miss"
+                            }
+                          />
+                        );
+                      },
+                    )}
+                  </span>
+                  <p>
+                    {locale === "en"
+                      ? "Shows your score and calibration—not the ticker or the answer."
+                      : "只展示得分与校准，不泄露股票名或答案。"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={cardStatus.includes("…")}
+                  onClick={() => void saveResultCard()}
+                >
+                  {cardStatus ||
+                    (locale === "en"
+                      ? "Copy or save score card"
+                      : "复制或保存成绩卡")}
+                </button>
+              </section>
+            )}
             <div className="result-actions three">
               <button
                 className="primary-action"

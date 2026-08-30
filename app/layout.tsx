@@ -28,9 +28,9 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   robots: { index: true, follow: true },
   openGraph: {
-    title: "Blind Trading | Trade the setup, not the ticker",
+    title: "Blind Trading | Can You Read the Market Better?",
     description:
-      "Make trading decisions on real historical charts with the ticker, dates, and future price action hidden.",
+      "One hidden historical chart. Five decisions. Challenge friends on the exact same market without seeing the ticker or future.",
     type: "website",
     images: [
       {
@@ -43,9 +43,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Blind Trading | Trade the setup, not the ticker",
+    title: "Blind Trading | Can You Read the Market Better?",
     description:
-      "A trading decision game built from real historical candlestick charts.",
+      "One hidden historical chart. Five decisions. Challenge a friend on the exact same market.",
     images: ["/og.png"],
   },
   icons: {

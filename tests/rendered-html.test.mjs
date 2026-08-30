@@ -42,6 +42,9 @@ test("contains the complete blind chart game shell", async () => {
     readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(layout, /Blind Trading \| Real Historical Market Challenge/);
+  assert.match(layout, /Blind Trading \| Can You Read the Market Better\?/);
+  assert.match(layout, /Challenge friends on the exact same market/);
+  assert.match(layout, /images: \["\/og\.png"\]/);
   assert.match(layout, /<html lang="en">/);
   assert.match(page, /今日盲盘/);
   assert.match(page, /竞技榜/);
@@ -116,6 +119,12 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /Crowd edge/);
   assert.match(page, /createResultShareCard/);
   assert.match(page, /navigator\.canShare/);
+  assert.match(page, /saveResultCard/);
+  assert.match(page, /ClipboardItem/);
+  assert.match(page, /URL\.createObjectURL/);
+  assert.match(page, /resultShareMarks/);
+  assert.match(page, /result-share-kit/);
+  assert.match(page, /SHARE WITHOUT SPOILERS/);
   assert.match(page, /duel-comparison/);
   assert.match(page, /PRIVATE SAME-CHART DUEL/);
   assert.match(page, /duel-invite-card/);
@@ -416,13 +425,15 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.coach-focus/);
   assert.match(styles, /\.duel-invite-card/);
   assert.match(styles, /\.duel-target-score/);
+  assert.match(styles, /\.result-share-kit/);
+  assert.match(styles, /\.share-mark-preview/);
   assert.match(
     styles,
     /\.probability-contract \.journal-row\{grid-template-columns:1fr\}/,
   );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /duel-landing-v17/);
+  assert.match(config, /share-anywhere-v18/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
