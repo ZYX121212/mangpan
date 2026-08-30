@@ -239,6 +239,15 @@ type AdvanceResponse = {
   finished: boolean;
   action: ReplayAction;
   dailyMission: DailyMission | null;
+  crowdForecast: CrowdForecast | null;
+};
+
+type CrowdForecast = {
+  round: number;
+  sampleSize: number;
+  up: number;
+  range: number;
+  down: number;
 };
 
 type DecisionFeedback = {
@@ -1313,6 +1322,9 @@ export default function GameClient({
   const [feedbackHistory, setFeedbackHistory] = useState<DecisionFeedback[]>(
     [],
   );
+  const [crowdForecast, setCrowdForecast] =
+    useState<CrowdForecast | null>(null);
+  const [modeHubOpen, setModeHubOpen] = useState(true);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
   const [patternQuiz, setPatternQuiz] = useState<PatternQuiz | null>(null);
@@ -1334,6 +1346,7 @@ export default function GameClient({
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
     [duelCode, setDuelCode] = useState("");
+  const [duelJoinInput, setDuelJoinInput] = useState("");
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
     [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [boardTab, setBoardTab] = useState<"daily" | "weekly">("daily");
@@ -1703,8 +1716,10 @@ export default function GameClient({
       if (
         params.get("date") === today &&
         /^[A-Z0-9]{8,12}$/i.test(challenger)
-      )
+      ) {
         setDuelCode(challenger.toUpperCase());
+        setModeHubOpen(false);
+      }
       setPlayerId(id);
       setNickname(storedNickname);
       setScenarioProgress(storedProgress);
@@ -1825,6 +1840,7 @@ export default function GameClient({
     setAnalysisOpen(false);
     setLastFeedback(restored.feedbackHistory.at(-1) ?? null);
     setFeedbackHistory(restored.feedbackHistory);
+    setCrowdForecast(null);
     setRevealPulse(0);
     setShareStatus("");
     setReplayLimit(8);
@@ -2000,6 +2016,45 @@ export default function GameClient({
     history.replaceState(null, "", location.pathname);
   };
 
+  const chooseMode = async (nextMode: "daily" | "practice" | "training") => {
+    if (
+      nextMode !== "training" &&
+      nextMode !== gameMode &&
+      actions.length > 0 &&
+      !finished &&
+      !window.confirm(
+        locale === "en"
+          ? "Leave this run and switch modes? Your current run will not be scored."
+          : "离开当前对局并切换模式？本局将不会计入成绩。",
+      )
+    )
+      return;
+    if (nextMode === "training") {
+      setModeHubOpen(false);
+      setTrainingOpen(true);
+      return;
+    }
+    setModeHubOpen(false);
+    if (nextMode === gameMode && !finished) return;
+    setDuelCode("");
+    history.replaceState(null, "", location.pathname);
+    await resetGame(nextMode, market, "random", "standard");
+  };
+
+  const joinDuel = async () => {
+    const code = duelJoinInput.trim().toUpperCase();
+    if (!/^[A-Z0-9]{8,12}$/.test(code)) return;
+    setDuelCode(code);
+    setModeHubOpen(false);
+    history.replaceState(
+      null,
+      "",
+      `${location.pathname}?duel=${encodeURIComponent(code)}&date=${today}&market=${market}`,
+    );
+    if (gameMode !== "daily" || finished)
+      await resetGame("daily", market, "random", "standard");
+  };
+
   const startQuiz = async (focus?: QuizScenario) => {
     if (!playerId || quizLoading) return;
     setQuizLoading(true);
@@ -2155,6 +2210,7 @@ export default function GameClient({
       setTrainingProfile((value) =>
         value ? { ...value, daily: advanced.dailyMission! } : value,
       );
+    setCrowdForecast(advanced.crowdForecast);
     const factor = 100 / stock.candles[initialVisibleCount - 1].close;
     const normalizedNew = advanced.candles.map((candle) => ({
       ...candle,
@@ -2371,6 +2427,31 @@ export default function GameClient({
           <span className="brand-mark">K</span>
           <span>盲盘</span>
         </div>
+        <button
+          className="mode-entry"
+          onClick={() => setModeHubOpen(true)}
+          aria-label={locale === "en" ? "Choose game mode" : "选择游戏模式"}
+        >
+          <small>{locale === "en" ? "MODE" : "模式"}</small>
+          <b>
+            {activeDuel
+              ? locale === "en"
+                ? "Friend Duel"
+                : "好友对决"
+              : activeScenario
+                ? locale === "en"
+                  ? "Training Lab"
+                  : "训练学院"
+                : gameMode === "daily"
+                  ? locale === "en"
+                    ? "Daily"
+                    : "每日挑战"
+                  : locale === "en"
+                    ? "Practice"
+                    : "无限练习"}
+          </b>
+          <span>⌄</span>
+        </button>
         <div className="market-switch" role="group" aria-label="选择股票市场">
           <button
             className={market === "cn" ? "active" : ""}
@@ -2386,12 +2467,6 @@ export default function GameClient({
             onClick={() => changeMarket("cn")}
           >
             A股
-          </button>
-          <button
-            className="text-button training-button"
-            onClick={() => setTrainingOpen(true)}
-          >
-            情境训练
           </button>
           <button
             className={market === "us" ? "active" : ""}
@@ -2440,13 +2515,6 @@ export default function GameClient({
             </button>
           </div>
           <button
-            className={`mission-chip ${dailyMission.completed === 3 ? "done" : ""}`}
-            onClick={() => setTrainingOpen(true)}
-          >
-            <span>今日任务</span>
-            <b>{dailyMission.completed}/3</b>
-          </button>
-          <button
             className="player-chip"
             onClick={() => setScoreboardOpen(true)}
             title={initialIdentity ? "已连接站点账号，训练进度云端同步" : "当前设备训练档案"}
@@ -2458,12 +2526,6 @@ export default function GameClient({
             ) : initialIdentity ? (
               <b className="identity-cloud">云端</b>
             ) : null}
-          </button>
-          <button
-            className="text-button rank-button"
-            onClick={() => setScoreboardOpen(true)}
-          >
-            竞技榜
           </button>
           <button className="text-button" onClick={() => setRulesOpen(true)}>
             游戏规则
@@ -2705,6 +2767,56 @@ export default function GameClient({
                 </span>
               </div>
             </details>
+          )}
+          {crowdForecast && !finished && gameMode === "daily" && (
+            <section
+              className="crowd-consensus"
+              aria-label={
+                locale === "en"
+                  ? `Global crowd forecast from ${crowdForecast.sampleSize} locked players`
+                  : `${crowdForecast.sampleSize} 位已锁定玩家的全球共识`
+              }
+            >
+              <header>
+                <span>{locale === "en" ? "GLOBAL CROWD" : "全球共识"}</span>
+                <b>
+                  {crowdForecast.sampleSize.toLocaleString(numberLocale)}
+                  {locale === "en" ? " locked" : " 位已锁定"}
+                </b>
+              </header>
+              <div className="crowd-bar" aria-hidden="true">
+                <i
+                  className="crowd-up"
+                  style={{ width: `${crowdForecast.up}%` }}
+                />
+                <i
+                  className="crowd-range"
+                  style={{ width: `${crowdForecast.range}%` }}
+                />
+                <i
+                  className="crowd-down"
+                  style={{ width: `${crowdForecast.down}%` }}
+                />
+              </div>
+              <div className="crowd-labels">
+                <span>
+                  {locale === "en" ? "UP" : "涨"} <b>{crowdForecast.up}%</b>
+                </span>
+                <span>
+                  {locale === "en" ? "RANGE" : "震"}{" "}
+                  <b>{crowdForecast.range}%</b>
+                </span>
+                <span>
+                  {locale === "en" ? "DOWN" : "跌"}{" "}
+                  <b>{crowdForecast.down}%</b>
+                </span>
+              </div>
+              <small>
+                {locale === "en"
+                  ? "Revealed only after your forecast locks · no future price shown"
+                  : "仅在你的判断锁定后显示 · 不泄露未来走势"}
+              </small>
+            </section>
           )}
           {!finished ? (
             <>
@@ -3052,6 +3164,153 @@ export default function GameClient({
           <a href="/terms" target="_blank" rel="noreferrer">服务条款</a>
         </nav>
       </footer>
+
+      {modeHubOpen && (
+        <dialog open className="modal-backdrop mode-hub-backdrop">
+          <section className="mode-hub">
+            <header className="mode-hub-head">
+              <div>
+                <small>BLIND TRADING · GAME MODES</small>
+                <h1>
+                  {locale === "en"
+                    ? "Choose one way to play"
+                    : "选择一种玩法"}
+                </h1>
+                <p>
+                  {locale === "en"
+                    ? "Each mode has one clear purpose. Switch anytime from the Mode button."
+                    : "每种模式只解决一个目标，可随时从顶部“模式”按钮切换。"}
+                </p>
+              </div>
+              <button
+                className="mode-hub-close"
+                onClick={() => setModeHubOpen(false)}
+                aria-label={locale === "en" ? "Close mode menu" : "关闭模式菜单"}
+              >
+                ×
+              </button>
+            </header>
+            <div className="mode-card-grid">
+              <button
+                className="mode-card featured"
+                disabled={challengeLoading}
+                onClick={() => void chooseMode("daily")}
+              >
+                <span>01</span>
+                <small>{locale === "en" ? "THE GLOBAL PUZZLE" : "全球同题"}</small>
+                <h2>{locale === "en" ? "Daily Challenge" : "每日挑战"}</h2>
+                <p>
+                  {locale === "en"
+                    ? "Five decisions on the same mystery chart as everyone else. Lock first, then see the global crowd."
+                    : "所有玩家面对同一张神秘图，完成五次决策；先锁定观点，再看全球共识。"}
+                </p>
+                <strong>
+                  {locale === "en"
+                    ? "~90 sec · streak · leaderboard"
+                    : "约 90 秒 · 连胜 · 排行榜"}
+                </strong>
+                <i>{locale === "en" ? "Play today's chart →" : "开始今日同题 →"}</i>
+              </button>
+              <button
+                className="mode-card"
+                disabled={challengeLoading}
+                onClick={() => void chooseMode("practice")}
+              >
+                <span>02</span>
+                <small>{locale === "en" ? "NO PRESSURE" : "自由探索"}</small>
+                <h2>{locale === "en" ? "Endless Practice" : "无限练习"}</h2>
+                <p>
+                  {locale === "en"
+                    ? "Explore random real charts at your own pace. Change stocks or stop whenever you want."
+                    : "按自己的节奏探索随机真实行情，随时换股或结束，不进入每日排名。"}
+                </p>
+                <strong>
+                  {locale === "en" ? "Unlimited · unranked" : "不限次数 · 不排名"}
+                </strong>
+                <i>{locale === "en" ? "Start practicing →" : "进入自由练习 →"}</i>
+              </button>
+              <button
+                className="mode-card"
+                onClick={() => void chooseMode("training")}
+              >
+                <span>03</span>
+                <small>{locale === "en" ? "BUILD A SKILL" : "专项提升"}</small>
+                <h2>{locale === "en" ? "Training Lab" : "训练学院"}</h2>
+                <p>
+                  {locale === "en"
+                    ? "Pattern quizzes and focused lessons for trends, reversals, crashes, and volatile markets."
+                    : "用形态盲测与专项课程训练趋势、拐点、急跌和高波动行情。"}
+                </p>
+                <strong>
+                  {locale === "en" ? "12 lessons · adaptive review" : "12 课 · 错因重练"}
+                </strong>
+                <i>{locale === "en" ? "Choose a lesson →" : "选择训练课程 →"}</i>
+              </button>
+              <article className="mode-card duel-mode-card">
+                <span>04</span>
+                <small>
+                  {locale === "en" ? "SAME CHART, TWO READS" : "同图不同判断"}
+                </small>
+                <h2>{locale === "en" ? "Friend Duel" : "好友对决"}</h2>
+                <p>
+                  {locale === "en"
+                    ? "Open a friend's invite link or enter their code. Both of you get the exact same chart."
+                    : "打开好友邀请链接或输入挑战码；双方看到完全相同的历史行情。"}
+                </p>
+                <div className="duel-join-row">
+                  <input
+                    value={duelJoinInput}
+                    maxLength={12}
+                    autoCapitalize="characters"
+                    spellCheck={false}
+                    placeholder={locale === "en" ? "INVITE CODE" : "输入挑战码"}
+                    aria-label={locale === "en" ? "Friend invite code" : "好友挑战码"}
+                    onChange={(event) =>
+                      setDuelJoinInput(
+                        event.target.value
+                          .toUpperCase()
+                          .replace(/[^A-Z0-9]/g, ""),
+                      )
+                    }
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") void joinDuel();
+                    }}
+                  />
+                  <button
+                    disabled={!/^[A-Z0-9]{8,12}$/.test(duelJoinInput)}
+                    onClick={() => void joinDuel()}
+                  >
+                    {locale === "en" ? "Join" : "加入"}
+                  </button>
+                </div>
+                <strong>
+                  {locale === "en"
+                    ? "No sign-up · verified scores"
+                    : "无需注册 · 服务器复算"}
+                </strong>
+              </article>
+            </div>
+            <footer className="mode-hub-footer">
+              <button
+                onClick={() => {
+                  setModeHubOpen(false);
+                  setScoreboardOpen(true);
+                }}
+              >
+                {locale === "en" ? "Leaderboard & profile" : "排行榜与个人档案"}
+              </button>
+              <button
+                onClick={() => {
+                  setModeHubOpen(false);
+                  setRulesOpen(true);
+                }}
+              >
+                {locale === "en" ? "How to play" : "查看游戏规则"}
+              </button>
+            </footer>
+          </section>
+        </dialog>
+      )}
 
       {trainingOpen && (
         <dialog

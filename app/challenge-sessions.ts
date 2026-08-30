@@ -16,6 +16,7 @@ import {
   DAILY_CHALLENGE_DECISIONS,
   MAX_ACTIONS,
   chinaDate,
+  forecastForAction,
   hashText,
   initialBarsFor,
   isOrderAllocation,
@@ -56,6 +57,54 @@ export type PublicChallengeSession = {
   actions: ReplayAction[];
   resumed?: boolean;
 };
+
+export type CrowdForecast = {
+  round: number;
+  sampleSize: number;
+  up: number;
+  range: number;
+  down: number;
+};
+
+async function getCrowdForecast(
+  challengeId: string,
+  round: number,
+): Promise<CrowdForecast | null> {
+  const result = await getD1Database()
+    .prepare(
+      `SELECT actions FROM game_sessions
+       WHERE challenge_id = ? AND mode = 'daily' AND actions != '[]'
+       ORDER BY updated_at DESC LIMIT 500`,
+    )
+    .bind(challengeId)
+    .all<{ actions: string }>();
+  const totals = { up: 0, range: 0, down: 0 };
+  let sampleSize = 0;
+  for (const row of result.results) {
+    let action: ReplayAction | undefined;
+    try {
+      action = (JSON.parse(row.actions) as ReplayAction[])[round - 1];
+    } catch {
+      action = undefined;
+    }
+    const forecast = action ? forecastForAction(action) : null;
+    if (!forecast) continue;
+    totals.up += forecast.up;
+    totals.range += forecast.range;
+    totals.down += forecast.down;
+    sampleSize++;
+  }
+  if (!sampleSize) return null;
+  const average = (value: number) =>
+    Math.round((value / sampleSize) * 10) / 10;
+  return {
+    round,
+    sampleSize,
+    up: average(totals.up),
+    range: average(totals.range),
+    down: average(totals.down),
+  };
+}
 
 const QUIZ_SCENARIOS = ["trend", "reversal", "crash", "volatile"] as const;
 type QuizScenario = (typeof QUIZ_SCENARIOS)[number];
@@ -581,6 +630,10 @@ export async function advanceSession(
         { advancedDays: holdingDays },
       )
     : null;
+  const crowdForecast =
+    session.mode === "daily"
+      ? await getCrowdForecast(session.challengeId, nextActions.length)
+      : null;
   return {
     candles: bundle.stock.candles
       .slice(session.visibleCount, nextVisibleCount)
@@ -593,6 +646,7 @@ export async function advanceSession(
     finished,
     action: savedAction,
     dailyMission,
+    crowdForecast,
   };
 }
 
