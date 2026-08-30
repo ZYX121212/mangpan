@@ -220,15 +220,17 @@ export const duelChallenges = sqliteTable(
     challengerPlayerId: text("challenger_player_id").notNull(),
     challengeDate: text("challenge_date").notNull(),
     market: text("market").notNull(),
+    challengeId: text("challenge_id").notNull().default(""),
+    challengerNickname: text("challenger_nickname").notNull().default(""),
+    targetScore: integer("target_score").notNull().default(0),
     createdAt: text("created_at")
       .notNull()
       .default(sql`CURRENT_TIMESTAMP`),
   },
   (table) => [
-    uniqueIndex("duel_challenges_player_date_market_unique").on(
+    uniqueIndex("duel_challenges_player_challenge_unique").on(
       table.challengerPlayerId,
-      table.challengeDate,
-      table.market,
+      table.challengeId,
     ),
     index("duel_challenges_date_market_idx").on(
       table.challengeDate,

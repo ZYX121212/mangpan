@@ -20,8 +20,7 @@ function scoreDate(date: string, market: MarketKind) {
 
 async function existingDuel(
   playerId: string,
-  date: string,
-  market: MarketKind,
+  challengeId: string,
 ) {
   const [row] = await getDb()
     .select()
@@ -29,8 +28,7 @@ async function existingDuel(
     .where(
       and(
         eq(duelChallenges.challengerPlayerId, playerId),
-        eq(duelChallenges.challengeDate, date),
-        eq(duelChallenges.market, market),
+        eq(duelChallenges.challengeId, challengeId),
       ),
     )
     .limit(1);
@@ -65,8 +63,9 @@ export async function POST(request: Request) {
         { status: 400, headers },
       );
 
+    const challengeId = scoreDate(payload.date, payload.market);
     const [score] = await getDb()
-      .select({ nickname: dailyScores.nickname })
+      .select({ nickname: dailyScores.nickname, score: dailyScores.score })
       .from(dailyScores)
       .where(
         and(
@@ -81,7 +80,7 @@ export async function POST(request: Request) {
         { status: 409, headers },
       );
 
-    let duel = await existingDuel(playerId, payload.date, payload.market);
+    let duel = await existingDuel(playerId, challengeId);
     for (let attempt = 0; !duel && attempt < 4; attempt++) {
       const code = crypto.randomUUID().replaceAll("-", "").slice(0, 10).toUpperCase();
       await getDb()
@@ -91,9 +90,12 @@ export async function POST(request: Request) {
           challengerPlayerId: playerId,
           challengeDate: payload.date,
           market: payload.market,
+          challengeId,
+          challengerNickname: score.nickname,
+          targetScore: score.score,
         })
         .onConflictDoNothing();
-      duel = await existingDuel(playerId, payload.date, payload.market);
+      duel = await existingDuel(playerId, challengeId);
     }
     if (!duel) throw new Error("挑战码创建失败");
     return Response.json(

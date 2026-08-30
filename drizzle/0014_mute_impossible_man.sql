@@ -1,0 +1,2 @@
+DROP INDEX `duel_challenges_player_date_market_unique`;--> statement-breakpoint
+CREATE UNIQUE INDEX `duel_challenges_player_challenge_unique` ON `duel_challenges` (`challenger_player_id`,`challenge_id`);

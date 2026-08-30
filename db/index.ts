@@ -162,11 +162,11 @@ export function ensureDatabase() {
         challenger_player_id TEXT NOT NULL,
         challenge_date TEXT NOT NULL,
         market TEXT NOT NULL,
+        challenge_id TEXT NOT NULL DEFAULT '',
+        challenger_nickname TEXT NOT NULL DEFAULT '',
+        target_score INTEGER NOT NULL DEFAULT 0,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
-      database.prepare(
-        "CREATE UNIQUE INDEX IF NOT EXISTS duel_challenges_player_date_market_unique ON duel_challenges (challenger_player_id, challenge_date, market)",
-      ),
       database.prepare(
         "CREATE INDEX IF NOT EXISTS duel_challenges_date_market_idx ON duel_challenges (challenge_date, market)",
       ),
@@ -237,6 +237,58 @@ export function ensureDatabase() {
           await database.prepare(sql).run();
         }
       }
+      const duelChallengeColumns = (await database
+        .prepare("PRAGMA table_info(duel_challenges)")
+        .all()) as { results: { name: string }[] };
+      for (const [name, sql] of [
+        [
+          "challenge_id",
+          "ALTER TABLE duel_challenges ADD COLUMN challenge_id TEXT NOT NULL DEFAULT ''",
+        ],
+        [
+          "challenger_nickname",
+          "ALTER TABLE duel_challenges ADD COLUMN challenger_nickname TEXT NOT NULL DEFAULT ''",
+        ],
+        [
+          "target_score",
+          "ALTER TABLE duel_challenges ADD COLUMN target_score INTEGER NOT NULL DEFAULT 0",
+        ],
+      ] as const) {
+        if (
+          !duelChallengeColumns.results.some((column) => column.name === name)
+        ) {
+          await database.prepare(sql).run();
+        }
+      }
+      await database
+        .prepare(`UPDATE duel_challenges
+          SET challenge_id = challenge_date || '@focused-daily-v18@' || market
+          WHERE challenge_id = ''`)
+        .run();
+      await database
+        .prepare(`UPDATE duel_challenges
+          SET challenger_nickname = COALESCE((
+                SELECT nickname FROM daily_scores
+                WHERE challenge_date = duel_challenges.challenge_id
+                  AND player_id = duel_challenges.challenger_player_id
+                LIMIT 1
+              ), challenger_nickname),
+              target_score = COALESCE((
+                SELECT score FROM daily_scores
+                WHERE challenge_date = duel_challenges.challenge_id
+                  AND player_id = duel_challenges.challenger_player_id
+                LIMIT 1
+              ), target_score)
+          WHERE challenger_nickname = ''`)
+        .run();
+      await database
+        .prepare("DROP INDEX IF EXISTS duel_challenges_player_date_market_unique")
+        .run();
+      await database
+        .prepare(
+          "CREATE UNIQUE INDEX IF NOT EXISTS duel_challenges_player_challenge_unique ON duel_challenges (challenger_player_id, challenge_id)",
+        )
+        .run();
       return result;
     })
     .catch((error: unknown) => {

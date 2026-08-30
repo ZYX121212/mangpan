@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import GameClient from "../../game-client";
 import { getChatGPTUser } from "../../chatgpt-auth";
-import { startDailySession } from "../../challenge-sessions";
+import { startDuelSession } from "../../challenge-sessions";
 import { getPublicDuelInvite } from "../../duel-invites";
 import { opaquePlayerId } from "../../request-identity";
 import { normalizeShareSource } from "../../share-links";
@@ -120,11 +120,7 @@ export default async function DuelPage({
   if (!invite) return <DuelUnavailable />;
   const user = await getChatGPTUser();
   const playerId = user ? await opaquePlayerId(user.userId) : undefined;
-  const challenge = await startDailySession(
-    invite.date,
-    invite.market,
-    playerId,
-  );
+  const challenge = await startDuelSession(invite.challengeId, playerId);
   return (
     <GameClient
       initialChallenge={challenge}

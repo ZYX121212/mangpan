@@ -417,10 +417,12 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   );
   assert.doesNotMatch(duelPage, /CHALLENGE EXPIRED/);
   assert.doesNotMatch(duelPage, /marketDate\(invite\.market\)/);
-  assert.match(duelPage, /startDailySession\(\s*invite\.date,/);
+  assert.match(duelPage, /startDuelSession\(invite\.challengeId, playerId\)/);
+  assert.match(duelInvites, /challengeId: duel\.challengeId/);
   assert.match(duelInvites, /duelChallenges\.code/);
-  assert.match(duelInvites, /dailyScores\.challengeDate/);
-  assert.match(duelInvites, /challengerNickname: score\.nickname/);
+  assert.doesNotMatch(duelInvites, /dailyScores|GAME_VERSION|scoreDate/);
+  assert.match(duelInvites, /challengerNickname: duel\.challengerNickname/);
+  assert.match(duelInvites, /targetScore: duel\.targetScore/);
   assert.match(styles, /\.duel-route-state/);
 });
 
@@ -482,6 +484,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     duelRoomMigration,
     attributionMigration,
     archivedDuelMigration,
+    immutableDuelMigration,
+    duelIndexMigration,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
@@ -543,6 +547,14 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
       new URL("../drizzle/0012_chemical_richard_fisk.sql", import.meta.url),
       "utf8",
     ),
+    readFile(
+      new URL("../drizzle/0013_remarkable_daredevil.sql", import.meta.url),
+      "utf8",
+    ),
+    readFile(
+      new URL("../drizzle/0014_mute_impossible_man.sql", import.meta.url),
+      "utf8",
+    ),
   ]);
 
   assert.match(page, /ticker-mask/);
@@ -579,7 +591,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /href="\/"/);
   assert.doesNotMatch(page, /onClick=\{\(\) => setModeHubOpen\(true\)\}/);
   assert.match(challengeRoute, /marketDate\(market\)/);
-  assert.match(scoreRoute, /isCurrentChallenge = date === marketDate\(market\)/);
+  assert.match(scoreRoute, /const isCurrentRankedChallenge =/);
+  assert.match(scoreRoute, /storageDate === currentStorageDate/);
   assert.match(scoreRoute, /历史挑战仅可通过有效好友房间提交/);
   assert.match(duelRoute, /marketDate\(payload\.market\)/);
   assert.match(config, /us: "America\/New_York"/);
@@ -602,6 +615,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(quizRoute, /getTrainingProfile/);
   assert.match(duelRoute, /完成并提交今日挑战后才可发起同图对决/);
   assert.match(duelRoute, /crypto\.randomUUID/);
+  assert.match(duelRoute, /challengeId,/);
+  assert.match(duelRoute, /challengerNickname: score\.nickname/);
+  assert.match(duelRoute, /targetScore: score\.score/);
   assert.match(scoreRoute, /buildWeeklyLeague/);
   assert.match(scoreRoute, /ROW_NUMBER\(\) OVER/);
   assert.match(scoreRoute, /每周取最佳 5 局/);
@@ -618,7 +634,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /duelResponseSummary/);
   assert.match(scoreRoute, /playerOverride/);
   assert.match(scoreRoute, /opponentOverride/);
-  assert.match(scoreRoute, /if \(isCurrentChallenge\)\s*await db/);
+  assert.match(scoreRoute, /if \(isCurrentRankedChallenge\)\s*await db/);
+  assert.match(scoreRoute, /challenge\.session\.challengeId !== storageDate/);
+  assert.match(scoreRoute, /storageDateOverride \?\? scoreDate\(date, market\)/);
+  assert.match(scoreRoute, /duelContext\?\.duel\.challengeId/);
   assert.match(scoreRoute, /returnRate: officialScore\.returnRate/);
   assert.match(scoreRoute, /\.onConflictDoNothing\(\{\s*target: \[\s*duelResponses\.duelCode/);
   assert.match(scoreRoute, /COUNT\(DISTINCT duel_challenges\.code\)/);
@@ -647,6 +666,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(sessions, /session\.mode === "daily" \? 3 : action\.days \|\| 3/);
   assert.match(sessions, /const contributesToDailyMission/);
   assert.match(sessions, /session\.challengeDate === marketDate/);
+  assert.match(sessions, /session\.challengeId ===[\s\S]*snapshotId/);
   assert.match(config, /GAME_VERSION = "focused-daily-v18"/);
   assert.doesNotMatch(sessions, /请完整记录方向、依据和信心/);
   assert.match(schema, /game_sessions/);
@@ -699,6 +719,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(sessions, /actions\.length >= DAILY_CHALLENGE_DECISIONS/);
   assert.match(sessions, /nextActions\.length >= DAILY_CHALLENGE_DECISIONS/);
   assert.match(sessions, /getCrowdForecast/);
+  assert.match(sessions, /export async function startDuelSession/);
+  assert.match(sessions, /getStoredChallengeBundle\(challengeId\)/);
   assert.match(sessions, /crowdForecasts/);
   assert.match(sessions, /LIMIT 500/);
   assert.match(sessions, /forecastForAction/);
@@ -757,7 +779,21 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(attributionMigration, /ALTER TABLE `duel_responses` ADD `source`/);
   assert.match(archivedDuelMigration, /ADD `return_rate`/);
   assert.match(archivedDuelMigration, /ADD `max_drawdown`/);
+  assert.match(immutableDuelMigration, /ADD `challenge_id`/);
+  assert.match(immutableDuelMigration, /ADD `challenger_nickname`/);
+  assert.match(immutableDuelMigration, /ADD `target_score`/);
+  assert.match(immutableDuelMigration, /focused-daily-v18/);
+  assert.match(immutableDuelMigration, /UPDATE `duel_challenges`/);
+  assert.match(duelIndexMigration, /duel_challenges_player_challenge_unique/);
+  assert.match(schema, /challengeId: text\("challenge_id"\)/);
+  assert.match(schema, /challengerNickname: text\("challenger_nickname"\)/);
+  assert.match(schema, /targetScore: integer\("target_score"\)/);
+  assert.match(schema, /duel_challenges_player_challenge_unique/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_responses/);
+  assert.match(database, /PRAGMA table_info\(duel_challenges\)/);
+  assert.match(database, /ALTER TABLE duel_challenges ADD COLUMN challenge_id/);
+  assert.match(database, /focused-daily-v18/);
+  assert.match(database, /duel_challenges_player_challenge_unique/);
   assert.match(database, /PRAGMA table_info\(duel_responses\)/);
   assert.match(database, /ALTER TABLE duel_responses ADD COLUMN source/);
   assert.match(database, /ALTER TABLE duel_responses ADD COLUMN return_rate/);

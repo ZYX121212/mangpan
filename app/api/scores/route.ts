@@ -347,9 +347,10 @@ async function buildScoreboard(
   duelRoom?: DuelRoom | null,
   playerOverride?: ScoreSummary | null,
   opponentOverride?: ScoreSummary | null,
+  storageDateOverride?: string,
 ) {
   const db = getDb();
-  const storageDate = scoreDate(date, market);
+  const storageDate = storageDateOverride ?? scoreDate(date, market);
   const top = await db
     .select({
       playerId: dailyScores.playerId,
@@ -496,7 +497,9 @@ async function buildScoreboard(
     const riskControlled = Number(career?.risk_controlled || 0);
     const duelCreated = Number(duelSummary?.total || 0);
     const streakProtection = calculateStreakProtection(
-      streakHistory.results.map((row) => row.challenge_date.split("@")[0]),
+      streakHistory.results.map((row: { challenge_date: string }) =>
+        row.challenge_date.split("@")[0],
+      ),
       marketDate(market),
     );
     const achievements = buildAchievements({
@@ -573,7 +576,13 @@ async function resolveDuelContext(
     .from(duelChallenges)
     .where(eq(duelChallenges.code, duelCode.toUpperCase()))
     .limit(1);
-  if (!duel || duel.challengeDate !== date || duel.market !== market)
+  if (
+    !duel ||
+    duel.challengeDate !== date ||
+    duel.market !== market ||
+    !duel.challengeId.startsWith(`${date}@`) ||
+    !duel.challengeId.endsWith(`@${market}`)
+  )
     return null;
   const [[{ total }], [best], sourceRows, [respondent]] = await Promise.all([
     db
@@ -702,6 +711,7 @@ export async function GET(request: Request) {
         duelContext?.room,
         duelContext?.playerOverride,
         duelContext?.opponentOverride,
+        duelContext?.duel.challengeId,
       ),
     );
   } catch (error) {
@@ -726,7 +736,9 @@ export async function POST(request: Request) {
     };
     if (!validMarket(payload.market))
       return Response.json({ error: "市场无效" }, { status: 400 });
-    if (!validDate(typeof payload.date === "string" ? payload.date : null))
+    const requestedDate =
+      typeof payload.date === "string" ? payload.date : null;
+    if (!validDate(requestedDate))
       return Response.json({ error: "挑战日期无效" }, { status: 400 });
     const resolvedPlayerId = await requestPlayerId(request, payload.playerId);
     if (!resolvedPlayerId)
@@ -737,7 +749,7 @@ export async function POST(request: Request) {
     )
       return Response.json({ error: "挑战会话无效" }, { status: 400 });
 
-    const date = payload.date;
+    const date = requestedDate;
     const playerId = resolvedPlayerId;
     const nickname = cleanNickname(
       payload.nickname ?? requestDisplayName(request),
@@ -756,8 +768,11 @@ export async function POST(request: Request) {
       : null;
     if (duelCode && !duelContext)
       return Response.json({ error: "挑战码已过期" }, { status: 404 });
-    const isCurrentChallenge = date === marketDate(market);
-    if (!isCurrentChallenge && !duelContext)
+    const currentStorageDate = scoreDate(date, market);
+    const storageDate = duelContext?.duel.challengeId ?? currentStorageDate;
+    const isCurrentRankedChallenge =
+      date === marketDate(market) && storageDate === currentStorageDate;
+    if (!isCurrentRankedChallenge && !duelContext)
       return Response.json(
         { error: "历史挑战仅可通过有效好友房间提交" },
         { status: 400 },
@@ -765,7 +780,8 @@ export async function POST(request: Request) {
     const challenge = await getSessionForScore(payload.sessionId, playerId);
     if (
       challenge.session.challengeDate !== date ||
-      challenge.session.market !== market
+      challenge.session.market !== market ||
+      challenge.session.challengeId !== storageDate
     )
       return Response.json({ error: "挑战与榜单不匹配" }, { status: 400 });
     const result = replayChallenge(
@@ -773,7 +789,6 @@ export async function POST(request: Request) {
       challenge.actions,
       market,
     );
-    const storageDate = scoreDate(date, market);
     const db = getDb();
     await db
       .insert(players)
@@ -782,7 +797,7 @@ export async function POST(request: Request) {
         target: players.id,
         set: { nickname, updatedAt: new Date().toISOString() },
       });
-    if (isCurrentChallenge)
+    if (isCurrentRankedChallenge)
       await db
         .insert(dailyScores)
         .values({
@@ -804,7 +819,7 @@ export async function POST(request: Request) {
         });
 
     if (duelContext && duelContext.duel.challengerPlayerId !== playerId) {
-      const [officialScore] = isCurrentChallenge
+      const [officialScore] = isCurrentRankedChallenge
         ? await db
             .select({
               nickname: dailyScores.nickname,
@@ -866,6 +881,7 @@ export async function POST(request: Request) {
         duelContext?.room,
         duelContext?.playerOverride,
         duelContext?.opponentOverride,
+        duelContext?.duel.challengeId,
       ),
     );
   } catch (error) {

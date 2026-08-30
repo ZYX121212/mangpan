@@ -1,13 +1,14 @@
 import { cache } from "react";
-import { and, count, eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../db";
-import { dailyScores, duelChallenges, duelResponses } from "../db/schema";
-import { GAME_VERSION, type MarketKind } from "./game-core";
+import { duelChallenges, duelResponses } from "../db/schema";
+import type { MarketKind } from "./game-core";
 
 export type PublicDuelInvite = {
   code: string;
   date: string;
   market: MarketKind;
+  challengeId: string;
   challengerNickname: string;
   targetScore: number;
   responseCount: number;
@@ -15,10 +16,6 @@ export type PublicDuelInvite = {
 
 function validCode(value: string) {
   return /^[A-Z0-9]{8,12}$/.test(value);
-}
-
-function scoreDate(date: string, market: MarketKind) {
-  return `${date}@${GAME_VERSION}@${market}`;
 }
 
 export const getPublicDuelInvite = cache(
@@ -34,32 +31,25 @@ export const getPublicDuelInvite = cache(
       .limit(1);
     if (!duel || (duel.market !== "cn" && duel.market !== "us")) return null;
     const market = duel.market;
-    const [[score], [{ responseCount }]] = await Promise.all([
-      db
-        .select({ nickname: dailyScores.nickname, score: dailyScores.score })
-        .from(dailyScores)
-        .where(
-          and(
-            eq(
-              dailyScores.challengeDate,
-              scoreDate(duel.challengeDate, market),
-            ),
-            eq(dailyScores.playerId, duel.challengerPlayerId),
-          ),
-        )
-        .limit(1),
-      db
-        .select({ responseCount: count() })
-        .from(duelResponses)
-        .where(eq(duelResponses.duelCode, duel.code)),
-    ]);
-    if (!score) return null;
+    if (
+      !duel.challengeId.startsWith(`${duel.challengeDate}@`) ||
+      !duel.challengeId.endsWith(`@${market}`) ||
+      !duel.challengerNickname.trim() ||
+      duel.targetScore < 0 ||
+      duel.targetScore > 100
+    )
+      return null;
+    const [{ responseCount }] = await db
+      .select({ responseCount: count() })
+      .from(duelResponses)
+      .where(eq(duelResponses.duelCode, duel.code));
     return {
       code,
       date: duel.challengeDate,
       market,
-      challengerNickname: score.nickname,
-      targetScore: score.score,
+      challengeId: duel.challengeId,
+      challengerNickname: duel.challengerNickname,
+      targetScore: duel.targetScore,
       responseCount,
     };
   },

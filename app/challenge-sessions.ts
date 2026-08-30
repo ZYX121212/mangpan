@@ -369,6 +369,21 @@ export async function startDailySession(
   );
 }
 
+export async function startDuelSession(
+  challengeId: string,
+  playerId?: string,
+) {
+  const bundle = await getStoredChallengeBundle(challengeId);
+  return insertSession(
+    challengeId,
+    bundle,
+    "daily",
+    "random",
+    "standard",
+    playerId,
+  );
+}
+
 export async function startPracticeSession(
   seed: string,
   market: MarketKind,
@@ -654,7 +669,12 @@ export async function advanceSession(
   const activityPlayerId = playerId ?? session.playerId ?? undefined;
   const contributesToDailyMission =
     session.mode !== "daily" ||
-    session.challengeDate === marketDate(session.market as MarketKind);
+    (session.challengeDate === marketDate(session.market as MarketKind) &&
+      session.challengeId ===
+        snapshotId(
+          session.challengeDate,
+          session.market as MarketKind,
+        ));
   const dailyMission = activityPlayerId && contributesToDailyMission
     ? await recordDailyActivity(
         activityPlayerId,
