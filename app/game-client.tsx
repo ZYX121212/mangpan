@@ -1742,6 +1742,7 @@ export default function GameClient({
   const deepProfile = useMemo(
     () =>
       buildTradeAnalysis({
+        locale,
         candles: normalized.slice(0, visibleCount),
         markers: tradeMarkers,
         equityHistory,
@@ -1759,6 +1760,7 @@ export default function GameClient({
       excess,
       exposureHistory,
       maxDrawdown,
+      locale,
       normalized,
       returnRate,
       tradeMarkers,
@@ -2594,7 +2596,7 @@ export default function GameClient({
               onClick={() => changeLocale("zh")}
               aria-pressed={locale === "zh"}
             >
-              中
+              ZH
             </button>
             <button
               className={locale === "en" ? "active" : ""}

@@ -1,6 +1,39 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import ts from "typescript";
+
+const HAN = /[\u3400-\u9fff]/u;
+
+function parseSource(name, source) {
+  return ts.createSourceFile(
+    name,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    name.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+  );
+}
+
+function staticText(node, sourceFile) {
+  if (ts.isStringLiteralLike(node) || ts.isNoSubstitutionTemplateLiteral(node)) {
+    return node.text;
+  }
+  if (ts.isJsxText(node)) return node.getText(sourceFile).trim();
+  return null;
+}
+
+function isInsideLocaleConditional(node, sourceFile) {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (
+      ts.isConditionalExpression(parent) &&
+      parent.condition.getText(sourceFile).includes("locale")
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
 
 test("contains the complete blind chart game shell", async () => {
   const [page, layout, i18n] = await Promise.all([
@@ -119,6 +152,106 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(i18n, /Decision Contract/);
   assert.doesNotMatch(page, /最多推进 60/);
   assert.doesNotMatch(page, /Building your site|Your site is taking shape/);
+});
+
+test("keeps the English launch surface free of uncovered static Chinese copy", async () => {
+  const [page, i18n, analysis] = await Promise.all([
+    readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/trade-analysis.ts", import.meta.url), "utf8"),
+  ]);
+
+  const i18nFile = parseSource("i18n.tsx", i18n);
+  const dictionary = new Map();
+  function findDictionary(node) {
+    if (
+      ts.isVariableDeclaration(node) &&
+      node.name.getText(i18nFile) === "ENGLISH" &&
+      ts.isObjectLiteralExpression(node.initializer)
+    ) {
+      for (const property of node.initializer.properties) {
+        if (
+          ts.isPropertyAssignment(property) &&
+          ts.isStringLiteralLike(property.name) &&
+          ts.isStringLiteralLike(property.initializer)
+        ) {
+          assert.equal(
+            dictionary.has(property.name.text),
+            false,
+            `duplicate English translation: ${property.name.text}`,
+          );
+          dictionary.set(property.name.text, property.initializer.text);
+        }
+      }
+    }
+    ts.forEachChild(node, findDictionary);
+  }
+  findDictionary(i18nFile);
+
+  const replacements = [...dictionary.entries()].sort(
+    ([left], [right]) => right.length - left.length,
+  );
+  function translateStatic(text) {
+    let translated = text;
+    for (const [source, target] of replacements) {
+      if (source.length === 1) {
+        if (translated.trim() === source) {
+          translated = translated.replace(source, target);
+        }
+      } else {
+        translated = translated.replaceAll(source, target);
+      }
+    }
+    return translated;
+  }
+
+  const pageFile = parseSource("game-client.tsx", page);
+  const uncovered = [];
+  function auditPage(node) {
+    const text = staticText(node, pageFile);
+    if (
+      text &&
+      HAN.test(text) &&
+      !isInsideLocaleConditional(node, pageFile) &&
+      HAN.test(translateStatic(text))
+    ) {
+      uncovered.push(text);
+    }
+    ts.forEachChild(node, auditPage);
+  }
+  auditPage(pageFile);
+  assert.deepEqual([...new Set(uncovered)], []);
+
+  const analysisFile = parseSource("trade-analysis.ts", analysis);
+  const unlocalizedAnalysis = [];
+  function auditAnalysis(node) {
+    const text = staticText(node, analysisFile);
+    let isTranslationArgument = false;
+    for (let parent = node.parent; parent; parent = parent.parent) {
+      if (
+        ts.isCallExpression(parent) &&
+        parent.expression.getText(analysisFile) === "t"
+      ) {
+        isTranslationArgument = true;
+        break;
+      }
+    }
+    if (
+      text &&
+      HAN.test(text) &&
+      !isTranslationArgument &&
+      !isInsideLocaleConditional(node, analysisFile)
+    ) {
+      unlocalizedAnalysis.push(text);
+    }
+    ts.forEachChild(node, auditAnalysis);
+  }
+  auditAnalysis(analysisFile);
+  assert.deepEqual([...new Set(unlocalizedAnalysis)], []);
+  assert.match(page, /buildTradeAnalysis\(\{[\s\S]*locale,/);
+  assert.match(analysis, /locale: "zh" \| "en"/);
+  assert.match(analysis, /Risk-adjusted Trend Reader/);
+  assert.match(i18n, /Up \/ Range \/ Down Probabilities × Realized Move/);
 });
 
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
@@ -262,7 +395,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /crowd-story-v14/);
+  assert.match(config, /english-launch-v15/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
