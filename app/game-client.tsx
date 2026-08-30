@@ -253,14 +253,21 @@ type DecisionReplayItem = {
   date: string;
   action: "买入" | "卖出" | "观望";
   order: string;
-  thesis: string;
-  confidence: ConfidenceLevel;
-  outlook: MarketOutlook;
+  thesis?: string;
+  confidence?: ConfidenceLevel;
+  outlook?: MarketOutlook;
   actual: MarketOutlook;
   move: number;
-  matched: boolean;
+  matched: boolean | null;
   days: number;
 };
+
+type RecordedReplayAction = ReplayAction &
+  Required<Pick<ReplayAction, "outlook" | "thesis" | "confidence">>;
+
+function hasRecordedView(action: ReplayAction): action is RecordedReplayAction {
+  return Boolean(action.outlook && action.thesis && action.confidence);
+}
 
 const OUTLOOK_LABEL: Record<MarketOutlook, string> = {
   up: "上涨",
@@ -276,7 +283,7 @@ const THESIS_LABEL: Record<DecisionThesis, string> = {
 };
 
 function evaluateDecision(
-  action: ReplayAction,
+  action: RecordedReplayAction,
   candles: Candle[],
   decisionRound: number,
 ): DecisionFeedback {
@@ -330,7 +337,7 @@ function buildDecisionReplay(
     const move = execution ? (outcome / execution - 1) * 100 : 0;
     const actual: MarketOutlook =
       move > 0.75 ? "up" : move < -0.75 ? "down" : "range";
-    const outlook = action.outlook ?? "range";
+    const recordedView = hasRecordedView(action);
     const allocationLabel =
       action.allocation === 1
         ? "全仓"
@@ -358,12 +365,12 @@ function buildDecisionReplay(
           : action.quantity != null
             ? `${action.quantity.toLocaleString("zh-CN")} 股`
             : allocationLabel,
-      thesis: THESIS_LABEL[action.thesis ?? "uncertain"],
-      confidence: action.confidence ?? 2,
-      outlook,
+      thesis: recordedView ? THESIS_LABEL[action.thesis] : undefined,
+      confidence: recordedView ? action.confidence : undefined,
+      outlook: recordedView ? action.outlook : undefined,
       actual,
       move,
-      matched: outlook === actual,
+      matched: recordedView ? action.outlook === actual : null,
       days,
     });
     offset += days;
@@ -447,7 +454,7 @@ function restoreGameState(session: ChallengeSession) {
       }
     }
     const revealed = normalized.slice(executionIndex, executionIndex + days);
-    if (revealed.length)
+    if (revealed.length && hasRecordedView(action))
       feedbackHistory.push(evaluateDecision(action, revealed, actionIndex + 1));
     revealed.forEach((candle) => {
       const equity = cash + shares * candle.close;
@@ -1131,6 +1138,7 @@ export default function GameClient({
   const [outlook, setOutlook] = useState<MarketOutlook>("up");
   const [thesis, setThesis] = useState<DecisionThesis>("trend");
   const [confidence, setConfidence] = useState<ConfidenceLevel>(2);
+  const [recordView, setRecordView] = useState(false);
   const [trades, setTrades] = useState(0),
     [tradeMarkers, setTradeMarkers] = useState<TradeMarker[]>([]);
   const [feesPaid, setFeesPaid] = useState(0);
@@ -1296,23 +1304,20 @@ export default function GameClient({
       const execution = normalized[initialVisibleCount + offset]?.open;
       const outcome =
         normalized[initialVisibleCount + offset + days - 1]?.close;
-      if (
-        execution != null &&
-        outcome != null &&
-        action.outlook &&
-        action.confidence
-      ) {
+      if (execution != null && outcome != null) {
         const move = (outcome / execution - 1) * 100;
         const actual = move > 0.75 ? "up" : move < -0.75 ? "down" : "range";
-        const matched = action.outlook === actual;
-        const actionWeight =
-          action.confidence === 3 ? 2 : action.confidence === 2 ? 1.5 : 1;
-        total++;
-        weight += actionWeight;
-        if (matched) {
-          hits++;
-          weightedHits += actionWeight;
-        } else if (action.confidence === 3) confidentMisses++;
+        if (hasRecordedView(action)) {
+          const matched = action.outlook === actual;
+          const actionWeight =
+            action.confidence === 3 ? 2 : action.confidence === 2 ? 1.5 : 1;
+          total++;
+          weight += actionWeight;
+          if (matched) {
+            hits++;
+            weightedHits += actionWeight;
+          } else if (action.confidence === 3) confidentMisses++;
+        }
         if (action.kind === "buy" || action.kind === "sell") {
           const fill = transactionQuote({
             market,
@@ -1344,6 +1349,10 @@ export default function GameClient({
   const decisionReplay = useMemo(
     () => buildDecisionReplay(actions, stock, normalized, initialVisibleCount),
     [actions, initialVisibleCount, normalized, stock],
+  );
+  const latestRecordedView = useMemo(
+    () => actions.findLast(hasRecordedView) ?? null,
+    [actions],
   );
   const scenarioEvaluation = useMemo(() => {
     if (!activeScenario) return null;
@@ -1620,6 +1629,7 @@ export default function GameClient({
     setOutlook("up");
     setThesis("trend");
     setConfidence(2);
+    setRecordView(false);
     setTrades(restored.trades);
     setFeesPaid(restored.feesPaid);
     setSlippagePaid(restored.slippagePaid);
@@ -1817,14 +1827,13 @@ export default function GameClient({
     const holdingDays = Math.min(revealDays, remainingDays);
     const requestedQuantity =
       orderInputMode === "quantity" ? enteredQuantity : undefined;
+    const recordedView = recordView ? { outlook, thesis, confidence } : {};
     const replayAction: ReplayAction =
       action === "hold"
         ? {
             kind: "hold",
             days: holdingDays as ReplayAction["days"],
-            outlook,
-            thesis,
-            confidence,
+            ...recordedView,
           }
         : {
             kind: mode,
@@ -1832,9 +1841,7 @@ export default function GameClient({
               ? { quantity: requestedQuantity }
               : { allocation }),
             days: holdingDays as ReplayAction["days"],
-            outlook,
-            thesis,
-            confidence,
+            ...recordedView,
           };
     const response = await fetch("/api/challenge", {
       method: "POST",
@@ -1862,11 +1869,10 @@ export default function GameClient({
       high: candle.high * factor,
       low: candle.low * factor,
     }));
-    const feedback = evaluateDecision(
-      advanced.action,
-      normalizedNew,
-      round + 1,
-    );
+    const feedback = hasRecordedView(advanced.action)
+      ? evaluateDecision(advanced.action, normalizedNew, round + 1)
+      : null;
+    setRecordView(false);
     setStock((value) => ({
       ...value,
       candles: [...value.candles, ...advanced.candles],
@@ -1962,8 +1968,10 @@ export default function GameClient({
     setEquityHistory((value) => [...value, ...pathEquities]);
     setExposureHistory((value) => [...value, ...pathExposures]);
     setRevealPulse((value) => value + 1);
-    setLastFeedback(feedback);
-    setFeedbackHistory((value) => [...value, feedback]);
+    if (feedback) {
+      setLastFeedback(feedback);
+      setFeedbackHistory((value) => [...value, feedback]);
+    }
     setIsRevealing(false);
     if (advanced.finished || nextEquity <= INITIAL_CASH * 0.2)
       await finishGame();
@@ -2273,13 +2281,13 @@ export default function GameClient({
             </div>
           )}
           {lastFeedback && !finished && (
-            <details className="decision-feedback" open>
+            <details className="decision-feedback">
               <summary>
                 <span className={lastFeedback.matched ? "hit" : "miss"}>
                   {lastFeedback.matched ? "✓" : "!"}
                 </span>
                 <div>
-                  <small>第 {lastFeedback.round} 次决策反馈</small>
+                  <small>上次记录观点 · 第 {lastFeedback.round} 次推进</small>
                   <b>{lastFeedback.title}</b>
                 </div>
                 <i>展开</i>
@@ -2452,61 +2460,83 @@ export default function GameClient({
                   )}
                 </div>
               </details>
-              <div className="decision-journal">
-                <div className="field-label">
-                  <span>本次判断</span>
-                  <small>先写下观点，再看答案</small>
-                </div>
-                <div
-                  className="outlook-grid"
-                  role="group"
-                  aria-label="判断后续走势"
-                >
-                  {(["up", "range", "down"] as const).map((value) => (
-                    <button
-                      key={value}
-                      className={outlook === value ? "selected" : ""}
-                      onClick={() => setOutlook(value)}
-                    >
-                      {value === "up"
-                        ? "看涨"
-                        : value === "range"
-                          ? "震荡"
-                          : "看跌"}
-                    </button>
-                  ))}
-                </div>
-                <div className="journal-row">
-                  <label>
-                    依据
-                    <select
-                      value={thesis}
-                      onChange={(event) =>
-                        setThesis(event.target.value as DecisionThesis)
-                      }
-                    >
-                      <option value="trend">趋势延续</option>
-                      <option value="breakout">突破确认</option>
-                      <option value="reversal">反转预期</option>
-                      <option value="volume">量价信号</option>
-                      <option value="uncertain">没有把握</option>
-                    </select>
-                  </label>
+              <div className={`decision-journal optional ${recordView ? "active" : ""}`}>
+                <div className="optional-view-head">
                   <div>
-                    <span>信心</span>
-                    <div className="confidence-grid">
-                      {([1, 2, 3] as const).map((value) => (
+                    <span>观点记录 <em>可选</em></span>
+                    <small>
+                      {latestRecordedView
+                        ? `上次：${OUTLOOK_LABEL[latestRecordedView.outlook]} · ${THESIS_LABEL[latestRecordedView.thesis]} · ${latestRecordedView.confidence === 1 ? "低" : latestRecordedView.confidence === 2 ? "中" : "高"}信心`
+                        : "买卖或持有都可直接推进，不要求每天预测"}
+                    </small>
+                  </div>
+                  <button
+                    type="button"
+                    aria-expanded={recordView}
+                    onClick={() => setRecordView((value) => !value)}
+                  >
+                    {recordView ? "取消本次观点" : latestRecordedView ? "更新观点" : "记录观点"}
+                  </button>
+                </div>
+                {recordView && (
+                  <div className="optional-view-fields">
+                    <div
+                      className="outlook-grid"
+                      role="group"
+                      aria-label="记录本次后续走势观点"
+                    >
+                      {(["up", "range", "down"] as const).map((value) => (
                         <button
                           key={value}
-                          className={confidence === value ? "selected" : ""}
-                          onClick={() => setConfidence(value)}
+                          className={outlook === value ? "selected" : ""}
+                          onClick={() => setOutlook(value)}
                         >
-                          {value === 1 ? "低" : value === 2 ? "中" : "高"}
+                          {value === "up"
+                            ? "看涨"
+                            : value === "range"
+                              ? "震荡"
+                              : "看跌"}
                         </button>
                       ))}
                     </div>
+                    <div className="journal-row">
+                      <label>
+                        依据
+                        <select
+                          value={thesis}
+                          onChange={(event) =>
+                            setThesis(event.target.value as DecisionThesis)
+                          }
+                        >
+                          <option value="trend">趋势延续</option>
+                          <option value="breakout">突破确认</option>
+                          <option value="reversal">反转预期</option>
+                          <option value="volume">量价信号</option>
+                          <option value="uncertain">没有把握</option>
+                        </select>
+                      </label>
+                      <div>
+                        <span>信心</span>
+                        <div className="confidence-grid">
+                          {([1, 2, 3] as const).map((value) => (
+                            <button
+                              key={value}
+                              className={confidence === value ? "selected" : ""}
+                              onClick={() => setConfidence(value)}
+                            >
+                              {value === 1 ? "低" : value === 2 ? "中" : "高"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <p>
+                      {activeScenario
+                        ? "情景课的判断校准项需累计至少 3 个主动观点；未记录的推进不计入命中率。"
+                        : "只有主动记录的观点才参与命中率与信心校准；未记录的推进不扣分。"}
+                    </p>
                   </div>
-                </div>
+                )}
               </div>
               <div className="field-label holding-label">成交后推进多久</div>
               <div
@@ -3397,7 +3427,11 @@ export default function GameClient({
                     <i>
                       <em style={{ width: `${value}%` }} />
                     </i>
-                    <b>{value.toFixed(0)}</b>
+                    <b>
+                      {label === "判断校准" && !decisionStats.total
+                        ? "—"
+                        : value.toFixed(0)}
+                    </b>
                     <small>{weight}</small>
                   </div>
                 ))}
@@ -3407,46 +3441,74 @@ export default function GameClient({
               <div>
                 <small>方向判断</small>
                 <b>
-                  {decisionStats.hits}/{decisionStats.total}
+                  {decisionStats.total
+                    ? `${decisionStats.hits}/${decisionStats.total}`
+                    : "未记录"}
                 </b>
               </div>
               <div>
                 <small>命中率</small>
-                <b>{decisionStats.accuracy.toFixed(0)}%</b>
+                <b>
+                  {decisionStats.total
+                    ? `${decisionStats.accuracy.toFixed(0)}%`
+                    : "—"}
+                </b>
               </div>
               <div>
                 <small>信心校准</small>
-                <b>{decisionStats.calibration.toFixed(0)}</b>
+                <b>
+                  {decisionStats.total
+                    ? decisionStats.calibration.toFixed(0)
+                    : "—"}
+                </b>
               </div>
               <p>
-                {decisionStats.confidentMisses
+                {!decisionStats.total
+                  ? "本局没有主动记录方向观点，因此不做命中率评分；交易执行与风险画像仍正常分析。"
+                  : decisionStats.confidentMisses
                   ? `有 ${decisionStats.confidentMisses} 次高信心误判；下局先降低仓位，再等待走势确认。`
-                  : "你的主观判断与真实后续走势会被逐笔对照，评分不再只奖励高收益。"}
+                  : "只有主动记录的观点会与真实后续逐笔对照，不会把普通持有误算成方向预测。"}
               </p>
             </div>
             <section className="decision-replay">
               <div className="decision-replay-head">
                 <div>
                   <small>DECISION REPLAY · 决策时间线</small>
-                  <b>把每次判断与真实后续逐笔对照</b>
+                  <b>交易推进与主动观点分开复盘</b>
                 </div>
-                <span>{decisionReplay.length} 次判断</span>
+                <span>
+                  {decisionReplay.length} 次推进 · {decisionStats.total} 个观点
+                </span>
               </div>
               {decisionReplay.length ? (
                 <div className="decision-timeline">
                   {decisionReplay.slice(0, replayLimit).map((item) => (
                     <article
                       key={item.round}
-                      className={item.matched ? "matched" : "missed"}
+                      className={
+                        item.matched == null
+                          ? "unrated"
+                          : item.matched
+                            ? "matched"
+                            : "missed"
+                      }
                     >
                       <i>{item.round}</i>
                       <div>
                         <small>{item.date} · 推进 {item.days} 日</small>
                         <b>{item.action} · {item.order}</b>
-                        <p>{item.thesis} · 判断{OUTLOOK_LABEL[item.outlook]} · 信心 {item.confidence}/3</p>
+                        <p>
+                          {item.matched == null
+                            ? "未记录方向观点 · 本次不参与判断评分"
+                            : `${item.thesis} · 判断${OUTLOOK_LABEL[item.outlook!]} · 信心 ${item.confidence}/3`}
+                        </p>
                       </div>
                       <strong>
-                        {item.matched ? "命中" : "偏差"}
+                        {item.matched == null
+                          ? "未评分"
+                          : item.matched
+                            ? "命中"
+                            : "偏差"}
                         <small className={item.move >= 0 ? "up" : "down"}>
                           后续{OUTLOOK_LABEL[item.actual]} {item.move >= 0 ? "+" : ""}{item.move.toFixed(2)}%
                         </small>
@@ -3455,7 +3517,7 @@ export default function GameClient({
                   ))}
                 </div>
               ) : (
-                <p className="decision-replay-empty">本局没有提交判断，暂无可复盘时间线。</p>
+                <p className="decision-replay-empty">本局尚未产生可复盘的推进记录。</p>
               )}
               {replayLimit < decisionReplay.length && (
                 <button
@@ -3685,13 +3747,21 @@ export default function GameClient({
               <span>观点 × 信心 × 后续真实走势</span>
             </div>
             <div className="calibration-card">
-              <strong>{decisionStats.accuracy.toFixed(0)}%</strong>
+              <strong>
+                {decisionStats.total
+                  ? `${decisionStats.accuracy.toFixed(0)}%`
+                  : "—"}
+              </strong>
               <div>
                 <b>
-                  {decisionStats.hits} / {decisionStats.total} 次方向命中
+                  {decisionStats.total
+                    ? `${decisionStats.hits} / ${decisionStats.total} 次方向命中`
+                    : "本局未主动记录方向观点"}
                 </b>
                 <p>
-                  {decisionStats.total < 4
+                  {!decisionStats.total
+                    ? "这不会影响交易、持有和风险画像；需要训练判断校准时再主动记录即可。"
+                    : decisionStats.total < 4
                     ? "样本仍少，继续记录判断后才能形成稳定画像。"
                     : decisionStats.calibration >= 70
                       ? "方向与信心匹配良好，继续避免因为连续命中而突然放大仓位。"

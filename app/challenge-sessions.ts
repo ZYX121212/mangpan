@@ -205,9 +205,15 @@ function cleanAction(value: unknown): ReplayAction | null {
     input.confidence && CONFIDENCE.includes(input.confidence)
       ? input.confidence
       : undefined;
-  if (!outlook || !thesis || !confidence) return null;
+  const hasAnyView =
+    input.outlook !== undefined ||
+    input.thesis !== undefined ||
+    input.confidence !== undefined;
+  if (hasAnyView && (!outlook || !thesis || !confidence)) return null;
+  const recordedView =
+    outlook && thesis && confidence ? { outlook, thesis, confidence } : {};
   if (input.kind === "hold")
-    return { kind: "hold", days, outlook, thesis, confidence };
+    return { kind: "hold", days, ...recordedView };
   const hasAllocation = input.allocation !== undefined;
   const hasQuantity = input.quantity !== undefined;
   if (hasAllocation === hasQuantity) return null;
@@ -225,9 +231,7 @@ function cleanAction(value: unknown): ReplayAction | null {
   return {
     kind: input.kind,
     days,
-    outlook,
-    thesis,
-    confidence,
+    ...recordedView,
     ...(hasQuantity
       ? { quantity: input.quantity }
       : { allocation: input.allocation }),
@@ -503,7 +507,7 @@ export async function advanceSession(
   if (session.finished) throw new Error("本局已经结束");
   if (actions.length >= MAX_ACTIONS) throw new Error("决策次数超出上限");
   const action = cleanAction(value);
-  if (!action) throw new Error("请完整记录方向、依据和信心");
+  if (!action) throw new Error("交易指令无效，请检查委托内容");
   const remaining = Math.max(
     0,
     bundle.stock.candles.length - session.visibleCount,
