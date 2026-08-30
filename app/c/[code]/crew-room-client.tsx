@@ -5,6 +5,11 @@ import { useEffect, useMemo, useState } from "react";
 import { trackActivationEvent } from "../../activation-events";
 import type { CrewSummary } from "../../crew-service";
 import type { Locale } from "../../i18n";
+import {
+  createPlatformCrewShareUrl,
+  getWebGameLaunchContext,
+  reportPlatformLoaded,
+} from "../../web-game-platform";
 
 function ensureLocalPlayerId() {
   const existing = localStorage.getItem("mangpan-player-id");
@@ -29,6 +34,8 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
   );
 
   useEffect(() => {
+    reportPlatformLoaded();
+    let cancelled = false;
     const timer = window.setTimeout(() => {
       const id = ensureLocalPlayerId();
       const savedNickname = localStorage.getItem("mangpan-player-name");
@@ -36,6 +43,9 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
       setPlayerId(id);
       setNickname(savedNickname || `Trader ${id.slice(-4).toUpperCase()}`);
       trackActivationEvent(id, "crew_view", "crew");
+      void getWebGameLaunchContext().then((context) => {
+        if (!cancelled && context.locale) setLocale(context.locale);
+      });
       void fetch(`/api/crews?code=${encodeURIComponent(initialCrew.code)}&playerId=${encodeURIComponent(id)}`)
         .then((response) => response.json())
         .then((payload: { crew?: CrewSummary }) => {
@@ -43,7 +53,10 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
         })
         .catch(() => undefined);
     }, 0);
-    return () => window.clearTimeout(timer);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [initialCrew.code]);
 
   const join = async () => {
@@ -67,7 +80,7 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
 
   const share = async (kind: "invite" | "nudge") => {
     const baseUrl = `${location.origin}/c/${crew.code}`;
-    const url = `${baseUrl}?via=${kind}`;
+    const standaloneUrl = `${baseUrl}?via=${kind}`;
     const people = kind === "nudge" ? remaining.map((member) => member.nickname).join(", ") : "";
     const text = kind === "nudge"
       ? locale === "en"
@@ -77,6 +90,8 @@ export default function CrewRoomClient({ initialCrew }: { initialCrew: CrewSumma
         ? `Join ${crew.name} on Blind Trading. One hidden chart each day; the crew streak grows only when everyone finishes.`
         : `加入 ${crew.name} 的盲盘小队：每天每人完成一张隐藏行情，只有全员完成才会延续共同纪录。`;
     try {
+      const url = await createPlatformCrewShareUrl(crew.code, standaloneUrl);
+      if (!url) throw new Error("platform invite unavailable");
       if (navigator.share) await navigator.share({ title: `${crew.name} · Crew Streak`, text, url });
       else await navigator.clipboard.writeText(`${text}\n${url}`);
       setStatus(locale === "en" ? (kind === "nudge" ? "Reminder shared" : "Invite shared") : kind === "nudge" ? "提醒已分享" : "邀请已分享");

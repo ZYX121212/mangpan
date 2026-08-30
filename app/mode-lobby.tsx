@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { trackActivationEvent } from "./activation-events";
 import type { Locale } from "./i18n";
@@ -9,7 +10,10 @@ import {
   marketDate,
   type MarketKind,
 } from "./game-config";
-import { reportPlatformLoaded } from "./web-game-platform";
+import {
+  getWebGameLaunchContext,
+  reportPlatformLoaded,
+} from "./web-game-platform";
 
 const ONBOARDING_STORAGE_KEY = "mangpan-guided-first-chart-v1";
 
@@ -136,6 +140,7 @@ const MODE_FAMILIES = [
 ] as const;
 
 export default function ModeLobby() {
+  const router = useRouter();
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>("us");
   const [playerId, setPlayerId] = useState("");
@@ -151,6 +156,7 @@ export default function ModeLobby() {
 
   useEffect(() => {
     reportPlatformLoaded();
+    let cancelled = false;
     const timer = window.setTimeout(() => {
       const savedLocale = localStorage.getItem("mangpan-locale");
       const savedMarket = localStorage.getItem("mangpan-market");
@@ -167,9 +173,25 @@ export default function ModeLobby() {
       setPlayerId(id);
       setIsNewPlayer(!hasPriorActivity);
       trackActivationEvent(id, "lobby_view", "lobby");
+      void getWebGameLaunchContext().then((context) => {
+        if (cancelled) return;
+        if (context.locale) {
+          setLocale(context.locale);
+          document.documentElement.lang =
+            context.locale === "zh" ? "zh-CN" : "en";
+        }
+        if (context.duelCode) {
+          router.replace(`/d/${encodeURIComponent(context.duelCode)}`);
+        } else if (context.crewCode) {
+          router.replace(`/c/${encodeURIComponent(context.crewCode)}`);
+        }
+      });
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [router]);
 
   useEffect(() => {
     const update = () => setDailyCountdown(marketCountdown(market));

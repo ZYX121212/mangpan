@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   MARKET_UNIVERSE_SIZE,
   type Candle,
@@ -37,6 +38,9 @@ import { buildTradeAnalysis } from "./trade-analysis";
 import { decisionStyleFor, type DecisionStyle } from "./decision-style";
 import { trackActivationEvent } from "./activation-events";
 import {
+  createPlatformDuelShareUrl,
+  currentWebGamePlatform,
+  getWebGameLaunchContext,
   reportPlatformGameplayStart,
   reportPlatformGameplayStop,
   reportPlatformLoaded,
@@ -1565,6 +1569,7 @@ export default function GameClient({
   initialGuide?: boolean;
   initialCrewCode?: string;
 }) {
+  const router = useRouter();
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
   const [gameMode, setGameMode] = useState<GameMode>(
@@ -1673,7 +1678,26 @@ export default function GameClient({
   );
   useEffect(() => {
     reportPlatformLoaded();
-  }, []);
+    let cancelled = false;
+    void getWebGameLaunchContext().then((context) => {
+      if (cancelled) return;
+      if (context.locale) {
+        setLocale(context.locale);
+        document.documentElement.lang =
+          context.locale === "zh" ? "zh-CN" : "en";
+        document.title =
+          context.locale === "zh"
+            ? "盲盘｜真实历史 K 线交易挑战"
+            : "Blind Trading | Real Historical Market Challenge";
+      }
+      if (context.duelCode && !initialDuel) {
+        router.replace(`/d/${encodeURIComponent(context.duelCode)}`);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initialDuel, router]);
   useEffect(() => {
     const hasStarted = session.decisionsUsed > 0 || actions.length > 0;
     const paused =
@@ -1712,6 +1736,7 @@ export default function GameClient({
   }, []);
   useEffect(() => {
     const captureInstallPrompt = (event: Event) => {
+      if (currentWebGamePlatform() !== "standalone") return;
       event.preventDefault();
       setInstallPrompt(event as InstallPromptEvent);
     };
@@ -2400,12 +2425,19 @@ export default function GameClient({
     today,
   ]);
 
+  const platformDuelUrl = useCallback(async (code: string) => {
+    const standaloneUrl = `${location.origin}/d/${encodeURIComponent(code)}`;
+    const url = await createPlatformDuelShareUrl(code, standaloneUrl);
+    if (!url) throw new Error("platform invite unavailable");
+    return url;
+  }, []);
+
   const prepareDuelShareUrl = useCallback(async () => {
     if (gameMode !== "daily") return location.href;
     if (duelShareUrl) return duelShareUrl;
     const shareCode = scoreboard?.shareDuel?.code ?? duelCode;
     if (shareCode) {
-      const url = `${location.origin}/d/${encodeURIComponent(shareCode)}`;
+      const url = await platformDuelUrl(shareCode);
       setDuelShareUrl(url);
       setShareSetupStatus("ready");
       return url;
@@ -2421,7 +2453,7 @@ export default function GameClient({
       .then(async (response) => {
         if (!response.ok) throw new Error("duel unavailable");
         const duel = (await response.json()) as { code: string };
-        const url = `${location.origin}/d/${encodeURIComponent(duel.code)}`;
+        const url = await platformDuelUrl(duel.code);
         setDuelShareUrl(url);
         setShareSetupStatus("ready");
         return url;
@@ -2438,6 +2470,7 @@ export default function GameClient({
     duelShareUrl,
     gameMode,
     market,
+    platformDuelUrl,
     playerId,
     scoreboard?.shareDuel?.code,
     today,
@@ -3081,6 +3114,17 @@ export default function GameClient({
 
   const shareResult = async (channel: "native" | "copy") => {
     const { text, title } = resultShareCopy();
+    if (
+      gameMode !== "daily" &&
+      currentWebGamePlatform() !== "standalone"
+    ) {
+      setShareStatus(
+        locale === "en"
+          ? "Daily challenges can be shared with friends"
+          : "每日挑战可邀请好友参与",
+      );
+      return;
+    }
     let shareUrl = location.href;
     if (gameMode === "daily") {
       if (!duelShareUrl) {
@@ -3283,7 +3327,6 @@ export default function GameClient({
   const shareDuelRoom = async () => {
     const shareCode = scoreboard?.shareDuel?.code ?? duelCode;
     if (!shareCode || !scoreboard?.playerScore) return;
-    const shareUrl = `${location.origin}/d/${encodeURIComponent(shareCode)}`;
     const responses = scoreboard.duelRoom?.isHost
       ? scoreboard.duelRoom.responseCount
       : 0;
@@ -3296,6 +3339,7 @@ export default function GameClient({
         ? `${responses ? `${responses} ${responses === 1 ? "friend has" : "friends have"} answered. ` : ""}Same hidden chart, five decisions. Can you beat ${scoreboard.playerScore.score}?`
         : `${responses ? `已有 ${responses} 位好友完成。` : ""}同一张隐藏行情，五次决策。你能超过 ${scoreboard.playerScore.score} 分吗？`;
     try {
+      const shareUrl = await platformDuelUrl(shareCode);
       if (navigator.share) {
         await navigator.share({
           title,

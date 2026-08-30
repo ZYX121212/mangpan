@@ -11,6 +11,12 @@ type CrazyGamesSdk = {
   game: {
     gameplayStart: () => unknown;
     gameplayStop: () => unknown;
+    inviteLink?: (params: Record<string, string>) => string | Promise<string>;
+    inviteParams?: Record<string, string> | null;
+    getInviteParam?: (key: string) => string | null;
+  };
+  user?: {
+    systemInfo?: { locale?: string };
   };
 };
 
@@ -19,6 +25,15 @@ type PokiSdk = {
   gameLoadingFinished: () => unknown;
   gameplayStart: () => unknown;
   gameplayStop: () => unknown;
+  shareableURL?: (params: Record<string, string>) => Promise<string>;
+  getURLParam?: (key: string) => string | null;
+};
+
+export type WebGameLaunchContext = {
+  platform: WebGamePlatform;
+  duelCode: string | null;
+  crewCode: string | null;
+  locale: "en" | "zh" | null;
 };
 
 declare global {
@@ -49,7 +64,7 @@ export function detectWebGamePlatform({
   return "standalone";
 }
 
-function currentPlatform() {
+export function currentWebGamePlatform() {
   if (typeof window === "undefined") return "standalone" as const;
   return detectWebGamePlatform({
     hostname: window.location.hostname,
@@ -89,7 +104,7 @@ let reportedPlaying = false;
 let syncChain = Promise.resolve();
 
 async function initializePlatform(): Promise<WebGamePlatform> {
-  const platform = currentPlatform();
+  const platform = currentWebGamePlatform();
   if (platform === "standalone") return platform;
   try {
     if (platform === "crazygames") {
@@ -109,6 +124,83 @@ async function initializePlatform(): Promise<WebGamePlatform> {
 function readyPlatform() {
   platformPromise ??= initializePlatform();
   return platformPromise;
+}
+
+export function normalizePlatformDuelCode(value: unknown) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toUpperCase();
+  return /^[A-Z0-9]{8,12}$/.test(normalized) ? normalized : null;
+}
+
+function platformLocale(value: unknown) {
+  if (typeof value !== "string") return null;
+  return value.toLowerCase().startsWith("zh") ? "zh" : "en";
+}
+
+export async function getWebGameLaunchContext(): Promise<WebGameLaunchContext> {
+  const platform = await readyPlatform();
+  if (platform === "crazygames") {
+    const game = window.CrazyGames?.SDK?.game;
+    const duelCode = normalizePlatformDuelCode(
+      game?.inviteParams?.duel ?? game?.getInviteParam?.("duel"),
+    );
+    return {
+      platform,
+      duelCode,
+      crewCode: normalizePlatformDuelCode(
+        game?.inviteParams?.crew ?? game?.getInviteParam?.("crew"),
+      ),
+      locale:
+        platformLocale(window.CrazyGames?.SDK?.user?.systemInfo?.locale) ?? "en",
+    };
+  }
+  if (platform === "poki") {
+    return {
+      platform,
+      duelCode: normalizePlatformDuelCode(window.PokiSDK?.getURLParam?.("duel")),
+      crewCode: normalizePlatformDuelCode(window.PokiSDK?.getURLParam?.("crew")),
+      locale: null,
+    };
+  }
+  return { platform, duelCode: null, crewCode: null, locale: null };
+}
+
+async function createPlatformShareUrl(
+  key: "duel" | "crew",
+  code: string,
+  standaloneUrl: string,
+) {
+  const normalized = normalizePlatformDuelCode(code);
+  if (!normalized) return null;
+  const platform = await readyPlatform();
+  if (platform === "standalone") return standaloneUrl;
+  try {
+    if (platform === "crazygames") {
+      const inviteLink = window.CrazyGames?.SDK?.game.inviteLink;
+      if (!inviteLink) return null;
+      return await inviteLink({ [key]: normalized });
+    }
+    const shareableURL = window.PokiSDK?.shareableURL;
+    if (!shareableURL) return null;
+    return await shareableURL({ [key]: normalized });
+  } catch {
+    // Never leak portal traffic to a separately playable website as fallback.
+    return null;
+  }
+}
+
+export function createPlatformDuelShareUrl(
+  duelCode: string,
+  standaloneUrl: string,
+) {
+  return createPlatformShareUrl("duel", duelCode, standaloneUrl);
+}
+
+export function createPlatformCrewShareUrl(
+  crewCode: string,
+  standaloneUrl: string,
+) {
+  return createPlatformShareUrl("crew", crewCode, standaloneUrl);
 }
 
 export function reportPlatformLoaded() {
