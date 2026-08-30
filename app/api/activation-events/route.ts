@@ -10,6 +10,7 @@ export type ActivationEventType =
   | "lobby_mode_training"
   | "lobby_mode_duel"
   | "lobby_mode_crew"
+  | "duel_instant_create"
   | "guide_start"
   | "guide_forecast"
   | "guide_reveal"
@@ -36,6 +37,7 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "lobby_mode_training",
   "lobby_mode_duel",
   "lobby_mode_crew",
+  "duel_instant_create",
   "guide_start",
   "guide_forecast",
   "guide_reveal",

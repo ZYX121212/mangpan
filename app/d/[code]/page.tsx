@@ -49,14 +49,19 @@ export async function generateMetadata({
   const invite = await getPublicDuelInvite(code);
   if (!invite) return unavailableMetadata();
   const market = invite.market === "us" ? "U.S. stock" : "China A-share";
-  const title = `${invite.challengerNickname} scored ${invite.targetScore}. Can you beat it? | Blind Trading`;
+  const title = invite.challengerFinished
+    ? `${invite.challengerNickname} scored ${invite.targetScore}. Can you beat it? | Blind Trading`
+    : `${invite.challengerNickname} invited you to a live duel | Blind Trading`;
   const roomProof = invite.responseCount
     ? `${invite.responseCount} ${invite.responseCount === 1 ? "player has" : "players have"} answered. `
     : "";
   const chainProof = invite.chainDepth
     ? `Challenge chain round ${invite.chainDepth + 1}. `
     : "";
-  const description = `${chainProof}${roomProof}The same hidden historical ${market} chart. Five decisions. No ticker, no future, no sign-up.`;
+  const liveProof = invite.challengerFinished
+    ? ""
+    : "The private room is open now—play in parallel. ";
+  const description = `${chainProof}${roomProof}${liveProof}The same hidden historical ${market} chart. Five decisions. No ticker, no future, no sign-up.`;
   const path = `/d/${invite.code}`;
   const imagePath = `${path}/opengraph-image`;
   return {
@@ -123,7 +128,11 @@ export default async function DuelPage({
   if (!invite) return <DuelUnavailable />;
   const user = await getChatGPTUser();
   const playerId = user ? await opaquePlayerId(user.userId) : undefined;
-  const challenge = await startDuelSession(invite.challengeId, playerId);
+  const challenge = await startDuelSession(
+    invite.challengeId,
+    playerId,
+    invite.date,
+  );
   return (
     <GameClient
       initialChallenge={challenge}

@@ -36,12 +36,25 @@ export default function DuelLobby() {
       </header>
       <section className="duel-lobby-card">
         <small>SAME CHART · TWO READS</small>
-        <h1>{locale === "en" ? "Enter a friend duel" : "进入好友同图对决"}</h1>
+        <h1>{locale === "en" ? "Start or join a friend duel" : "发起或加入好友同图对决"}</h1>
         <p>
           {locale === "en"
-            ? "Paste the invite code your friend sent. Their trades, return, and the ticker stay hidden until you finish the same five decisions."
-            : "输入好友发来的挑战码。完成相同的五次决策前，对方交易、收益和股票身份都会保持隐藏。"}
+            ? "Open a private room immediately, invite a friend, then race through the exact same hidden historical chart. Scores stay hidden until each player finishes."
+            : "立即创建私密房间并邀请好友；双方挑战完全相同的隐藏历史行情，各自完成前成绩保持隐藏。"}
         </p>
+        <Link className="duel-create-action" href={`/duel/create?market=${market}`}>
+          <span>{locale === "en" ? "NEW PRIVATE ROOM" : "新建私密房间"}</span>
+          <b>{locale === "en" ? "Create instant duel" : "立即创建对决"}</b>
+          <small>
+            {locale === "en"
+              ? "Invite now · play in parallel · no sign-up"
+              : "立即邀请 · 同时作答 · 无需注册"}
+          </small>
+          <strong aria-hidden="true">→</strong>
+        </Link>
+        <div className="duel-lobby-divider">
+          <span>{locale === "en" ? "OR JOIN WITH A CODE" : "或使用挑战码加入"}</span>
+        </div>
         <form onSubmit={join}>
           <label htmlFor="duel-code">
             {locale === "en" ? "INVITE CODE" : "挑战码"}
@@ -66,20 +79,11 @@ export default function DuelLobby() {
             </button>
           </div>
         </form>
-        <div className="duel-lobby-divider">
-          <span>{locale === "en" ? "OR" : "或者"}</span>
-        </div>
-        <aside>
-          <b>{locale === "en" ? "Want to challenge someone?" : "想发起一个新对决？"}</b>
-          <p>
-            {locale === "en"
-              ? "Finish today’s ranked chart first. Your result screen will create a verified, spoiler-free invite link."
-              : "先完成今日排名挑战；结算页会生成一条经过服务器验证、且不剧透的邀请链接。"}
-          </p>
-          <Link href={`/daily?market=${market}`}>
-            {locale === "en" ? "Play Daily Challenge →" : "前往每日挑战 →"}
-          </Link>
-        </aside>
+        <p className="duel-lobby-note-copy">
+          {locale === "en"
+            ? "Already received a full invite link? Open it directly—no code entry needed."
+            : "如果已经收到完整邀请链接，直接打开即可，无需再次输入挑战码。"}
+        </p>
       </section>
       <footer className="duel-lobby-proof">
         <span>{locale === "en" ? "EXACT SAME CHART" : "完全相同的行情"}</span>

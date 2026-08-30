@@ -13,9 +13,11 @@ import {
   getTrainingProfile,
 } from "../../challenge-sessions";
 import {
+  completePendingDuelRoom,
   ensureDuelRoom,
   findPlayerDuelRoom,
   publicShareDuelRoom,
+  validDuelChallengeId,
   type ShareDuelRoom,
 } from "../../duel-service";
 import {
@@ -40,6 +42,8 @@ type ScoreRow = typeof dailyScores.$inferSelect;
 
 type DuelRoom = {
   isHost: boolean;
+  challengerNickname: string;
+  challengerFinished: boolean;
   viewCount: number;
   startCount: number;
   responseCount: number;
@@ -608,8 +612,9 @@ async function resolveDuelContext(
     !duel ||
     duel.challengeDate !== date ||
     duel.market !== market ||
-    !duel.challengeId.startsWith(`${date}@`) ||
-    !duel.challengeId.endsWith(`@${market}`)
+    !validDuelChallengeId(duel.challengeId, date, market) ||
+    duel.targetScore < -1 ||
+    duel.targetScore > 100
   )
     return null;
   const [
@@ -669,6 +674,7 @@ async function resolveDuelContext(
       : Promise.resolve(null),
   ]);
   const isHost = duel.challengerPlayerId === playerId;
+  const challengerFinished = duel.targetScore >= 0;
   let respondentScore: ScoreSummary | null = null;
   if (respondent) {
     const [{ above }] = await db
@@ -704,15 +710,23 @@ async function resolveDuelContext(
       : duel.challengerPlayerId !== playerId
         ? duel.challengerPlayerId
         : undefined,
-    playerOverride: isHost ? duelChallengerSummary(duel) : respondentScore,
+    playerOverride: isHost
+      ? challengerFinished
+        ? duelChallengerSummary(duel)
+        : null
+      : respondentScore,
     opponentOverride: isHost
       ? best
         ? duelResponseSummary(best, 1, total)
         : null
-      : duelChallengerSummary(duel),
+      : challengerFinished
+        ? duelChallengerSummary(duel)
+        : null,
     shareDuel: shareRoom ? publicShareDuelRoom(shareRoom) : null,
     room: {
       isHost,
+      challengerNickname: duel.challengerNickname,
+      challengerFinished,
       viewCount: Number(eventFunnel?.viewCount ?? 0),
       startCount: Number(eventFunnel?.startCount ?? 0),
       responseCount: total,
@@ -883,6 +897,26 @@ export async function POST(request: Request) {
         date,
         score: result.score,
       });
+    }
+
+    if (
+      duelContext &&
+      duelContext.duel.challengerPlayerId === playerId &&
+      duelContext.duel.targetScore < 0
+    ) {
+      await completePendingDuelRoom(duelContext.duel.code, playerId, {
+        nickname,
+        score: result.score,
+        returnRate: result.returnRate,
+        excess: result.excess,
+        maxDrawdown: result.maxDrawdown,
+      });
+      duelContext = await resolveDuelContext(
+        duelContext.duel.code,
+        date,
+        market,
+        playerId,
+      );
     }
 
     if (duelContext && duelContext.duel.challengerPlayerId !== playerId) {

@@ -319,6 +319,7 @@ async function insertSession(
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
   playerId?: string,
+  challengeDate = bundle.date,
 ) {
   await ensureDatabase();
   const initialVisibleCount = initialBarsFor(bundle.stock);
@@ -326,7 +327,7 @@ async function insertSession(
   await getDb().insert(gameSessions).values({
     id,
     challengeId,
-    challengeDate: bundle.date,
+    challengeDate,
     market: bundle.market,
     mode,
     scenario,
@@ -337,7 +338,7 @@ async function insertSession(
   });
   return {
     sessionId: id,
-    date: bundle.date,
+    date: challengeDate,
     market: bundle.market,
     mode,
     stock: publicStock(bundle, initialVisibleCount),
@@ -372,6 +373,7 @@ export async function startDailySession(
 export async function startDuelSession(
   challengeId: string,
   playerId?: string,
+  challengeDate?: string,
 ) {
   const bundle = await getStoredChallengeBundle(challengeId);
   return insertSession(
@@ -381,7 +383,31 @@ export async function startDuelSession(
     "random",
     "standard",
     playerId,
+    challengeDate,
   );
+}
+
+export async function startDuelHostSession(
+  seed: string,
+  market: MarketKind,
+  playerId: string,
+) {
+  const challenge = await createPracticeChallenge(
+    `duel-${seed}`,
+    market,
+    "random",
+    "standard",
+  );
+  const session = await insertSession(
+    challenge.id,
+    challenge.bundle,
+    "daily",
+    "random",
+    "standard",
+    playerId,
+    marketDate(market),
+  );
+  return { session, challengeId: challenge.id };
 }
 
 export async function startPracticeSession(

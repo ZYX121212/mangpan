@@ -2,6 +2,7 @@ import { cache } from "react";
 import { count, eq } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../db";
 import { duelChallenges, duelResponses } from "../db/schema";
+import { validDuelChallengeId } from "./duel-service";
 import type { MarketKind } from "./game-core";
 
 export type PublicDuelInvite = {
@@ -11,6 +12,7 @@ export type PublicDuelInvite = {
   challengeId: string;
   challengerNickname: string;
   targetScore: number;
+  challengerFinished: boolean;
   responseCount: number;
   chainDepth: number;
 };
@@ -33,10 +35,13 @@ export const getPublicDuelInvite = cache(
     if (!duel || (duel.market !== "cn" && duel.market !== "us")) return null;
     const market = duel.market;
     if (
-      !duel.challengeId.startsWith(`${duel.challengeDate}@`) ||
-      !duel.challengeId.endsWith(`@${market}`) ||
+      !validDuelChallengeId(
+        duel.challengeId,
+        duel.challengeDate,
+        market,
+      ) ||
       !duel.challengerNickname.trim() ||
-      duel.targetScore < 0 ||
+      duel.targetScore < -1 ||
       duel.targetScore > 100
     )
       return null;
@@ -51,6 +56,7 @@ export const getPublicDuelInvite = cache(
       challengeId: duel.challengeId,
       challengerNickname: duel.challengerNickname,
       targetScore: duel.targetScore,
+      challengerFinished: duel.targetScore >= 0,
       responseCount,
       chainDepth: duel.chainDepth,
     };

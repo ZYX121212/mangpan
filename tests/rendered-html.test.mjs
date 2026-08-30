@@ -439,7 +439,19 @@ test("keeps the English launch surface free of uncovered static Chinese copy", a
 });
 
 test("gives every friend duel a personalized, spoiler-free route", async () => {
-  const [page, duelPage, duelImage, duelInvites, duelLobby, styles] = await Promise.all([
+  const [
+    page,
+    duelPage,
+    duelImage,
+    duelInvites,
+    duelLobby,
+    quickPage,
+    quickClient,
+    quickRoute,
+    duelService,
+    sessions,
+    styles,
+  ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/d/[code]/page.tsx", import.meta.url), "utf8"),
     readFile(
@@ -448,6 +460,14 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
     ),
     readFile(new URL("../app/duel-invites.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/duel/duel-lobby.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/duel/create/page.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/duel/create/quick-duel-client.tsx", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../app/api/duels/quick/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/duel-service.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/challenge-sessions.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
   assert.match(
@@ -460,6 +480,8 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   assert.doesNotMatch(page, /shareUrl = .*\?duel=/);
   assert.match(duelPage, /generateMetadata/);
   assert.match(duelPage, /scored \$\{invite\.targetScore\}\. Can you beat it\?/);
+  assert.match(duelPage, /invited you to a live duel/);
+  assert.match(duelPage, /invite\.challengerFinished/);
   assert.match(duelPage, /No ticker, no future, no sign-up/);
   assert.match(duelPage, /invite\.responseCount/);
   assert.doesNotMatch(duelPage, /images: \[\]/);
@@ -484,16 +506,37 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   assert.match(duelPage, /Challenge chain round \$\{invite\.chainDepth \+ 1\}/);
   assert.doesNotMatch(duelPage, /CHALLENGE EXPIRED/);
   assert.doesNotMatch(duelPage, /marketDate\(invite\.market\)/);
-  assert.match(duelPage, /startDuelSession\(invite\.challengeId, playerId\)/);
+  assert.match(
+    duelPage,
+    /startDuelSession\([\s\S]*invite\.challengeId,[\s\S]*playerId,[\s\S]*invite\.date/,
+  );
   assert.match(duelInvites, /challengeId: duel\.challengeId/);
   assert.match(duelInvites, /duelChallenges\.code/);
   assert.doesNotMatch(duelInvites, /dailyScores|GAME_VERSION|scoreDate/);
   assert.match(duelInvites, /challengerNickname: duel\.challengerNickname/);
+  assert.match(duelInvites, /challengerFinished: duel\.targetScore >= 0/);
   assert.match(duelInvites, /targetScore: duel\.targetScore/);
   assert.match(duelInvites, /chainDepth: duel\.chainDepth/);
   assert.match(page, /Challenge friends to beat my/);
   assert.match(page, /Your score challenge is ready · Round/);
+  assert.match(page, /Private duel ready · invite while you play/);
+  assert.match(page, /Play in parallel/);
+  assert.match(duelLobby, /href=\{`\/duel\/create\?market=\$\{market\}`\}/);
+  assert.match(duelLobby, /Create instant duel/);
+  assert.doesNotMatch(duelLobby, /Finish today’s ranked chart first/);
+  assert.match(quickPage, /<QuickDuelClient market=\{market\}/);
+  assert.match(quickClient, /fetch\("\/api\/duels\/quick"/);
+  assert.match(quickClient, /duel_instant_create/);
+  assert.match(quickClient, /initialDuel=\{\{[\s\S]*code: duel\.duel\.code/);
+  assert.match(quickRoute, /startDuelHostSession/);
+  assert.match(quickRoute, /createPendingDuelRoom/);
+  assert.match(duelService, /targetScore: -1/);
+  assert.match(duelService, /completePendingDuelRoom/);
+  assert.match(duelService, /validDuelChallengeId/);
+  assert.match(sessions, /createPracticeChallenge\([\s\S]*`duel-\$\{seed\}`/);
+  assert.match(sessions, /marketDate\(market\)/);
   assert.match(styles, /\.duel-route-state/);
+  assert.match(styles, /\.duel-create-action/);
 });
 
 test("streams an immediate, mode-specific loading state", async () => {
@@ -561,6 +604,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     challengeRoute,
     quizRoute,
     duelRoute,
+    quickDuelRoute,
     duelEventRoute,
     duelService,
     identity,
@@ -612,6 +656,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     readFile(new URL("../app/api/challenge/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/quiz/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/duels/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/duels/quick/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/duel-events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/duel-service.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/request-identity.ts", import.meta.url), "utf8"),
@@ -837,6 +882,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelService, /parentDepth \+ 1/);
   assert.match(duelService, /targetReturnRate: returnRate/);
   assert.match(duelService, /targetMaxDrawdown: maxDrawdown/);
+  assert.match(quickDuelRoute, /startDuelHostSession/);
+  assert.match(quickDuelRoute, /createPendingDuelRoom/);
+  assert.match(duelService, /challengeId\.startsWith\(`practice@\$\{GAME_VERSION\}@\$\{market\}@`\)/);
+  assert.match(duelService, /eq\(duelChallenges\.targetScore, -1\)/);
+  assert.match(scoreRoute, /completePendingDuelRoom/);
+  assert.match(scoreRoute, /challengerFinished = duel\.targetScore >= 0/);
   assert.match(scoreRoute, /buildWeeklyLeague/);
   assert.match(scoreRoute, /ROW_NUMBER\(\) OVER/);
   assert.match(scoreRoute, /每周取最佳 5 局/);
@@ -865,7 +916,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(scoreRoute, /shareDuel: shareRoom/);
   assert.match(scoreRoute, /duelChallengerSummary/);
   assert.match(scoreRoute, /playerOverride: isHost/);
-  assert.match(scoreRoute, /: duelChallengerSummary\(duel\)/);
+  assert.match(scoreRoute, /challengerFinished[\s\S]*duelChallengerSummary\(duel\)/);
   assert.match(scoreRoute, /if \(isCurrentRankedChallenge\) \{\s*await db/);
   assert.match(scoreRoute, /challenge\.session\.challengeId !== storageDate/);
   assert.match(scoreRoute, /storageDateOverride \?\? scoreDate\(date, market\)/);
