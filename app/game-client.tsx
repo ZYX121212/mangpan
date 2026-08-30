@@ -34,6 +34,7 @@ import {
   type ReplayAction,
 } from "./game-config";
 import { buildTradeAnalysis } from "./trade-analysis";
+import { trackActivationEvent } from "./activation-events";
 import { Localized, type Locale } from "./i18n";
 import {
   shareSourceLabel,
@@ -1366,6 +1367,7 @@ export default function GameClient({
   initialIdentity,
   initialDuel,
   initialMode = "daily",
+  initialGuide = false,
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
@@ -1376,6 +1378,7 @@ export default function GameClient({
     chainDepth: number;
   };
   initialMode?: "daily" | "practice" | "training";
+  initialGuide?: boolean;
 }) {
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
@@ -1427,6 +1430,7 @@ export default function GameClient({
   const [showAllModes, setShowAllModes] = useState(false);
   const [onboardingStep, setOnboardingStep] =
     useState<OnboardingStep>(0);
+  const [guidedRunActive, setGuidedRunActive] = useState(initialGuide);
   const [trainingOpen, setTrainingOpen] = useState(
     initialMode === "training",
   );
@@ -1956,6 +1960,13 @@ export default function GameClient({
       setFirstVisit(!onboardingComplete && !challenger);
       setShowAllModes(onboardingComplete || Boolean(challenger));
       setModeHubOpen(false);
+      if (initialGuide) {
+        setFirstVisit(true);
+        setShowAllModes(false);
+        setRecordView(true);
+        setRevealDays(3);
+        setOnboardingStep(1);
+      }
       if (
         duelDate === today &&
         /^[A-Z0-9]{8,12}$/i.test(challenger)
@@ -1969,7 +1980,7 @@ export default function GameClient({
       setNickname(storedNickname);
       setScenarioProgress(storedProgress);
     });
-  }, [initialDuel?.code, initialDuel?.date, initialIdentity, initialMode, today]);
+  }, [initialDuel?.code, initialDuel?.date, initialGuide, initialIdentity, initialMode, today]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -2017,6 +2028,51 @@ export default function GameClient({
       initialDuel.source,
     );
   }, [actions.length, initialDuel?.code, initialDuel?.source, playerId]);
+
+  useEffect(() => {
+    if (!playerId || !guidedRunActive) return;
+    trackActivationEvent(
+      playerId,
+      "guide_start",
+      initialGuide ? "lobby" : "direct",
+    );
+  }, [guidedRunActive, initialGuide, playerId]);
+
+  useEffect(() => {
+    if (!playerId || !guidedRunActive || !forecastTouched) return;
+    trackActivationEvent(
+      playerId,
+      "guide_forecast",
+      initialGuide ? "lobby" : "direct",
+    );
+  }, [forecastTouched, guidedRunActive, initialGuide, playerId]);
+
+  useEffect(() => {
+    if (!playerId || !guidedRunActive || !actions.length) return;
+    trackActivationEvent(
+      playerId,
+      "guide_reveal",
+      initialGuide ? "lobby" : "direct",
+    );
+  }, [actions.length, guidedRunActive, initialGuide, playerId]);
+
+  useEffect(() => {
+    if (!playerId || gameMode !== "daily" || !actions.length) return;
+    trackActivationEvent(
+      playerId,
+      "daily_first_move",
+      initialDuel ? "duel" : "direct",
+    );
+  }, [actions.length, gameMode, initialDuel, playerId]);
+
+  useEffect(() => {
+    if (!playerId || gameMode !== "daily" || scoreStatus !== "done") return;
+    trackActivationEvent(
+      playerId,
+      "daily_complete",
+      initialDuel ? "duel" : "direct",
+    );
+  }, [gameMode, initialDuel, playerId, scoreStatus]);
 
   useEffect(() => {
     if (
@@ -2245,7 +2301,7 @@ export default function GameClient({
   };
 
   useEffect(() => {
-    if (!playerId || resumeAttemptRef.current.has(market)) return;
+    if (initialGuide || !playerId || resumeAttemptRef.current.has(market)) return;
     resumeAttemptRef.current.add(market);
     const storageKey = `mangpan-active-session-${market}`;
     const savedSession = localStorage.getItem(storageKey);
@@ -2265,7 +2321,7 @@ export default function GameClient({
         if (restored?.mode === expectedMode) resetSession(restored);
       })
       .catch(() => localStorage.removeItem(storageKey));
-  }, [initialIdentity, initialMode, market, playerId, resetSession, session.sessionId]);
+  }, [initialGuide, initialIdentity, initialMode, market, playerId, resetSession, session.sessionId]);
 
   useEffect(() => {
     if (!playerId || !actions.length || finished) return;
@@ -2392,17 +2448,29 @@ export default function GameClient({
     localStorage.setItem(ONBOARDING_STORAGE_KEY, "complete");
     setFirstVisit(false);
     setOnboardingStep(0);
+    setGuidedRunActive(false);
+    const params = new URLSearchParams(location.search);
+    if (params.has("guide")) {
+      params.delete("guide");
+      history.replaceState(
+        null,
+        "",
+        `${location.pathname}${params.size ? `?${params}` : ""}`,
+      );
+    }
   };
 
   const startGuidedChart = async () => {
     setRevealDays(3);
     setRecordView(true);
     setOnboardingStep(1);
+    setGuidedRunActive(true);
     await chooseMode("practice");
   };
 
   const enterDailyAfterGuide = async () => {
     completeOnboarding();
+    history.replaceState(null, "", `/daily?market=${market}`);
     await resetGame("daily", market, "random", "standard");
   };
 

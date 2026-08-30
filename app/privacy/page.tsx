@@ -16,7 +16,10 @@ export default function PrivacyPage() {
           scores, training progress, challenge participation, and related
           timestamps. For friend challenges, it also records whether an anonymous
           player opened or started a room and which share button was used, so the
-          room host can see aggregate challenge progress. If you use Sign in with ChatGPT, the hosting platform
+          room host can see aggregate challenge progress. It also records anonymous
+          first-play milestones such as opening the lobby, starting the guide,
+          making the first forecast, and completing a run so onboarding can be
+          improved. If you use Sign in with ChatGPT, the hosting platform
           provides an account identifier so progress can sync; Blind Trading stores
           a one-way derived player identifier rather than the original account ID.
         </p>
@@ -36,6 +39,7 @@ export default function PrivacyPage() {
           <li>Operate sessions, leaderboards, training, and friend challenges.</li>
           <li>Prevent duplicate or manipulated score submissions.</li>
           <li>Show room hosts aggregate friend-challenge conversion progress.</li>
+          <li>Measure aggregate first-play completion and improve onboarding.</li>
           <li>Maintain reliability, security, and product performance.</li>
         </ul>
         <p>

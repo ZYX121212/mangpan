@@ -297,6 +297,30 @@ export const duelEvents = sqliteTable(
   ],
 );
 
+export const activationEvents = sqliteTable(
+  "activation_events",
+  {
+    id: text("id").primaryKey(),
+    playerId: text("player_id").notNull(),
+    eventType: text("event_type").notNull(),
+    source: text("source").notNull().default("direct"),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("activation_events_player_event_source_unique").on(
+      table.playerId,
+      table.eventType,
+      table.source,
+    ),
+    index("activation_events_event_created_idx").on(
+      table.eventType,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const weeklyRewards = sqliteTable(
   "weekly_rewards",
   {

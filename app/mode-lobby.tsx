@@ -2,8 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { trackActivationEvent } from "./activation-events";
 import type { Locale } from "./i18n";
 import type { MarketKind } from "./game-config";
+
+const ONBOARDING_STORAGE_KEY = "mangpan-guided-first-chart-v1";
+
+function ensureLocalPlayerId() {
+  const existing = localStorage.getItem("mangpan-player-id");
+  if (existing) return existing;
+  const created = crypto.randomUUID();
+  localStorage.setItem("mangpan-player-id", created);
+  return created;
+}
 
 const MODES = [
   {
@@ -63,13 +74,26 @@ const MODES = [
 export default function ModeLobby() {
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>("us");
+  const [playerId, setPlayerId] = useState("");
+  const [isNewPlayer, setIsNewPlayer] = useState(true);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const savedLocale = localStorage.getItem("mangpan-locale");
       const savedMarket = localStorage.getItem("mangpan-market");
+      const id = ensureLocalPlayerId();
+      const hasPriorActivity = Boolean(
+        localStorage.getItem(ONBOARDING_STORAGE_KEY) === "complete" ||
+        localStorage.getItem("mangpan-active-session-us") ||
+        localStorage.getItem("mangpan-active-session-cn") ||
+        localStorage.getItem("mangpan-scenario-progress") ||
+        localStorage.getItem("mangpan-player-name"),
+      );
       if (savedLocale === "zh") setLocale("zh");
       if (savedMarket === "cn") setMarket("cn");
+      setPlayerId(id);
+      setIsNewPlayer(!hasPriorActivity);
+      trackActivationEvent(id, "lobby_view", "lobby");
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -82,6 +106,9 @@ export default function ModeLobby() {
   const chooseMarket = (next: MarketKind) => {
     setMarket(next);
     localStorage.setItem("mangpan-market", next);
+  };
+  const startFirstChart = () => {
+    trackActivationEvent(playerId || ensureLocalPlayerId(), "guide_start", "lobby");
   };
 
   return (
@@ -115,21 +142,56 @@ export default function ModeLobby() {
         </div>
       </header>
 
-      <section className="mode-lobby-hero">
-        <small>BLIND TRADING · FOUR WAYS TO PLAY</small>
+      <section className={`mode-lobby-hero ${isNewPlayer ? "first-play" : ""}`}>
+        <small>
+          {isNewPlayer
+            ? "ONE REAL CHART · NO SIGN-UP"
+            : "BLIND TRADING · FOUR WAYS TO PLAY"}
+        </small>
         <h1>
-          {locale === "en"
-            ? "Choose one goal. Enter one focused game."
-            : "一次只做一件事，进入一种清晰玩法。"}
+          {isNewPlayer
+            ? locale === "en"
+              ? "Can you read what happens next?"
+              : "你能读懂接下来会发生什么吗？"
+            : locale === "en"
+              ? "Choose one goal. Enter one focused game."
+              : "一次只做一件事，进入一种清晰玩法。"}
         </h1>
         <p>
-          {locale === "en"
-            ? "Daily competition, free exploration, deliberate training, and friend duels now live in separate modes—with their own rules and rhythm."
-            : "每日竞技、自由探索、专项训练和好友对决各自独立，不再把不同目标堆进同一局。"}
+          {isNewPlayer
+            ? locale === "en"
+              ? "Make one forecast on a hidden piece of real market history, then reveal the answer. Learn the complete loop by playing—not by reading a tutorial."
+              : "在一段隐藏身份的真实历史行情上做一次判断，再揭晓答案。先玩懂核心循环，不用先读教程。"
+            : locale === "en"
+              ? "Daily competition, free exploration, deliberate training, and friend duels now live in separate modes—with their own rules and rhythm."
+              : "每日竞技、自由探索、专项训练和好友对决各自独立，不再把不同目标堆进同一局。"}
         </p>
+        {isNewPlayer && (
+          <div className="first-play-actions">
+            <Link
+              href={`/practice?market=${market}&guide=1`}
+              onClick={startFirstChart}
+            >
+              <span>{locale === "en" ? "Play one chart" : "先玩一张"}</span>
+              <small>{locale === "en" ? "Guided · about 60 sec" : "有引导 · 约 60 秒"}</small>
+              <b>→</b>
+            </Link>
+            <button
+              type="button"
+              onClick={() =>
+                document.getElementById("game-modes")?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "start",
+                })
+              }
+            >
+              {locale === "en" ? "I know the game · browse modes" : "我已经会玩 · 浏览模式"}
+            </button>
+          </div>
+        )}
       </section>
 
-      <section className="mode-lobby-grid" aria-label="Game modes">
+      <section id="game-modes" className="mode-lobby-grid" aria-label="Game modes">
         {MODES.map((mode) => (
           <Link
             className={`mode-lobby-card ${mode.tone}`}

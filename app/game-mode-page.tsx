@@ -14,10 +14,11 @@ export default async function GameModePage({
   searchParams,
 }: {
   mode: GameEntryMode;
-  searchParams?: Promise<{ market?: string }>;
+  searchParams?: Promise<{ market?: string; guide?: string }>;
 }) {
-  const market: MarketKind =
-    (await searchParams)?.market === "cn" ? "cn" : "us";
+  const params = await searchParams;
+  const market: MarketKind = params?.market === "cn" ? "cn" : "us";
+  const initialGuide = mode === "practice" && params?.guide === "1";
   const user = await getChatGPTUser();
   const playerId = user ? await opaquePlayerId(user.userId) : undefined;
   const challenge =
@@ -36,6 +37,7 @@ export default async function GameModePage({
       initialChallenge={challenge}
       initialIdentity={playerId ? { playerId, cloud: true } : null}
       initialMode={mode}
+      initialGuide={initialGuide}
     />
   );
 }

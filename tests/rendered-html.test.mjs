@@ -496,6 +496,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     cascadeMigration,
     duelMetricsMigration,
     duelEventsMigration,
+    activationRoute,
+    activationClient,
+    activationMigration,
     privacy,
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
@@ -580,6 +583,15 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
       new URL("../drizzle/0017_glossy_madrox.sql", import.meta.url),
       "utf8",
     ),
+    readFile(
+      new URL("../app/api/activation-events/route.ts", import.meta.url),
+      "utf8",
+    ),
+    readFile(new URL("../app/activation-events.ts", import.meta.url), "utf8"),
+    readFile(
+      new URL("../drizzle/0018_pink_nightmare.sql", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../app/privacy/page.tsx", import.meta.url), "utf8"),
   ]);
 
@@ -606,10 +618,17 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /href: "\/practice"/);
   assert.match(modeLobby, /href: "\/training"/);
   assert.match(modeLobby, /href: "\/duel"/);
+  assert.match(modeLobby, /Can you read what happens next\?/);
+  assert.match(modeLobby, /\/practice\?market=\$\{market\}&guide=1/);
+  assert.match(modeLobby, /Play one chart/);
+  assert.match(modeLobby, /trackActivationEvent\(id, "lobby_view", "lobby"\)/);
+  assert.match(modeLobby, /"guide_start", "lobby"/);
   assert.match(gameModePage, /marketDate\(market\)/);
   assert.match(gameModePage, /startDailySession/);
   assert.match(gameModePage, /startPracticeSession/);
   assert.match(gameModePage, /initialMode=\{mode\}/);
+  assert.match(gameModePage, /params\?\.guide === "1"/);
+  assert.match(gameModePage, /initialGuide=\{initialGuide\}/);
   assert.match(dailyPage, /mode="daily"/);
   assert.match(practicePage, /mode="practice"/);
   assert.match(trainingPage, /mode="training"/);
@@ -724,6 +743,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(schema, /duelEvents/);
   assert.match(schema, /duel_events_room_player_event_source_unique/);
   assert.match(schema, /duel_events_room_event_idx/);
+  assert.match(schema, /activationEvents/);
+  assert.match(schema, /activation_events_player_event_source_unique/);
+  assert.match(schema, /activation_events_event_created_idx/);
   assert.match(schema, /source: text\("source"\)\.notNull\(\)\.default\("direct"\)/);
   assert.match(schema, /returnRate: real\("return_rate"\)\.notNull\(\)\.default\(0\)/);
   assert.match(schema, /weeklyRewards/);
@@ -743,6 +765,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.trade-panel>\*\{flex-shrink:0\}/);
   assert.match(styles, /\.probability-contract\{flex:0 0 auto\}/);
   assert.match(styles, /\.guided-start-card/);
+  assert.match(styles, /\.first-play-actions/);
   assert.match(styles, /\.first-run-coach/);
   assert.match(styles, /\.coach-focus/);
   assert.match(styles, /\.duel-invite-card/);
@@ -852,8 +875,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelEventsMigration, /CREATE TABLE `duel_events`/);
   assert.match(duelEventsMigration, /duel_events_room_player_event_source_unique/);
   assert.match(duelEventsMigration, /duel_events_room_event_idx/);
+  assert.match(activationMigration, /CREATE TABLE `activation_events`/);
+  assert.match(activationMigration, /activation_events_player_event_source_unique/);
+  assert.match(activationMigration, /activation_events_event_created_idx/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_responses/);
   assert.match(database, /CREATE TABLE IF NOT EXISTS duel_events/);
+  assert.match(database, /CREATE TABLE IF NOT EXISTS activation_events/);
   assert.match(database, /PRAGMA table_info\(duel_challenges\)/);
   assert.match(database, /ALTER TABLE duel_challenges ADD COLUMN challenge_id/);
   assert.match(database, /focused-daily-v18/);
@@ -869,6 +896,17 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelEventRoute, /requestPlayerId/);
   assert.match(duelEventRoute, /\.onConflictDoNothing\(\{/);
   assert.match(duelEventRoute, /duelEvents\.eventType/);
+  assert.match(activationRoute, /EVENT_TYPES/);
+  assert.match(activationRoute, /requestPlayerId/);
+  assert.match(activationRoute, /\.onConflictDoNothing\(\{/);
+  assert.match(activationClient, /fetch\("\/api\/activation-events"/);
+  assert.match(activationClient, /keepalive: true/);
+  assert.match(page, /"guide_forecast"/);
+  assert.match(page, /"guide_reveal"/);
+  assert.match(page, /"daily_first_move"/);
+  assert.match(page, /"daily_complete"/);
+  assert.match(page, /if \(initialGuide \|\| !playerId/);
+  assert.match(page, /history\.replaceState\(null, "", `\/daily\?market=\$\{market\}`\)/);
   assert.match(page, /keepalive: true/);
   assert.match(page, /trackDuelEvent/);
   assert.match(page, /recordDuelShare\("x"\)/);
@@ -877,6 +915,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /CHALLENGE JOURNEY/);
   assert.match(privacy, /device fingerprints/);
   assert.match(privacy, /third-party advertising trackers/);
+  assert.match(privacy, /anonymous[\s\S]*first-play milestones/);
   assert.match(analysis, /平均仓位/);
   assert.match(analysis, /trainingGoal/);
   assert.equal((universe.match(/\\"code\\":\\"\d{6}\\"/g) ?? []).length, 5550);
