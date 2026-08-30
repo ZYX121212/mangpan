@@ -144,6 +144,8 @@ const ENGLISH: Record<string, string> = {
   "只全市场股票池": " stocks in the full-market universe",
   "每局按需加载真实日线": "Real daily data loaded on demand",
   "不构成投资建议": "Not investment advice",
+  "隐私政策": "Privacy",
+  "服务条款": "Terms",
   "针对性训练": "Focused Training",
   "今天想练哪一种行情？": "What market condition do you want to practice?",
   "系统从真实历史中筛选典型片段。你会提前看到训练目标，但股票身份、日期和后续走势仍然隐藏。": "The system selects representative periods from real market history. You see the objective in advance, while the stock, dates, and future price action remain hidden.",

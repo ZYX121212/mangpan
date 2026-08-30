@@ -23,11 +23,6 @@ import {
 import { buildTradeAnalysis } from "./trade-analysis";
 import { Localized, type Locale } from "./i18n";
 
-const nf = new Intl.NumberFormat("zh-CN", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-const shareNf = new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 0 });
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
 
@@ -1130,14 +1125,14 @@ export default function GameClient({
   initialChallenges: InitialChallenges;
   initialIdentity: { playerId: string; cloud: true } | null;
 }) {
-  const today = initialChallenges.cn.date;
-  const [locale, setLocale] = useState<Locale>("zh");
-  const [market, setMarket] = useState<MarketKind>("cn");
+  const today = initialChallenges.us.date;
+  const [locale, setLocale] = useState<Locale>("en");
+  const [market, setMarket] = useState<MarketKind>("us");
   const [gameMode, setGameMode] = useState<GameMode>("daily");
-  const [session, setSession] = useState(initialChallenges.cn);
-  const [stock, setStock] = useState(initialChallenges.cn.stock);
+  const [session, setSession] = useState(initialChallenges.us);
+  const [stock, setStock] = useState(initialChallenges.us.stock);
   const [visibleCount, setVisibleCount] = useState(() =>
-      initialBarsFor(initialChallenges.cn.stock),
+      initialBarsFor(initialChallenges.us.stock),
     ),
     [round, setRound] = useState(0);
   const [cash, setCash] = useState(INITIAL_CASH),
@@ -1202,11 +1197,7 @@ export default function GameClient({
   const initialUrlHandledRef = useRef(false);
   useEffect(() => {
     const saved = localStorage.getItem("mangpan-locale");
-    const detected: Locale = saved === "en" || saved === "zh"
-      ? saved
-      : navigator.language.toLowerCase().startsWith("zh")
-        ? "zh"
-        : "en";
+    const detected: Locale = saved === "zh" ? "zh" : "en";
     const timer = window.setTimeout(() => setLocale(detected), 0);
     document.documentElement.lang = detected === "zh" ? "zh-CN" : "en";
     document.title = detected === "zh"
@@ -1222,6 +1213,19 @@ export default function GameClient({
       ? "盲盘｜真实历史 K 线交易挑战"
       : "Blind Chart | Real Historical Candlestick Challenge";
   };
+  const numberLocale = locale === "en" ? "en-US" : "zh-CN";
+  const nf = useMemo(
+    () =>
+      new Intl.NumberFormat(numberLocale, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }),
+    [numberLocale],
+  );
+  const shareNf = useMemo(
+    () => new Intl.NumberFormat(numberLocale, { maximumFractionDigits: 0 }),
+    [numberLocale],
+  );
   const marketLabel = market === "cn" ? "A股" : "美股";
   const scenarioLabel = (
     {
@@ -2293,7 +2297,7 @@ export default function GameClient({
             <span>
               {session.resumed ? "已恢复云端进度 · " : ""}
               已推进 {advancedDays} 个交易日 · 尚有{" "}
-              {remainingDays.toLocaleString("zh-CN")} 个交易日 · 可随时结束
+              {remainingDays.toLocaleString(numberLocale)} 个交易日 · 可随时结束
             </span>
           </div>
           <div className="price-block">
@@ -2657,9 +2661,15 @@ export default function GameClient({
         </aside>
       </section>
       <footer className="source-note">
-        A股 {initialChallenges.cn.universeSize.toLocaleString("zh-CN")}{" "}
-        只全市场股票池 · 美股 {initialChallenges.us.universeSize} 只 ·
-        每局按需加载真实日线 · 不构成投资建议
+        <span>
+          A股 {initialChallenges.cn.universeSize.toLocaleString(numberLocale)}{" "}
+          只全市场股票池 · 美股 {initialChallenges.us.universeSize} 只 ·
+          每局按需加载真实日线 · 不构成投资建议
+        </span>
+        <nav aria-label="Legal">
+          <a href="/privacy" target="_blank" rel="noreferrer">隐私政策</a>
+          <a href="/terms" target="_blank" rel="noreferrer">服务条款</a>
+        </nav>
       </footer>
 
       {trainingOpen && (
@@ -2947,7 +2957,7 @@ export default function GameClient({
                 <b>市场</b>
                 <span>
                   可随时选择 A 股或美股；A 股从{" "}
-                  {initialChallenges.cn.universeSize.toLocaleString("zh-CN")}{" "}
+                  {initialChallenges.cn.universeSize.toLocaleString(numberLocale)}{" "}
                   只全市场股票池中抽取。
                 </span>
               </li>
@@ -3723,7 +3733,7 @@ export default function GameClient({
               本局走到：{stock.candles[initialVisibleCount - 1].date} —{" "}
               {stock.candles[visibleCount - 1].date} · 完整数据：
               {stock.candles[0].date} — {stock.candles.at(-1)?.date}（
-              {stock.candles.length.toLocaleString("zh-CN")} 根）· 共 {trades}{" "}
+              {stock.candles.length.toLocaleString(numberLocale)} 根）· 共 {trades}{" "}
               次交易 · 成本 {currencySymbol}
               {nf.format(feesPaid + slippagePaid)}
             </div>

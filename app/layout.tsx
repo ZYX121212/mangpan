@@ -15,18 +15,37 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://mangpan-kline-game.hiayun.chatgpt.site"),
-  title: "盲盘｜真实历史 K 线交易挑战",
-  description: "在不知道股票身份与日期的情况下，用真实历史 K 线完成一场交易挑战。",
+  title: "Blind Chart | Real Historical Trading Challenge",
+  description:
+    "Trade real historical candlestick charts without seeing the ticker, date, or future price action. Practice decisions, risk, and execution.",
+  keywords: [
+    "stock trading game",
+    "candlestick chart challenge",
+    "trading simulator",
+    "market training",
+    "historical stock charts",
+  ],
+  alternates: { canonical: "/" },
+  robots: { index: true, follow: true },
   openGraph: {
-    title: "盲盘｜真实历史 K 线交易挑战",
-    description: "只看走势，不看答案。用真实历史 K 线完成一场交易挑战。",
+    title: "Blind Chart | Trade the chart, not the ticker",
+    description:
+      "Make trading decisions on real historical charts with the ticker, dates, and future price action hidden.",
     type: "website",
-    images: [{ url: "/og.png", width: 1672, height: 941, alt: "盲盘｜真实历史 K 线交易挑战" }],
+    images: [
+      {
+        url: "/og.png",
+        width: 1672,
+        height: 941,
+        alt: "Blind Chart — Trade the chart, not the ticker",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "盲盘｜真实历史 K 线交易挑战",
-    description: "只看走势，不看答案。用真实历史 K 线完成一场交易挑战。",
+    title: "Blind Chart | Trade the chart, not the ticker",
+    description:
+      "A trading decision game built from real historical candlestick charts.",
     images: ["/og.png"],
   },
   icons: {
@@ -41,7 +60,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="zh-CN">
+    <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

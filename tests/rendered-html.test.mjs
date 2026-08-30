@@ -8,7 +8,8 @@ test("contains the complete blind chart game shell", async () => {
     readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/i18n.tsx", import.meta.url), "utf8"),
   ]);
-  assert.match(layout, /盲盘｜真实历史 K 线交易挑战/);
+  assert.match(layout, /Blind Chart \| Real Historical Trading Challenge/);
+  assert.match(layout, /<html lang="en">/);
   assert.match(page, /今日盲盘/);
   assert.match(page, /竞技榜/);
   assert.match(page, /可缩放、拖动和键盘操作的真实历史日K线图/);
@@ -79,6 +80,8 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /stock\.candles\.length\.toLocaleString/);
   assert.match(page, /mangpan-locale/);
   assert.match(page, /changeLocale\("en"\)/);
+  assert.match(page, /useState<Locale>\("en"\)/);
+  assert.match(page, /useState<MarketKind>\("us"\)/);
   assert.match(page, /document\.documentElement\.lang/);
   assert.match(i18n, /Blind Chart \| Real Historical Candlestick Challenge/);
   assert.match(i18n, /Only recorded views count toward accuracy/);
