@@ -13,6 +13,7 @@ import {
   snapshotId,
 } from "./challenge-service";
 import {
+  DAILY_CHALLENGE_DECISIONS,
   MAX_ACTIONS,
   chinaDate,
   hashText,
@@ -34,6 +35,10 @@ import type {
 import type { Candle, StockSample } from "./stock-types";
 
 export type GameMode = "daily" | "practice";
+
+function maxDecisionsFor(mode: GameMode) {
+  return mode === "daily" ? DAILY_CHALLENGE_DECISIONS : null;
+}
 export type PublicChallengeSession = {
   sessionId: string;
   date: string;
@@ -278,7 +283,7 @@ async function insertSession(
     totalBars: bundle.stock.candles.length,
     remainingBars: bundle.stock.candles.length - initialVisibleCount,
     decisionsUsed: 0,
-    maxDecisions: null,
+    maxDecisions: maxDecisionsFor(mode),
     universeSize: bundle.universeSize,
     dataSource: bundle.dataSource,
     scenario,
@@ -481,7 +486,9 @@ export async function resumeSession(id: string, playerId: string) {
     totalBars: bundle.stock.candles.length,
     remainingBars: bundle.stock.candles.length - session.visibleCount,
     decisionsUsed: actions.length,
-    maxDecisions: null,
+    maxDecisions: maxDecisionsFor(
+      session.mode === "daily" ? "daily" : "practice",
+    ),
     universeSize: bundle.universeSize,
     dataSource: bundle.dataSource,
     scenario: sessionScenario(session),
@@ -529,6 +536,11 @@ export async function advanceSession(
   const { session, bundle, actions } = await loadSession(id);
   await claimSession(session, playerId);
   if (session.finished) throw new Error("本局已经结束");
+  if (
+    session.mode === "daily" &&
+    actions.length >= DAILY_CHALLENGE_DECISIONS
+  )
+    throw new Error("今日挑战已完成，请揭晓结果");
   if (actions.length >= MAX_ACTIONS) throw new Error("决策次数超出上限");
   const action = cleanAction(value);
   if (!action) throw new Error("交易指令无效，请检查委托内容");
@@ -542,7 +554,10 @@ export async function advanceSession(
   const savedAction = { ...action, days: holdingDays };
   const nextActions = [...actions, savedAction];
   const nextVisibleCount = session.visibleCount + holdingDays;
-  const finished = nextVisibleCount >= bundle.stock.candles.length;
+  const finished =
+    nextVisibleCount >= bundle.stock.candles.length ||
+    (session.mode === "daily" &&
+      nextActions.length >= DAILY_CHALLENGE_DECISIONS);
   const updated = await getD1Database()
     .prepare(
       `UPDATE game_sessions SET visible_count = ?, actions = ?, finished = ?, updated_at = ? WHERE id = ? AND visible_count = ? AND finished = 0`,
@@ -572,7 +587,9 @@ export async function advanceSession(
       .map((candle, index) => maskCandle(candle, session.visibleCount + index)),
     remainingBars: bundle.stock.candles.length - nextVisibleCount,
     decisionsUsed: nextActions.length,
-    maxDecisions: null,
+    maxDecisions: maxDecisionsFor(
+      session.mode === "daily" ? "daily" : "practice",
+    ),
     finished,
     action: savedAction,
     dailyMission,
@@ -767,6 +784,11 @@ export async function getTrainingProfile(
 export async function revealSession(id: string, playerId?: string) {
   const { session, bundle, actions } = await loadSession(id);
   await claimSession(session, playerId);
+  if (
+    session.mode === "daily" &&
+    actions.length < DAILY_CHALLENGE_DECISIONS
+  )
+    throw new Error("完成 5 次决策后即可揭晓今日挑战");
   if (!session.finished) {
     await getDb()
       .update(gameSessions)
@@ -792,6 +814,8 @@ export async function getSessionForScore(id: string, playerId: string) {
   const loaded = await loadSession(id);
   if (loaded.session.mode !== "daily" || !loaded.session.finished)
     throw new Error("仅已完成的今日挑战可以上榜");
+  if (loaded.actions.length !== DAILY_CHALLENGE_DECISIONS)
+    throw new Error("今日排行榜只接受完整的 5 次决策挑战");
   const abandonedToday = await getD1Database()
     .prepare(
       "SELECT 1 AS abandoned FROM game_sessions WHERE player_id = ? AND challenge_date = ? AND market = ? AND mode = 'abandoned_daily' LIMIT 1",

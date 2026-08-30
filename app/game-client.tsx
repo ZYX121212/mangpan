@@ -9,6 +9,7 @@ import {
   type StockSample,
 } from "./stock-types";
 import {
+  DAILY_CHALLENGE_DECISIONS,
   INITIAL_BARS,
   INITIAL_CASH,
   ORDER_ALLOCATIONS,
@@ -296,6 +297,101 @@ function formatProbabilityForecast(
   return locale === "en"
     ? `Up ${display(forecast.up)} · Range ${display(forecast.range)} · Down ${display(forecast.down)}`
     : `涨 ${display(forecast.up)} · 震 ${display(forecast.range)} · 跌 ${display(forecast.down)}`;
+}
+
+async function createResultShareCard({
+  locale,
+  date,
+  market,
+  score,
+  calibration,
+  risk,
+  percentile,
+  marks,
+}: {
+  locale: Locale;
+  date: string;
+  market: MarketKind;
+  score: number;
+  calibration: number;
+  risk: number;
+  percentile?: number;
+  marks: number[];
+}) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1200;
+  canvas.height = 630;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.fillStyle = "#f4f1e9";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = "#252721";
+  context.fillRect(0, 0, canvas.width, 118);
+  context.fillStyle = "#f8f6ef";
+  context.font = "700 34px Arial, sans-serif";
+  context.fillText("BLIND TRADING DAILY", 72, 74);
+  context.fillStyle = "#bfc3b7";
+  context.font = "600 22px Arial, sans-serif";
+  context.textAlign = "right";
+  context.fillText(
+    `#${date.replaceAll("-", "")} · ${market === "us" ? "US STOCKS" : "CHINA A-SHARES"}`,
+    1128,
+    72,
+  );
+  context.textAlign = "left";
+  context.fillStyle = "#252721";
+  context.font = "800 150px Arial, sans-serif";
+  context.fillText(String(score), 70, 315);
+  context.fillStyle = "#74766d";
+  context.font = "700 22px Arial, sans-serif";
+  context.fillText(
+    locale === "en" ? "DECISION SCORE" : "决策评分",
+    76,
+    356,
+  );
+  const metrics = [
+    [locale === "en" ? "CALIBRATION" : "概率校准", calibration],
+    [locale === "en" ? "RISK CONTROL" : "风险控制", risk],
+    [
+      locale === "en" ? "PERCENTILE" : "超过玩家",
+      percentile == null ? "—" : `${percentile}%`,
+    ],
+  ] as const;
+  metrics.forEach(([label, value], index) => {
+    const x = 385 + index * 245;
+    context.fillStyle = "#8b8c84";
+    context.font = "700 18px Arial, sans-serif";
+    context.fillText(label, x, 224);
+    context.fillStyle = "#252721";
+    context.font = "800 54px Arial, sans-serif";
+    context.fillText(String(value), x, 286);
+  });
+  const displayedMarks = marks.slice(0, DAILY_CHALLENGE_DECISIONS);
+  while (displayedMarks.length < DAILY_CHALLENGE_DECISIONS)
+    displayedMarks.push(50);
+  displayedMarks.forEach((value, index) => {
+    context.fillStyle = value >= 70 ? "#4f785f" : value >= 45 ? "#c1a764" : "#ba625d";
+    context.fillRect(72 + index * 138, 414, 116, 62);
+  });
+  context.fillStyle = "#252721";
+  context.font = "800 29px Arial, sans-serif";
+  context.fillText(
+    locale === "en" ? "CAN YOU READ IT BETTER?" : "你能读得更准吗？",
+    72,
+    550,
+  );
+  context.fillStyle = "#777970";
+  context.font = "500 20px Arial, sans-serif";
+  context.fillText(
+    locale === "en"
+      ? "Same mystery chart. Five decisions. No ticker until the reveal."
+      : "同一张神秘历史图，五次决策，结算前不看股票与日期。",
+    72,
+    585,
+  );
+  return new Promise<Blob | null>((resolve) =>
+    canvas.toBlob(resolve, "image/png"),
+  );
 }
 
 function evaluateDecision(
@@ -1236,7 +1332,7 @@ export default function GameClient({
     [shareStatus, setShareStatus] = useState("");
   const [actions, setActions] = useState<ReplayAction[]>([]),
     [playerId, setPlayerId] = useState("");
-  const [nickname, setNickname] = useState("盲盘客"),
+  const [nickname, setNickname] = useState("MarketReader"),
     [duelCode, setDuelCode] = useState("");
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
     [scoreboardOpen, setScoreboardOpen] = useState(false);
@@ -1308,6 +1404,12 @@ export default function GameClient({
   const weakestRecognition = trainingProfile?.recognition.weakestScenario;
   const activeDuel = Boolean(
     duelCode && scoreboard?.duelCode?.toUpperCase() === duelCode,
+  );
+  const dailyDecisionTarget =
+    session.maxDecisions ?? DAILY_CHALLENGE_DECISIONS;
+  const dailyDecisionsRemaining = Math.max(
+    0,
+    dailyDecisionTarget - session.decisionsUsed,
   );
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
@@ -1584,7 +1686,9 @@ export default function GameClient({
     if (initialIdentity) localStorage.setItem("mangpan-player-id", id);
     const storedNickname =
       localStorage.getItem("mangpan-player-name") ||
-      `盲盘客${id.slice(-4).toUpperCase()}`;
+      (localStorage.getItem("mangpan-locale") === "zh"
+        ? `盲盘客${id.slice(-4).toUpperCase()}`
+        : `Reader-${id.slice(-4).toUpperCase()}`);
     let storedProgress: Record<string, number> = {};
     try {
       storedProgress = JSON.parse(
@@ -1952,8 +2056,8 @@ export default function GameClient({
     }
   };
 
-  const finishGame = async () => {
-    if (isRevealing || finished) return;
+  const finishGame = async (force = false) => {
+    if ((!force && isRevealing) || finished) return;
     setIsRevealing(true);
     try {
       const response = await fetch("/api/challenge", {
@@ -2163,19 +2267,37 @@ export default function GameClient({
     }
     setIsRevealing(false);
     if (advanced.finished || nextEquity <= INITIAL_CASH * 0.2)
-      await finishGame();
+      await finishGame(true);
   };
 
   const shareResult = async () => {
-    const sequence = Array.from({ length: Math.max(1, round) }, (_, index) => {
-      const marker = tradeMarkers.find((item) => item.round === index);
-      return marker?.type === "B" ? "🟥" : marker?.type === "S" ? "🟩" : "⬜";
-    }).join("");
-    const text = `${marketLabel}盲盘 #${today.replaceAll("-", "")}\n${sequence}\n收益 ${returnRate >= 0 ? "+" : ""}${returnRate.toFixed(1)}% · 操盘评分 ${skillScore}\n只看走势，不看答案`;
+    const marks = feedbackHistory.length
+      ? feedbackHistory.map((item) => item.calibration)
+      : decisionReplay.map((item) => (item.matched ? 75 : 30));
+    const sequence = marks
+      .slice(0, DAILY_CHALLENGE_DECISIONS)
+      .map((value) => (value >= 70 ? "🟩" : value >= 45 ? "🟨" : "🟥"))
+      .join("");
+    const shareMarket =
+      locale === "en"
+        ? market === "us"
+          ? "US Stocks"
+          : "China A-shares"
+        : marketLabel;
+    const title =
+      locale === "en"
+        ? "Blind Trading Daily · Mystery Market Challenge"
+        : "盲盘每日挑战｜神秘历史行情";
+    const text =
+      locale === "en"
+        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}\nSame mystery chart. Five decisions. Can you beat me?`
+        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}\n同一张神秘历史图，五次决策。你能超过我吗？`;
     try {
       let shareUrl = location.href;
       if (gameMode === "daily" && playerId) {
-        setShareStatus("正在生成挑战码…");
+        setShareStatus(
+          locale === "en" ? "Preparing challenge…" : "正在生成挑战码…",
+        );
         const response = await fetch("/api/duels", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -2185,22 +2307,42 @@ export default function GameClient({
         const duel = (await response.json()) as { code: string };
         shareUrl = `${location.origin}${location.pathname}?duel=${encodeURIComponent(duel.code)}&date=${today}&market=${market}`;
       }
+      const image = await createResultShareCard({
+        locale,
+        date: today,
+        market,
+        score: skillScore,
+        calibration: Math.round(decisionStats.calibration),
+        risk: Math.round(processScores.risk),
+        percentile: scoreboard?.playerScore?.percentile,
+        marks,
+      });
+      const file = image
+        ? new File([image], `blind-trading-${today}.png`, {
+            type: "image/png",
+          })
+        : null;
       if (navigator.share) {
-        await navigator.share({
-          title: "盲盘｜真实历史K线挑战",
-          text,
-          url: shareUrl,
-        });
-        setShareStatus("挑战已发出");
+        const data: ShareData = { title, text, url: shareUrl };
+        if (file && navigator.canShare?.({ files: [file] }))
+          data.files = [file];
+        await navigator.share(data);
+        setShareStatus(
+          locale === "en" ? "Challenge sent" : "挑战已发出",
+        );
       } else {
         await navigator.clipboard.writeText(`${text}\n${shareUrl}`);
-        setShareStatus("挑战链接已复制");
+        setShareStatus(
+          locale === "en" ? "Challenge link copied" : "挑战链接已复制",
+        );
       }
     } catch (error) {
       setShareStatus(
         error instanceof DOMException && error.name === "AbortError"
           ? ""
-          : "生成失败，请稍后重试",
+          : locale === "en"
+            ? "Could not share. Try again."
+            : "生成失败，请稍后重试",
       );
     }
   };
@@ -2270,11 +2412,15 @@ export default function GameClient({
         <div className="round-pill">
           <span>
             {gameMode === "daily"
-              ? `${marketLabel}今日长线挑战`
+              ? `${marketLabel}每日 5 决策`
               : `${marketLabel}无限练习`}
           </span>
           <i />
-          已推进 {advancedDays} 个交易日
+          {gameMode === "daily"
+            ? locale === "en"
+              ? `Decision ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget}`
+              : `第 ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget} 次`
+            : `已推进 ${advancedDays} 个交易日`}
         </div>
         <div className="top-actions">
           <div className="language-toggle" role="group" aria-label="Language / 语言">
@@ -2328,7 +2474,15 @@ export default function GameClient({
         <div className="duel-banner">
           <span>⚔</span>
           <b>好友向你发起了今日同图挑战</b>
-          <small>完成后立即对比分数，双方看到的 K 线完全相同</small>
+          <small>无需注册，完成后立即对比分数；双方看到完全相同的 K 线</small>
+        </div>
+      )}
+      {gameMode === "daily" && !activeDuel && (
+        <div className="daily-flash-banner">
+          <span>DAILY MARKET MYSTERY</span>
+          <b>同一张图 · 5 次决策 · 约 90 秒</b>
+          <small>全球玩家同题，股票与日期将在结算后揭晓</small>
+          <strong>{session.decisionsUsed}/{dailyDecisionTarget}</strong>
         </div>
       )}
       {activeScenario && (
@@ -2454,16 +2608,42 @@ export default function GameClient({
             <span>股票交易</span>
             <small>
               {gameMode === "daily"
-                ? "完整历史周期 · 随时结束"
+                ? locale === "en"
+                  ? `Daily sprint · ${dailyDecisionsRemaining} decisions left`
+                  : `每日快局 · 剩余 ${dailyDecisionsRemaining} 次决策`
                 : "无限练习 · 随时结束"}
             </small>
           </div>
-              <div className="horizon-track open-ended">
-            <i />
+          <div
+            className={`horizon-track ${gameMode === "daily" ? "daily-limited" : "open-ended"}`}
+          >
+            <i
+              style={
+                gameMode === "daily"
+                  ? {
+                      width: `${Math.min(100, (session.decisionsUsed / dailyDecisionTarget) * 100)}%`,
+                    }
+                  : undefined
+              }
+            />
             <span>
-              {session.resumed ? "已恢复云端进度 · " : ""}
-              已推进 {advancedDays} 个交易日 · 尚有{" "}
-              {remainingDays.toLocaleString(numberLocale)} 个交易日 · 可随时结束
+              {gameMode === "daily" ? (
+                <>
+                  {locale === "en" ? (
+                    <>Daily challenge #{today.replaceAll("-", "")} · Decision{" "}
+                      {Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/{dailyDecisionTarget}</>
+                  ) : (
+                    <>今日挑战 #{today.replaceAll("-", "")} · 第{" "}
+                      {Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/{dailyDecisionTarget} 次判断</>
+                  )}
+                </>
+              ) : (
+                <>
+                  {session.resumed ? "已恢复云端进度 · " : ""}
+                  已推进 {advancedDays} 个交易日 · 尚有{" "}
+                  {remainingDays.toLocaleString(numberLocale)} 个交易日 · 可随时结束
+                </>
+              )}
             </span>
           </div>
           <div className="price-block">
@@ -2833,12 +3013,17 @@ export default function GameClient({
                   ? "正在切换股票…"
                   : "换一只股票 →"}
               </button>
-              <button className="finish-action" onClick={finishGame}>
-                提前结束并揭晓股票
-              </button>
+              {gameMode !== "daily" && (
+                <button
+                  className="finish-action"
+                  onClick={() => void finishGame()}
+                >
+                  提前结束并揭晓股票
+                </button>
+              )}
               <p className="hint">
                 {gameMode === "daily"
-                  ? "不限制决策次数；可持续到完整历史终点，服务器只逐段揭示后续行情"
+                  ? "全球玩家同一张神秘图；完成 5 次决策后自动揭晓和排名"
                   : "不支持限价、做空或融资；可一直决策到该段真实历史结束"}
               </p>
             </>
@@ -3194,7 +3379,7 @@ export default function GameClient({
               <li>
                 <b>周期</b>
                 <span>
-                  今日挑战、无限练习与情境训练都不限制决策次数，可持续到完整历史终点，也可以随时提前结束。
+                  今日挑战固定为 5 次决策，约 90 秒完成；无限练习与情境训练可持续到完整历史终点，也可以随时提前结束。
                 </span>
               </li>
               <li>
@@ -3291,7 +3476,9 @@ export default function GameClient({
                   onBlur={() => {
                     const name =
                       nickname.trim() ||
-                      `盲盘客${playerId.slice(-4).toUpperCase()}`;
+                      (locale === "en"
+                        ? `Reader-${playerId.slice(-4).toUpperCase()}`
+                        : `盲盘客${playerId.slice(-4).toUpperCase()}`);
                     setNickname(name);
                     localStorage.setItem("mangpan-player-name", name);
                   }}
@@ -3884,9 +4071,10 @@ export default function GameClient({
                       </span>
                     </div>
                     {activeDuel && (
-                      <div className="duel-result">
-                        <small>好友对决</small>
-                        {scoreboard.opponent ? (
+                      <>
+                        <div className="duel-result">
+                          <small>好友对决</small>
+                          {scoreboard.opponent ? (
                           <b
                             className={
                               scoreboard.playerScore.score >=
@@ -3904,10 +4092,33 @@ export default function GameClient({
                                 : "好友领先"}
                             </em>
                           </b>
-                        ) : (
-                          <span>好友尚未完成，稍后再来看</span>
+                          ) : (
+                            <span>好友尚未完成，稍后再来看</span>
+                          )}
+                        </div>
+                        {scoreboard.opponent && (
+                          <div className="duel-comparison">
+                            <article className="me">
+                              <small>你的决策</small>
+                              <b>{scoreboard.playerScore.score}</b>
+                              <span>
+                                收益 {scoreboard.playerScore.returnRate >= 0 ? "+" : ""}
+                                {scoreboard.playerScore.returnRate.toFixed(1)}% · 回撤{" "}
+                                {(scoreboard.playerScore.maxDrawdown ?? 0).toFixed(1)}%
+                              </span>
+                            </article>
+                            <article>
+                              <small>{scoreboard.opponent.nickname}</small>
+                              <b>{scoreboard.opponent.score}</b>
+                              <span>
+                                收益 {scoreboard.opponent.returnRate >= 0 ? "+" : ""}
+                                {scoreboard.opponent.returnRate.toFixed(1)}% · 回撤{" "}
+                                {(scoreboard.opponent.maxDrawdown ?? 0).toFixed(1)}%
+                              </span>
+                            </article>
+                          </div>
                         )}
-                      </div>
+                      </>
                     )}
                   </>
                 ) : (
@@ -3977,9 +4188,17 @@ export default function GameClient({
               {nf.format(feesPaid + slippagePaid)}
             </div>
             <div className="result-actions three">
-              <button className="primary-action" onClick={shareResult}>
+              <button
+                className="primary-action"
+                disabled={gameMode === "daily" && scoreStatus !== "done"}
+                onClick={shareResult}
+              >
                 {shareStatus ||
-                  (gameMode === "daily" ? "发起好友同图挑战" : "分享战绩")}
+                  (gameMode === "daily"
+                    ? scoreStatus === "done"
+                      ? "发起好友同图挑战"
+                      : "正在准备挑战卡…"
+                    : "分享战绩")}
               </button>
               <button
                 className="hold-action"

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DAILY_CHALLENGE_DECISIONS,
   INITIAL_CASH,
   probabilityCalibrationScore,
   probabilityForecast,
@@ -10,6 +11,7 @@ import {
 } from "../app/game-config.ts";
 
 test("probability contract rewards calibration and penalizes confident errors", () => {
+  assert.equal(DAILY_CHALLENGE_DECISIONS, 5);
   const cautious = probabilityForecast("up", 1);
   const strong = probabilityForecast("up", 3);
 
