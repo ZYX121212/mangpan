@@ -43,6 +43,10 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /信心校准/);
   assert.match(page, /今日长线挑战/);
   assert.match(page, /不限制决策次数/);
+  assert.match(page, /下一张图 →/);
+  assert.match(page, /离开今日挑战 · 随机练习/);
+  assert.match(page, /window\.confirm/);
+  assert.match(page, /method: "DELETE"/);
   assert.match(page, /12 课训练树/);
   assert.match(page, /训练通关/);
   assert.match(page, /情景复盘/);
@@ -184,6 +188,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(challengeRoute, /resumeSession/);
   assert.match(challengeRoute, /requestPlayerId/);
   assert.match(challengeRoute, /resumeLatestSession/);
+  assert.match(challengeRoute, /export async function DELETE/);
+  assert.match(challengeRoute, /abandonSession/);
   assert.match(challengeRoute, /difficultyFrom/);
   assert.match(quizRoute, /answerPatternQuiz/);
   assert.match(quizRoute, /getTrainingProfile/);
@@ -253,6 +259,11 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(sessions, /recordTrainingResult/);
   assert.match(sessions, /getTrainingProfile/);
   assert.match(sessions, /recordDailyActivity/);
+  assert.match(sessions, /abandoned_daily/);
+  assert.match(sessions, /abandoned_practice/);
+  assert.match(sessions, /return \{ abandoned: true \}/);
+  assert.match(sessions, /loaded\.session\.mode !== "daily"/);
+  assert.match(sessions, /今日挑战已放弃，不能提交排行榜成绩/);
   assert.match(sessions, /weakestRecognition/);
   assert.match(sessions, /该挑战属于另一位玩家/);
   assert.match(migration, /CREATE TABLE `training_results`/);

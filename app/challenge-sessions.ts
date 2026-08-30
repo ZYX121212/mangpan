@@ -497,6 +497,22 @@ export async function resumeLatestSession(
   return latest?.id ? resumeSession(latest.id, playerId) : null;
 }
 
+export async function abandonSession(id: string, playerId?: string) {
+  const { session } = await loadSession(id);
+  await claimSession(session, playerId);
+  if (session.finished) throw new Error("本局已经结束");
+  const abandonedMode =
+    session.mode === "daily" ? "abandoned_daily" : "abandoned_practice";
+  const abandoned = await getD1Database()
+    .prepare(
+      "UPDATE game_sessions SET mode = ?, finished = 1, updated_at = ? WHERE id = ? AND finished = 0",
+    )
+    .bind(abandonedMode, new Date().toISOString(), id)
+    .run();
+  if (abandoned.meta.changes !== 1) throw new Error("本局已经结束");
+  return { abandoned: true };
+}
+
 export async function advanceSession(
   id: string,
   value: unknown,
@@ -768,6 +784,17 @@ export async function getSessionForScore(id: string, playerId: string) {
   const loaded = await loadSession(id);
   if (loaded.session.mode !== "daily" || !loaded.session.finished)
     throw new Error("仅已完成的今日挑战可以上榜");
+  const abandonedToday = await getD1Database()
+    .prepare(
+      "SELECT 1 AS abandoned FROM game_sessions WHERE player_id = ? AND challenge_date = ? AND market = ? AND mode = 'abandoned_daily' LIMIT 1",
+    )
+    .bind(
+      playerId,
+      loaded.session.challengeDate,
+      loaded.session.market,
+    )
+    .first<{ abandoned: number }>();
+  if (abandonedToday) throw new Error("今日挑战已放弃，不能提交排行榜成绩");
   if (loaded.session.playerId && loaded.session.playerId !== playerId)
     throw new Error("该挑战已经绑定其他玩家");
   if (!loaded.session.playerId) {

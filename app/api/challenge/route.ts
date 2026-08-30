@@ -1,4 +1,5 @@
 import {
+  abandonSession,
   advanceSession,
   revealSession,
   resumeLatestSession,
@@ -123,6 +124,30 @@ export async function PATCH(request: Request) {
     }
     return Response.json(
       await revealSession(
+        payload.sessionId,
+        await requestPlayerId(request, payload.playerId),
+      ),
+      { headers },
+    );
+  } catch (error) {
+    return errorResponse(error);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const payload = (await request.json()) as {
+      sessionId?: unknown;
+      playerId?: unknown;
+    };
+    if (
+      typeof payload.sessionId !== "string" ||
+      !/^[a-f0-9-]{30,40}$/i.test(payload.sessionId)
+    ) {
+      return Response.json({ error: "挑战会话无效" }, { status: 400, headers });
+    }
+    return Response.json(
+      await abandonSession(
         payload.sessionId,
         await requestPlayerId(request, payload.playerId),
       ),

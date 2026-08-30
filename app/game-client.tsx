@@ -1742,6 +1742,55 @@ export default function GameClient({
     }
   };
 
+  const nextChart = async () => {
+    if (challengeLoading || isRevealing || finished) return;
+    if (
+      (gameMode === "daily" || actions.length > 0) &&
+      !window.confirm(
+        gameMode === "daily"
+          ? locale === "en"
+            ? "Leave today's challenge? You can keep practicing, but today's leaderboard score will be forfeited."
+            : "离开今日挑战？你可以继续练习，但今天将不能再提交排行榜成绩。"
+          : locale === "en"
+            ? "Skip this chart? This run will not count toward scores, XP, or training progress."
+            : "跳过这张图？本局不会计分，也不会获得 XP 或训练进度。",
+      )
+    )
+      return;
+    setChallengeLoading(true);
+    try {
+      const abandoned = await fetch("/api/challenge", {
+        method: "DELETE",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          sessionId: session.sessionId,
+          playerId,
+        }),
+      });
+      if (!abandoned.ok) throw new Error("challenge abandon failed");
+      localStorage.removeItem(`mangpan-active-session-${market}`);
+      const nextScenario = gameMode === "daily" ? "random" : session.scenario;
+      const nextDifficulty =
+        gameMode === "daily" ? "standard" : session.difficulty;
+      const query = new URLSearchParams({
+        mode: "practice",
+        seed: crypto.randomUUID(),
+        market,
+        scenario: nextScenario,
+        difficulty: nextDifficulty,
+        playerId,
+      });
+      const response = await fetch(`/api/challenge?${query}`);
+      if (!response.ok) throw new Error("challenge load failed");
+      resetSession((await response.json()) as ChallengeSession);
+      setTrainingOpen(false);
+      setDuelCode("");
+      history.replaceState(null, "", location.pathname);
+    } finally {
+      setChallengeLoading(false);
+    }
+  };
+
   const changeMarket = (nextMarket: MarketKind) => {
     if (nextMarket === market || challengeLoading || isRevealing) return;
     setMarket(nextMarket);
@@ -2636,6 +2685,17 @@ export default function GameClient({
                 {isRevealing
                   ? "逐根加载真实行情"
                   : `${shares ? "保持仓位" : "保持空仓"} ${Math.min(revealDays, remainingDays)} 天`}
+              </button>
+              <button
+                className="next-chart-action"
+                disabled={challengeLoading || isRevealing}
+                onClick={() => void nextChart()}
+              >
+                {challengeLoading
+                  ? "正在切换下一张图…"
+                  : gameMode === "daily"
+                    ? "离开今日挑战 · 随机练习"
+                    : "下一张图 →"}
               </button>
               <button className="finish-action" onClick={finishGame}>
                 提前结束并揭晓股票
