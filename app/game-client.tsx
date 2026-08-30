@@ -328,6 +328,7 @@ function crowdLeader(forecast: CrowdForecast): MarketOutlook | null {
 type DecisionFeedback = {
   round: number;
   matched: boolean;
+  forecast: MarketOutlook;
   actual: MarketOutlook;
   move: number;
   favorable: number;
@@ -367,6 +368,11 @@ const OUTLOOK_LABEL: Record<MarketOutlook, string> = {
   up: "上涨",
   range: "震荡",
   down: "下跌",
+};
+const OUTLOOK_LABEL_EN: Record<MarketOutlook, string> = {
+  up: "UP",
+  range: "RANGE",
+  down: "DOWN",
 };
 const THESIS_LABEL: Record<DecisionThesis, string> = {
   trend: "趋势延续",
@@ -513,6 +519,7 @@ function evaluateDecision(
   return {
     round: decisionRound,
     matched,
+    forecast: action.outlook,
     actual,
     move,
     favorable,
@@ -1419,6 +1426,7 @@ export default function GameClient({
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [lastFeedback, setLastFeedback] =
     useState<DecisionFeedback | null>(null);
+  const [decisionRevealOpen, setDecisionRevealOpen] = useState(false);
   const [feedbackHistory, setFeedbackHistory] = useState<DecisionFeedback[]>(
     [],
   );
@@ -1535,6 +1543,11 @@ export default function GameClient({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [modeHubOpen, onboardingStep]);
+  useEffect(() => {
+    if (!decisionRevealOpen) return;
+    const timer = window.setTimeout(() => setDecisionRevealOpen(false), 5600);
+    return () => window.clearTimeout(timer);
+  }, [decisionRevealOpen, lastFeedback?.round]);
   const changeLocale = (next: Locale) => {
     setLocale(next);
     localStorage.setItem("mangpan-locale", next);
@@ -1753,6 +1766,17 @@ export default function GameClient({
         : decisionReplay.map((item) => (item.matched ? 75 : 30)),
     [decisionReplay, feedbackHistory],
   );
+  const evidenceStreak = useMemo(() => {
+    let streak = 0;
+    for (let index = feedbackHistory.length - 1; index >= 0; index--) {
+      if (!feedbackHistory[index].matched) break;
+      streak++;
+    }
+    return streak;
+  }, [feedbackHistory]);
+  const latestCrowdLeader = crowdForecast
+    ? crowdLeader(crowdForecast)
+    : null;
   const crowdByRound = useMemo(
     () => new Map(crowdHistory.map((item) => [item.round, item])),
     [crowdHistory],
@@ -2066,6 +2090,15 @@ export default function GameClient({
   }, [actions.length, gameMode, initialDuel, playerId]);
 
   useEffect(() => {
+    if (!playerId || guidedRunActive || actions.length < 2) return;
+    trackActivationEvent(
+      playerId,
+      gameMode === "daily" ? "daily_second_move" : "practice_second_move",
+      initialDuel ? "duel" : "direct",
+    );
+  }, [actions.length, gameMode, guidedRunActive, initialDuel, playerId]);
+
+  useEffect(() => {
     if (!playerId || gameMode !== "daily" || scoreStatus !== "done") return;
     trackActivationEvent(
       playerId,
@@ -2221,6 +2254,7 @@ export default function GameClient({
     setResultOpen(false);
     setAnalysisOpen(false);
     setLastFeedback(restored.feedbackHistory.at(-1) ?? null);
+    setDecisionRevealOpen(false);
     setFeedbackHistory(restored.feedbackHistory);
     setCrowdHistory(nextSession.crowdForecasts ?? []);
     setRevealPulse(0);
@@ -2770,6 +2804,7 @@ export default function GameClient({
     if (feedback) {
       setLastFeedback(feedback);
       setFeedbackHistory((value) => [...value, feedback]);
+      setDecisionRevealOpen(true);
     }
     if (gameMode === "daily") setForecastTouched(false);
     if (onboardingStep === 2) setOnboardingStep(3);
@@ -3347,6 +3382,90 @@ export default function GameClient({
             <span key={revealPulse} className="reveal-toast">
               +{actions.at(-1)?.days || revealDays} 个交易日
             </span>
+          )}
+          {lastFeedback && decisionRevealOpen && !finished && (
+            <aside
+              key={lastFeedback.round}
+              className={`decision-reveal-card ${lastFeedback.matched ? "hit" : "miss"}`}
+              role="status"
+              aria-live="polite"
+            >
+              <header>
+                <span>
+                  {lastFeedback.matched
+                    ? locale === "en"
+                      ? "CALL HIT"
+                      : "判断命中"
+                    : locale === "en"
+                      ? "CALL MISSED"
+                      : "判断偏差"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setDecisionRevealOpen(false)}
+                  aria-label={locale === "en" ? "Dismiss result" : "关闭本次结果"}
+                >
+                  ×
+                </button>
+              </header>
+              <div>
+                <div className="decision-reveal-score">
+                  <strong>{Math.round(lastFeedback.calibration)}</strong>
+                  <small>{locale === "en" ? "CALIBRATION" : "校准分"}</small>
+                </div>
+                <div className="decision-reveal-copy">
+                  <small>
+                    {locale === "en"
+                      ? `DECISION ${lastFeedback.round}${gameMode === "daily" ? ` / ${dailyDecisionTarget}` : ""}`
+                      : `第 ${lastFeedback.round}${gameMode === "daily" ? ` / ${dailyDecisionTarget}` : ""} 次决策`}
+                  </small>
+                  <b>
+                    {lastFeedback.matched
+                      ? locale === "en"
+                        ? "Reality matched your read"
+                        : "真实走势与你的判断一致"
+                      : locale === "en"
+                        ? "Reality broke your call"
+                        : "真实走势打破了原判断"}
+                  </b>
+                  <p>
+                    <span>
+                      {locale === "en" ? "YOU" : "你的判断"} {locale === "en"
+                        ? OUTLOOK_LABEL_EN[lastFeedback.forecast]
+                        : OUTLOOK_LABEL[lastFeedback.forecast]}
+                    </span>
+                    <i>→</i>
+                    <span>
+                      {locale === "en" ? "REAL" : "实际"} {locale === "en"
+                        ? OUTLOOK_LABEL_EN[lastFeedback.actual]
+                        : OUTLOOK_LABEL[lastFeedback.actual]} {lastFeedback.move >= 0 ? "+" : ""}{lastFeedback.move.toFixed(2)}%
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <footer>
+                <span>
+                  {evidenceStreak >= 2
+                    ? locale === "en"
+                      ? `EVIDENCE STREAK ×${evidenceStreak}`
+                      : `连续命中 ×${evidenceStreak}`
+                    : lastFeedback.matched
+                      ? locale === "en"
+                        ? "ONE RESULT IS EVIDENCE"
+                        : "一次结果只是证据"
+                      : locale === "en"
+                        ? "RESET · NEXT CALL IS NEW"
+                        : "重新判断 · 下一次独立开始"}
+                </span>
+                {latestCrowdLeader && crowdForecast && crowdForecast.sampleSize >= 2 && (
+                  <span>
+                    {locale === "en" ? "CROWD" : "人群"} {locale === "en"
+                      ? OUTLOOK_LABEL_EN[latestCrowdLeader]
+                      : OUTLOOK_LABEL[latestCrowdLeader]} {crowdForecast[latestCrowdLeader]}%
+                  </span>
+                )}
+              </footer>
+            </aside>
           )}
           <div className="chart-head">
             <div>

@@ -109,6 +109,16 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /全球玩家同一张神秘图/);
   assert.match(page, /GLOBAL CROWD/);
   assert.match(page, /crowd-consensus/);
+  assert.match(page, /decision-reveal-card/);
+  assert.match(page, /Reality matched your read/);
+  assert.match(page, /Reality broke your call/);
+  assert.match(page, /EVIDENCE STREAK/);
+  assert.match(page, /forecast: action\.outlook/);
+  assert.match(page, /setDecisionRevealOpen\(true\)/);
+  assert.match(
+    page,
+    /setTimeout\(\(\) => setDecisionRevealOpen\(false\), 5600\)/,
+  );
   assert.match(page, /advanced\.crowdForecast/);
   assert.match(page, /Choose one way to play/);
   assert.match(page, /Daily Challenge/);
@@ -767,6 +777,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /\.guided-start-card/);
   assert.match(styles, /\.first-play-actions/);
   assert.match(styles, /\.first-run-coach/);
+  assert.match(styles, /\.decision-reveal-card/);
+  assert.match(styles, /@keyframes decision-result-in/);
   assert.match(styles, /\.coach-focus/);
   assert.match(styles, /\.duel-invite-card/);
   assert.match(styles, /\.duel-target-score/);
@@ -897,6 +909,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(duelEventRoute, /\.onConflictDoNothing\(\{/);
   assert.match(duelEventRoute, /duelEvents\.eventType/);
   assert.match(activationRoute, /EVENT_TYPES/);
+  assert.match(activationRoute, /daily_second_move/);
+  assert.match(activationRoute, /practice_second_move/);
   assert.match(activationRoute, /requestPlayerId/);
   assert.match(activationRoute, /\.onConflictDoNothing\(\{/);
   assert.match(activationClient, /fetch\("\/api\/activation-events"/);
@@ -905,6 +919,8 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /"guide_reveal"/);
   assert.match(page, /"daily_first_move"/);
   assert.match(page, /"daily_complete"/);
+  assert.match(page, /"daily_second_move"/);
+  assert.match(page, /"practice_second_move"/);
   assert.match(page, /if \(initialGuide \|\| !playerId/);
   assert.match(page, /history\.replaceState\(null, "", `\/daily\?market=\$\{market\}`\)/);
   assert.match(page, /keepalive: true/);

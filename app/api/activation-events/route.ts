@@ -8,6 +8,8 @@ export type ActivationEventType =
   | "guide_forecast"
   | "guide_reveal"
   | "daily_first_move"
+  | "daily_second_move"
+  | "practice_second_move"
   | "daily_complete";
 export type ActivationSource = "lobby" | "direct" | "duel";
 
@@ -17,6 +19,8 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "guide_forecast",
   "guide_reveal",
   "daily_first_move",
+  "daily_second_move",
+  "practice_second_move",
   "daily_complete",
 ]);
 const SOURCES = new Set<ActivationSource>(["lobby", "direct", "duel"]);
