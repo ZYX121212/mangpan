@@ -227,6 +227,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(styles, /Desktop trading terminal/);
   assert.match(styles, /\.shell\{height:100dvh;min-height:0/);
   assert.match(styles, /\.workspace\{min-height:0;flex:1/);
+  assert.match(styles, /\.trade-panel>\*\{flex-shrink:0\}/);
+  assert.match(styles, /\.probability-contract\{flex:0 0 auto\}/);
+  assert.match(
+    styles,
+    /\.probability-contract \.journal-row\{grid-template-columns:1fr\}/,
+  );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
   assert.match(config, /probability-contract-v9/);
