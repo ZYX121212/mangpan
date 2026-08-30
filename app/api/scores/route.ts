@@ -13,7 +13,7 @@ import {
 } from "../../challenge-sessions";
 import {
   GAME_VERSION,
-  chinaDate,
+  marketDate,
   replayChallenge,
   type MarketKind,
 } from "../../game-core";
@@ -452,7 +452,7 @@ async function buildScoreboard(
     const duelCreated = Number(duelSummary?.total || 0);
     const streakProtection = calculateStreakProtection(
       streakHistory.results.map((row) => row.challenge_date.split("@")[0]),
-      chinaDate(),
+      marketDate(market),
     );
     const achievements = buildAchievements({
       completedDays,
@@ -619,14 +619,14 @@ export async function POST(request: Request) {
       sessionId?: unknown;
       duelCode?: unknown;
     };
+    if (!validMarket(payload.market))
+      return Response.json({ error: "市场无效" }, { status: 400 });
     if (
       !validDate(typeof payload.date === "string" ? payload.date : null) ||
-      payload.date !== chinaDate()
+      payload.date !== marketDate(payload.market)
     ) {
       return Response.json({ error: "仅可提交今日正式挑战" }, { status: 400 });
     }
-    if (!validMarket(payload.market))
-      return Response.json({ error: "市场无效" }, { status: 400 });
     const resolvedPlayerId = await requestPlayerId(request, payload.playerId);
     if (!resolvedPlayerId)
       return Response.json({ error: "玩家标识无效" }, { status: 400 });

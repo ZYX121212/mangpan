@@ -5,6 +5,10 @@ import {
   DAILY_CHALLENGE_DECISIONS,
   INITIAL_CASH,
   MARKET_COLORS,
+  MARKET_TIME_ZONES,
+  marketCountdown,
+  marketDate,
+  nextMarketReset,
   probabilityCalibrationScore,
   probabilityForecast,
   orderQuantity,
@@ -24,6 +28,41 @@ test("uses the color convention of the selected stock market", () => {
     buy: "#df4a56",
     sell: "#129a76",
   });
+});
+
+test("resets each daily market challenge at that exchange's local midnight", () => {
+  assert.deepEqual(MARKET_TIME_ZONES, {
+    us: "America/New_York",
+    cn: "Asia/Shanghai",
+  });
+  const summer = new Date("2026-08-30T15:00:00.000Z");
+  assert.equal(marketDate("us", summer), "2026-08-30");
+  assert.equal(marketDate("cn", summer), "2026-08-30");
+  assert.equal(
+    nextMarketReset("us", summer).toISOString(),
+    "2026-08-31T04:00:00.000Z",
+  );
+  assert.equal(
+    nextMarketReset("cn", summer).toISOString(),
+    "2026-08-30T16:00:00.000Z",
+  );
+  assert.equal(marketCountdown("us", summer), "13:00:00");
+  assert.equal(marketCountdown("cn", summer), "01:00:00");
+
+  const winter = new Date("2026-01-15T15:00:00.000Z");
+  assert.equal(
+    nextMarketReset("us", winter).toISOString(),
+    "2026-01-16T05:00:00.000Z",
+  );
+  assert.equal(marketCountdown("us", winter), "14:00:00");
+  assert.equal(
+    marketDate("us", new Date("2026-08-31T03:59:59.000Z")),
+    "2026-08-30",
+  );
+  assert.equal(
+    marketDate("us", new Date("2026-08-31T04:00:00.000Z")),
+    "2026-08-31",
+  );
 });
 
 test("probability contract rewards calibration and penalizes confident errors", () => {

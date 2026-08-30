@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { ensureDatabase, getDb } from "../../../db";
 import { dailyScores, duelChallenges } from "../../../db/schema";
-import { GAME_VERSION, chinaDate, type MarketKind } from "../../game-core";
+import { GAME_VERSION, marketDate, type MarketKind } from "../../game-core";
 import { requestPlayerId } from "../../request-identity";
 
 const headers = { "cache-control": "no-store" };
@@ -45,14 +45,17 @@ export async function POST(request: Request) {
       market?: unknown;
       playerId?: unknown;
     };
-    if (!validDate(payload.date) || payload.date !== chinaDate())
-      return Response.json(
-        { error: "仅可为今日正式成绩创建挑战" },
-        { status: 400, headers },
-      );
     if (!validMarket(payload.market))
       return Response.json(
         { error: "挑战市场无效" },
+        { status: 400, headers },
+      );
+    if (
+      !validDate(payload.date) ||
+      payload.date !== marketDate(payload.market)
+    )
+      return Response.json(
+        { error: "仅可为今日正式成绩创建挑战" },
         { status: 400, headers },
       );
     const playerId = await requestPlayerId(request, payload.playerId);

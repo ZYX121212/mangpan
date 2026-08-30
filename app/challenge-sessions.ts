@@ -15,12 +15,12 @@ import {
 import {
   DAILY_CHALLENGE_DECISIONS,
   MAX_ACTIONS,
-  chinaDate,
   forecastForAction,
   hashText,
   initialBarsFor,
   isOrderAllocation,
   isProbabilityForecast,
+  marketDate,
   type ConfidenceLevel,
   type DecisionThesis,
   type MarketKind,
@@ -136,7 +136,7 @@ export type PublicPatternQuiz = {
 };
 
 async function getDailyMission(playerId: string, market: MarketKind) {
-  const date = chinaDate();
+  const date = marketDate(market);
   const [row] = await getDb()
     .select()
     .from(dailyProgress)
@@ -174,7 +174,7 @@ async function recordDailyActivity(
   market: MarketKind,
   activity: DailyActivity,
 ) {
-  const date = chinaDate();
+  const date = marketDate(market);
   const now = new Date().toISOString();
   const increments = {
     advancedDays: Math.max(0, Math.floor(activity.advancedDays || 0)),

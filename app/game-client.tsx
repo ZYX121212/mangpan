@@ -3,6 +3,7 @@
 /* eslint-disable jsx-a11y/no-noninteractive-element-interactions -- dialog backdrops only close when the backdrop itself is pressed */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import {
   MARKET_UNIVERSE_SIZE,
   type Candle,
@@ -18,6 +19,8 @@ import {
   forecastForAction,
   initialBarsFor,
   lotSizeFor,
+  marketCountdown,
+  marketDate,
   orderQuantity,
   probabilityCalibrationScore,
   probabilityForecast,
@@ -35,25 +38,6 @@ import { Localized, type Locale } from "./i18n";
 
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
-
-function nextDailyCountdown(now = new Date()) {
-  const chinaNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-  const nextMidnight = Date.UTC(
-    chinaNow.getUTCFullYear(),
-    chinaNow.getUTCMonth(),
-    chinaNow.getUTCDate() + 1,
-  );
-  const remaining = Math.max(
-    0,
-    Math.floor((nextMidnight - chinaNow.getTime()) / 1000),
-  );
-  const hours = Math.floor(remaining / 3600);
-  const minutes = Math.floor((remaining % 3600) / 60);
-  const seconds = remaining % 60;
-  return [hours, minutes, seconds]
-    .map((value) => String(value).padStart(2, "0"))
-    .join(":");
-}
 
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
@@ -1343,15 +1327,18 @@ export default function GameClient({
   initialChallenge,
   initialIdentity,
   initialDuel,
+  initialMode = "daily",
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
   initialDuel?: { code: string; date: string };
+  initialMode?: "daily" | "practice" | "training";
 }) {
-  const today = initialChallenge.date;
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
-  const [gameMode, setGameMode] = useState<GameMode>("daily");
+  const [gameMode, setGameMode] = useState<GameMode>(
+    initialMode === "daily" ? "daily" : "practice",
+  );
   const [session, setSession] = useState(initialChallenge);
   const [stock, setStock] = useState(initialChallenge.stock);
   const [visibleCount, setVisibleCount] = useState(() =>
@@ -1394,7 +1381,9 @@ export default function GameClient({
   const [showAllModes, setShowAllModes] = useState(false);
   const [onboardingStep, setOnboardingStep] =
     useState<OnboardingStep>(0);
-  const [trainingOpen, setTrainingOpen] = useState(false);
+  const [trainingOpen, setTrainingOpen] = useState(
+    initialMode === "training",
+  );
   const [quizOpen, setQuizOpen] = useState(false);
   const [patternQuiz, setPatternQuiz] = useState<PatternQuiz | null>(null);
   const [quizAnswer, setQuizAnswer] = useState<QuizScenario | null>(null);
@@ -1431,7 +1420,10 @@ export default function GameClient({
   >("idle");
   const [challengeLoading, setChallengeLoading] = useState(false);
   const [dailyCountdown, setDailyCountdown] = useState(() =>
-    nextDailyCountdown(),
+    marketCountdown(initialChallenge.market),
+  );
+  const [currentMarketDate, setCurrentMarketDate] = useState(() =>
+    marketDate(initialChallenge.market),
   );
   const submissionRef = useRef(false);
   const resumeAttemptRef = useRef(new Set<MarketKind>());
@@ -1463,11 +1455,14 @@ export default function GameClient({
     };
   }, []);
   useEffect(() => {
-    const update = () => setDailyCountdown(nextDailyCountdown());
+    const update = () => {
+      setDailyCountdown(marketCountdown(market));
+      setCurrentMarketDate(marketDate(market));
+    };
     update();
     const timer = window.setInterval(update, 1000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [market]);
   useEffect(() => {
     if (!onboardingStep || modeHubOpen) return;
     const frame = window.requestAnimationFrame(() => {
@@ -1507,7 +1502,18 @@ export default function GameClient({
     () => new Intl.NumberFormat(numberLocale, { maximumFractionDigits: 0 }),
     [numberLocale],
   );
+  const today = gameMode === "daily" ? session.date : currentMarketDate;
+  const dailyExpired =
+    gameMode === "daily" && session.date !== currentMarketDate;
   const marketLabel = market === "cn" ? "A股" : "美股";
+  const marketResetLabel =
+    locale === "en"
+      ? market === "us"
+        ? "NEW YORK MIDNIGHT"
+        : "SHANGHAI MIDNIGHT"
+      : market === "us"
+        ? "纽约午夜"
+        : "上海午夜";
   const scenarioLabel = (
     {
       random: "随机练习",
@@ -1896,7 +1902,7 @@ export default function GameClient({
     queueMicrotask(() => {
       setFirstVisit(!onboardingComplete && !challenger);
       setShowAllModes(onboardingComplete || Boolean(challenger));
-      setModeHubOpen(!onboardingComplete && !challenger);
+      setModeHubOpen(false);
       if (
         duelDate === today &&
         /^[A-Z0-9]{8,12}$/i.test(challenger)
@@ -1910,7 +1916,7 @@ export default function GameClient({
       setNickname(storedNickname);
       setScenarioProgress(storedProgress);
     });
-  }, [initialDuel?.code, initialDuel?.date, initialIdentity, today]);
+  }, [initialDuel?.code, initialDuel?.date, initialIdentity, initialMode, today]);
 
   useEffect(() => {
     if (!playerId) return;
@@ -2108,10 +2114,11 @@ export default function GameClient({
         return (await response.json()) as ChallengeSession;
       })
       .then((restored) => {
-        if (restored) resetSession(restored);
+        const expectedMode = initialMode === "daily" ? "daily" : "practice";
+        if (restored?.mode === expectedMode) resetSession(restored);
       })
       .catch(() => localStorage.removeItem(storageKey));
-  }, [initialIdentity, market, playerId, resetSession, session.sessionId]);
+  }, [initialIdentity, initialMode, market, playerId, resetSession, session.sessionId]);
 
   useEffect(() => {
     if (!playerId || !actions.length || finished) return;
@@ -2193,12 +2200,15 @@ export default function GameClient({
 
   const changeMarket = (nextMarket: MarketKind) => {
     if (nextMarket === market || challengeLoading || isRevealing) return;
+    localStorage.setItem("mangpan-market", nextMarket);
     setDuelCode("");
     void resetGame(gameMode, nextMarket, session.scenario, session.difficulty);
     history.replaceState(
       null,
       "",
-      location.pathname.startsWith("/d/") ? "/" : location.pathname,
+      location.pathname.startsWith("/d/")
+        ? `/daily?market=${nextMarket}`
+        : `${location.pathname}?market=${nextMarket}`,
     );
   };
 
@@ -2331,7 +2341,7 @@ export default function GameClient({
   };
 
   const finishGame = async (force = false) => {
-    if ((!force && isRevealing) || finished) return;
+    if ((!force && isRevealing) || finished || dailyExpired) return;
     setIsRevealing(true);
     try {
       const response = await fetch("/api/challenge", {
@@ -2385,7 +2395,7 @@ export default function GameClient({
     }
   };
   const advance = async (action: "trade" | "hold") => {
-    if (finished || isRevealing || remainingDays <= 0) return;
+    if (finished || isRevealing || remainingDays <= 0 || dailyExpired) return;
     setIsRevealing(true);
     const holdingDays = Math.min(revealDays, remainingDays);
     const requestedQuantity =
@@ -2736,6 +2746,7 @@ export default function GameClient({
   const tradeDisabled =
     isRevealing ||
     finished ||
+    dailyExpired ||
     remainingDays <= 0 ||
     estimatedQuantity <= 0 ||
     Boolean(quantityError);
@@ -2747,10 +2758,10 @@ export default function GameClient({
           <span className="brand-mark">K</span>
           <span>盲盘</span>
         </div>
-        <button
+        <Link
           className="mode-entry"
-          onClick={() => setModeHubOpen(true)}
-          aria-label={locale === "en" ? "Choose game mode" : "选择游戏模式"}
+          href="/"
+          aria-label={locale === "en" ? "Back to game modes" : "返回玩法大厅"}
         >
           <small>{locale === "en" ? "MODE" : "模式"}</small>
           <b>
@@ -2758,7 +2769,7 @@ export default function GameClient({
               ? locale === "en"
                 ? "Friend Duel"
                 : "好友对决"
-              : activeScenario
+              : initialMode === "training" || activeScenario
                 ? locale === "en"
                   ? "Training Lab"
                   : "训练学院"
@@ -2770,8 +2781,8 @@ export default function GameClient({
                     ? "Practice"
                     : "无限练习"}
           </b>
-          <span>⌄</span>
-        </button>
+          <span>↗</span>
+        </Link>
         <div className="market-switch" role="group" aria-label="选择股票市场">
           <button
             className={market === "cn" ? "active" : ""}
@@ -2894,14 +2905,40 @@ export default function GameClient({
           </button>
         </div>
       )}
-      {gameMode === "daily" && !activeDuel && (
+      {dailyExpired ? (
+        <div className="daily-refresh-banner" role="status">
+          <span>{locale === "en" ? "NEW MARKET DAY" : "新的市场日"}</span>
+          <b>
+            {locale === "en"
+              ? "A fresh mystery chart is ready"
+              : "新的每日神秘图已经准备好"}
+          </b>
+          <small>
+            {locale === "en"
+              ? `Daily puzzles reset at ${marketResetLabel.toLowerCase()}. This unfinished chart will not be submitted.`
+              : `每日题在${marketResetLabel}更新；当前未完成题不会提交。`}
+          </small>
+          <button
+            disabled={challengeLoading}
+            onClick={() => void resetGame("daily", market)}
+          >
+            {challengeLoading
+              ? locale === "en"
+                ? "Loading…"
+                : "加载中…"
+              : locale === "en"
+                ? "Load today's chart →"
+                : "载入今日新题 →"}
+          </button>
+        </div>
+      ) : gameMode === "daily" && !activeDuel ? (
         <div className="daily-flash-banner">
           <span>DAILY MARKET MYSTERY</span>
           <b>同一张图 · 5 次决策 · 约 90 秒</b>
           <small>全球玩家同题，股票与日期将在结算后揭晓</small>
           <strong>{session.decisionsUsed}/{dailyDecisionTarget}</strong>
         </div>
-      )}
+      ) : null}
       {activeScenario && (
         <div className="mission-banner">
           <span>训练任务</span>
@@ -3545,38 +3582,53 @@ export default function GameClient({
               </button>
               <button
                 className={`hold-action ${onboardingStep === 2 ? "coach-focus" : ""}`}
-                disabled={isRevealing || remainingDays <= 0}
+                disabled={isRevealing || remainingDays <= 0 || dailyExpired}
                 onClick={() => advance("hold")}
               >
                 {isRevealing
                   ? "逐根加载真实行情"
                   : `${shares ? "保持仓位" : "保持空仓"} ${Math.min(revealDays, remainingDays)} 天`}
               </button>
-              <button
-                className="next-chart-action"
-                disabled={challengeLoading || isRevealing}
-                onPointerEnter={() =>
-                  prefetchChallenge(
-                    "practice",
-                    market,
-                    gameMode === "daily" ? "random" : session.scenario,
-                    gameMode === "daily" ? "standard" : session.difficulty,
-                  )
-                }
-                onFocus={() =>
-                  prefetchChallenge(
-                    "practice",
-                    market,
-                    gameMode === "daily" ? "random" : session.scenario,
-                    gameMode === "daily" ? "standard" : session.difficulty,
-                  )
-                }
-                onClick={() => void switchStock()}
-              >
-                {challengeLoading
-                  ? "正在切换股票…"
-                  : "换一只股票 →"}
-              </button>
+              {gameMode === "daily" ? (
+                <Link
+                  className="next-chart-action"
+                  href={`/practice?market=${market}`}
+                >
+                  {locale === "en"
+                    ? "Want another chart? Enter Practice →"
+                    : "想再玩一张？进入无限练习 →"}
+                </Link>
+              ) : (
+                <button
+                  className="next-chart-action"
+                  disabled={challengeLoading || isRevealing}
+                  onPointerEnter={() =>
+                    prefetchChallenge(
+                      "practice",
+                      market,
+                      session.scenario,
+                      session.difficulty,
+                    )
+                  }
+                  onFocus={() =>
+                    prefetchChallenge(
+                      "practice",
+                      market,
+                      session.scenario,
+                      session.difficulty,
+                    )
+                  }
+                  onClick={() => void switchStock()}
+                >
+                  {challengeLoading
+                    ? locale === "en"
+                      ? "Loading another chart…"
+                      : "正在切换股票…"
+                    : locale === "en"
+                      ? "Another random chart →"
+                      : "换一只股票 →"}
+                </button>
+              )}
               {gameMode !== "daily" && (
                 <button
                   className="finish-action"
@@ -3874,7 +3926,9 @@ export default function GameClient({
                     </b>
                   </span>
                   <span>
-                    <small>{locale === "en" ? "NEXT CHART" : "下一题"}</small>
+                    <small>
+                      {locale === "en" ? "NEXT" : "下一题"} · {marketResetLabel}
+                    </small>
                     <b>{dailyCountdown}</b>
                   </span>
                 </div>
@@ -5220,7 +5274,9 @@ export default function GameClient({
             {gameMode === "daily" && (
               <section className="daily-return-loop">
                 <div className="daily-return-copy">
-                  <small>{locale === "en" ? "NEXT DAILY MYSTERY" : "下一张每日神秘图"}</small>
+                  <small>
+                    {locale === "en" ? "NEXT DAILY MYSTERY" : "下一张每日神秘图"} · {marketResetLabel}
+                  </small>
                   <b>{dailyCountdown}</b>
                   <p>
                     {locale === "en"
@@ -5417,31 +5473,18 @@ export default function GameClient({
                       : "正在准备挑战卡…"
                     : "分享战绩")}
               </button>
-              <button
-                className="hold-action"
-                disabled={challengeLoading}
-                onPointerEnter={() =>
-                  prefetchChallenge(
-                    gameMode === "daily" ? "practice" : "daily",
-                    market,
-                  )
-                }
-                onFocus={() =>
-                  prefetchChallenge(
-                    gameMode === "daily" ? "practice" : "daily",
-                    market,
-                  )
-                }
-                onClick={() =>
-                  void resetGame(gameMode === "daily" ? "practice" : "daily")
-                }
+              <Link
+                className="hold-action result-mode-link"
+                href={`/${gameMode === "daily" ? "practice" : "daily"}?market=${market}`}
               >
-                {challengeLoading
-                  ? "正在抽取历史行情…"
-                  : gameMode === "daily"
-                    ? "随机练习"
-                    : "返回今日挑战"}
-              </button>
+                {gameMode === "daily"
+                  ? locale === "en"
+                    ? "Go to Practice"
+                    : "前往无限练习"
+                  : locale === "en"
+                    ? "Go to Daily Challenge"
+                    : "前往每日挑战"}
+              </Link>
               <button
                 className="review-action"
                 onClick={() => setResultOpen(false)}

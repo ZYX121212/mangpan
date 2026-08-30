@@ -26,6 +26,10 @@ export const MARKET_COLORS = {
   MarketKind,
   { up: string; down: string; buy: string; sell: string }
 >;
+export const MARKET_TIME_ZONES = {
+  us: "America/New_York",
+  cn: "Asia/Shanghai",
+} as const satisfies Record<MarketKind, string>;
 export const ORDER_ALLOCATIONS = [0.25, 1 / 3, 0.5, 0.75, 1] as const;
 export type OrderAllocation = (typeof ORDER_ALLOCATIONS)[number];
 export type MarketOutlook = "up" | "range" | "down";
@@ -270,11 +274,79 @@ export function hashText(value: string) {
   return hash >>> 0;
 }
 
-export function chinaDate(date = new Date()) {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Shanghai",
+function zonedParts(date: Date, timeZone: string) {
+  const values: Record<string, number> = {};
+  for (const part of new Intl.DateTimeFormat("en-CA", {
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(date);
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date)) {
+    if (part.type !== "literal") values[part.type] = Number(part.value);
+  }
+  return values as {
+    year: number;
+    month: number;
+    day: number;
+    hour: number;
+    minute: number;
+    second: number;
+  };
+}
+
+export function marketDate(market: MarketKind, date = new Date()) {
+  const { year, month, day } = zonedParts(date, MARKET_TIME_ZONES[market]);
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function nextMarketReset(market: MarketKind, now = new Date()) {
+  const current = marketDate(market, now);
+  const next = new Date(`${current}T00:00:00Z`);
+  next.setUTCDate(next.getUTCDate() + 1);
+  const target = {
+    year: next.getUTCFullYear(),
+    month: next.getUTCMonth() + 1,
+    day: next.getUTCDate(),
+  };
+  const targetWallClock = Date.UTC(target.year, target.month - 1, target.day);
+  let instant = targetWallClock;
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const actual = zonedParts(
+      new Date(instant),
+      MARKET_TIME_ZONES[market],
+    );
+    const actualWallClock = Date.UTC(
+      actual.year,
+      actual.month - 1,
+      actual.day,
+      actual.hour,
+      actual.minute,
+      actual.second,
+    );
+    const correction = targetWallClock - actualWallClock;
+    instant += correction;
+    if (!correction) break;
+  }
+  return new Date(instant);
+}
+
+export function marketCountdown(market: MarketKind, now = new Date()) {
+  const remaining = Math.max(
+    0,
+    Math.ceil((nextMarketReset(market, now).getTime() - now.getTime()) / 1000),
+  );
+  const hours = Math.floor(remaining / 3600);
+  const minutes = Math.floor((remaining % 3600) / 60);
+  const seconds = remaining % 60;
+  return [hours, minutes, seconds]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
+}
+
+export function chinaDate(date = new Date()) {
+  return marketDate("cn", date);
 }

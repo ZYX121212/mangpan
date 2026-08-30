@@ -4,7 +4,7 @@ import GameClient from "../../game-client";
 import { getChatGPTUser } from "../../chatgpt-auth";
 import { startDailySession } from "../../challenge-sessions";
 import { getPublicDuelInvite } from "../../duel-invites";
-import { chinaDate } from "../../game-config";
+import { marketDate } from "../../game-config";
 import { opaquePlayerId } from "../../request-identity";
 
 export const dynamic = "force-dynamic";
@@ -69,7 +69,7 @@ function DuelUnavailable({ expired }: { expired: boolean }) {
           Daily charts reset together for everyone. Today’s mystery market is
           ready—and you can send a fresh same-chart challenge after you finish.
         </p>
-        <Link href="/">Play today’s challenge →</Link>
+        <Link href="/daily">Play today’s challenge →</Link>
       </section>
     </main>
   );
@@ -83,7 +83,8 @@ export default async function DuelPage({
   const { code } = await params;
   const invite = await getPublicDuelInvite(code);
   if (!invite) return <DuelUnavailable expired={false} />;
-  if (invite.date !== chinaDate()) return <DuelUnavailable expired />;
+  if (invite.date !== marketDate(invite.market))
+    return <DuelUnavailable expired />;
   const user = await getChatGPTUser();
   const playerId = user ? await opaquePlayerId(user.userId) : undefined;
   const challenge = await startDailySession(
@@ -96,6 +97,7 @@ export default async function DuelPage({
       initialChallenge={challenge}
       initialIdentity={playerId ? { playerId, cloud: true } : null}
       initialDuel={{ code: invite.code, date: invite.date }}
+      initialMode="daily"
     />
   );
 }

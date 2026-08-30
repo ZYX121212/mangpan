@@ -119,7 +119,13 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /chooseMode\("daily"\)/);
   assert.match(page, /chooseMode\("practice"\)/);
   assert.match(page, /chooseMode\("training"\)/);
-  assert.match(page, /nextDailyCountdown/);
+  assert.match(page, /marketCountdown\(initialChallenge\.market\)/);
+  assert.match(page, /marketCountdown\(market\)/);
+  assert.match(page, /marketDate\(market\)/);
+  assert.match(page, /dailyExpired/);
+  assert.match(page, /daily-refresh-banner/);
+  assert.match(page, /NEW YORK MIDNIGHT/);
+  assert.match(page, /SHANGHAI MIDNIGHT/);
   assert.match(page, /NEXT DAILY MYSTERY/);
   assert.match(page, /7-DAY TARGET/);
   assert.match(page, /daily-return-loop/);
@@ -368,6 +374,7 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   assert.match(duelPage, /robots: \{ index: false, follow: false \}/);
   assert.match(duelPage, /initialDuel=\{\{ code: invite\.code, date: invite\.date \}\}/);
   assert.match(duelPage, /CHALLENGE EXPIRED/);
+  assert.match(duelPage, /marketDate\(invite\.market\)/);
   assert.match(duelInvites, /duelChallenges\.code/);
   assert.match(duelInvites, /dailyScores\.challengeDate/);
   assert.match(duelInvites, /challengerNickname: score\.nickname/);
@@ -378,6 +385,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   const [
     page,
     pageRoute,
+    modeLobby,
+    gameModePage,
+    dailyPage,
+    practicePage,
+    trainingPage,
+    duelLobby,
     scoreRoute,
     challengeRoute,
     quizRoute,
@@ -404,6 +417,12 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   ] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/mode-lobby.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/game-mode-page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/daily/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/practice/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/training/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/duel/duel-lobby.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/api/scores/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/challenge/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/quiz/route.ts", import.meta.url), "utf8"),
@@ -467,10 +486,33 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
     /replayChallenge\([\s\S]*challenge\.bundle\.stock,[\s\S]*challenge\.actions,[\s\S]*market/,
   );
   assert.match(scoreRoute, /scoreDate\(date, market\)/);
+  assert.match(pageRoute, /<ModeLobby \/>/);
+  assert.match(modeLobby, /FOUR WAYS TO PLAY/);
+  assert.match(modeLobby, /href: "\/daily"/);
+  assert.match(modeLobby, /href: "\/practice"/);
+  assert.match(modeLobby, /href: "\/training"/);
+  assert.match(modeLobby, /href: "\/duel"/);
+  assert.match(gameModePage, /marketDate\(market\)/);
+  assert.match(gameModePage, /startDailySession/);
+  assert.match(gameModePage, /startPracticeSession/);
+  assert.match(gameModePage, /initialMode=\{mode\}/);
+  assert.match(dailyPage, /mode="daily"/);
+  assert.match(practicePage, /mode="practice"/);
+  assert.match(trainingPage, /mode="training"/);
+  assert.match(duelLobby, /location\.assign\(`\/d\//);
+  assert.match(page, /href="\/"/);
+  assert.doesNotMatch(page, /onClick=\{\(\) => setModeHubOpen\(true\)\}/);
+  assert.match(challengeRoute, /marketDate\(market\)/);
+  assert.match(scoreRoute, /marketDate\(payload\.market\)/);
+  assert.match(duelRoute, /marketDate\(payload\.market\)/);
+  assert.match(config, /us: "America\/New_York"/);
+  assert.match(config, /cn: "Asia\/Shanghai"/);
+  assert.match(config, /export function nextMarketReset/);
+  assert.match(config, /export function marketCountdown/);
+  assert.match(styles, /\.daily-refresh-banner/);
   assert.match(scoreRoute, /onConflictDoNothing/);
   assert.doesNotMatch(scoreRoute, /payload\.actions/);
-  assert.match(pageRoute, /startDailySession/);
-  assert.doesNotMatch(pageRoute, /getDailyChallengeBundle/);
+  assert.doesNotMatch(gameModePage, /getDailyChallengeBundle/);
   assert.match(challengeRoute, /advanceSession/);
   assert.match(challengeRoute, /revealSession/);
   assert.match(challengeRoute, /resumeSession/);

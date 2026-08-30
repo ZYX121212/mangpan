@@ -4,8 +4,8 @@ import {
   INITIAL_BARS,
   MIN_FUTURE_BARS,
   MIN_GAME_BARS,
-  chinaDate,
   hashText,
+  marketDate,
   type MarketKind,
 } from "./game-config";
 import {
@@ -260,7 +260,7 @@ export async function getPracticeBundle(
   if (market === "cn")
     return cnBundle(
       `practice-${scenario}-${difficulty}-${seedText}`,
-      chinaDate(),
+      marketDate("cn"),
       scenario,
       difficulty,
     );

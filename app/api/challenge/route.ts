@@ -7,7 +7,7 @@ import {
   startDailySession,
   startPracticeSession,
 } from "../../challenge-sessions";
-import { chinaDate, type MarketKind } from "../../game-config";
+import { marketDate, type MarketKind } from "../../game-config";
 import type { ScenarioDifficulty, ScenarioKind } from "../../market-data";
 import { requestPlayerId } from "../../request-identity";
 
@@ -70,7 +70,7 @@ export async function GET(request: Request) {
     const mode = params.get("mode") === "daily" ? "daily" : "practice";
     const session =
       mode === "daily"
-        ? await startDailySession(chinaDate(), market, playerId)
+        ? await startDailySession(marketDate(market), market, playerId)
         : await startPracticeSession(
             params.get("seed")?.slice(0, 100) || crypto.randomUUID(),
             market,
