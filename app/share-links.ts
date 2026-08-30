@@ -3,6 +3,8 @@ export type ShareChannel =
   | "x"
   | "whatsapp"
   | "telegram"
+  | "reddit"
+  | "bluesky"
   | "copy";
 
 export type ShareSource = ShareChannel | "direct";
@@ -12,6 +14,8 @@ const SHARE_SOURCES = new Set<ShareSource>([
   "x",
   "whatsapp",
   "telegram",
+  "reddit",
+  "bluesky",
   "copy",
   "direct",
 ]);
@@ -32,6 +36,8 @@ export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en"
           x: "X",
           whatsapp: "WhatsApp",
           telegram: "Telegram",
+          reddit: "Reddit",
+          bluesky: "Bluesky",
           copy: "复制链接",
           direct: "直接访问",
         } as const)
@@ -40,6 +46,8 @@ export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en"
       x: "X",
       whatsapp: "WhatsApp",
       telegram: "Telegram",
+      reddit: "Reddit",
+      bluesky: "Bluesky",
       copy: "Copied link",
       direct: "Direct",
         } as const);
@@ -66,6 +74,14 @@ export function socialShareHref(
     const query = new URLSearchParams({ text: `${text}\n${taggedUrl}` });
     return `https://wa.me/?${query}`;
   }
-  const query = new URLSearchParams({ url: taggedUrl, text });
-  return `https://t.me/share/url?${query}`;
+  if (channel === "telegram") {
+    const query = new URLSearchParams({ url: taggedUrl, text });
+    return `https://t.me/share/url?${query}`;
+  }
+  if (channel === "reddit") {
+    const query = new URLSearchParams({ url: taggedUrl, title: text });
+    return `https://www.reddit.com/submit?${query}`;
+  }
+  const query = new URLSearchParams({ text: `${text}\n${taggedUrl}` });
+  return `https://bsky.app/intent/compose?${query}`;
 }

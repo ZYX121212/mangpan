@@ -19,6 +19,8 @@ test("tags every challenge link with its actual share channel", () => {
 
 test("accepts only known attribution sources and safely defaults to direct", () => {
   assert.equal(normalizeShareSource("whatsapp"), "whatsapp");
+  assert.equal(normalizeShareSource("reddit"), "reddit");
+  assert.equal(normalizeShareSource("bluesky"), "bluesky");
   assert.equal(normalizeShareSource("WHATSAPP"), "direct");
   assert.equal(normalizeShareSource("<script>"), "direct");
   assert.equal(normalizeShareSource(["x"]), "direct");
@@ -48,4 +50,21 @@ test("builds WhatsApp and Telegram shares without losing Unicode", () => {
   assert.equal(telegram.searchParams.get("text"), message);
   const shared = new URL(telegram.searchParams.get("url"));
   assert.equal(shared.searchParams.get("via"), "telegram");
+});
+
+test("builds Reddit and Bluesky shares with distinct attribution", () => {
+  const reddit = new URL(socialShareHref("reddit", challenge, message));
+  assert.equal(reddit.origin, "https://www.reddit.com");
+  assert.equal(reddit.pathname, "/submit");
+  assert.equal(reddit.searchParams.get("title"), message);
+  assert.equal(
+    new URL(reddit.searchParams.get("url")).searchParams.get("via"),
+    "reddit",
+  );
+
+  const bluesky = new URL(socialShareHref("bluesky", challenge, message));
+  assert.equal(bluesky.origin, "https://bsky.app");
+  assert.equal(bluesky.pathname, "/intent/compose");
+  assert.match(bluesky.searchParams.get("text"), /🟩🟨🟩/u);
+  assert.match(bluesky.searchParams.get("text"), /via=bluesky/);
 });

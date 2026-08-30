@@ -12,6 +12,8 @@ const SHARE_SOURCES = new Set<ShareSource>([
   "x",
   "whatsapp",
   "telegram",
+  "reddit",
+  "bluesky",
   "copy",
   "direct",
 ]);

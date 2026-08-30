@@ -2859,7 +2859,9 @@ export default function GameClient({
     return socialShareHref(
       channel,
       duelShareUrl,
-      channel === "x" ? copy.compactText : copy.text,
+      channel === "x" || channel === "reddit" || channel === "bluesky"
+        ? copy.compactText
+        : copy.text,
     );
   };
 
@@ -6077,6 +6079,26 @@ export default function GameClient({
                       }
                     >
                       Telegram
+                    </a>
+                    <a
+                      href={resultChannelHref("reddit")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={!duelShareUrl}
+                      onClick={() => duelShareUrl && recordDuelShare("reddit")}
+                    >
+                      Reddit
+                    </a>
+                    <a
+                      href={resultChannelHref("bluesky")}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      aria-disabled={!duelShareUrl}
+                      onClick={() =>
+                        duelShareUrl && recordDuelShare("bluesky")
+                      }
+                    >
+                      Bluesky
                     </a>
                     <button
                       type="button"
