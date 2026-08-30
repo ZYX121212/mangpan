@@ -279,6 +279,7 @@ test("ships an installable, branded web app manifest", async () => {
 
   assert.match(manifest, /name: "Blind Trading — Daily Market Challenge"/);
   assert.match(manifest, /short_name: "Blind Trade"/);
+  assert.match(manifest, /lang: "en"/);
   assert.match(manifest, /start_url: "\/"/);
   assert.match(manifest, /display: "standalone"/);
   assert.match(manifest, /background_color: "#f7f5f0"/);
@@ -286,6 +287,10 @@ test("ships an installable, branded web app manifest", async () => {
   assert.match(manifest, /\/icons\/icon-192\.png/);
   assert.match(manifest, /\/icons\/icon-512\.png/);
   assert.match(manifest, /purpose: "any maskable"/);
+  assert.match(manifest, /shortcuts: \[/);
+  assert.match(manifest, /url: "\/daily\?market=us"/);
+  assert.match(manifest, /url: "\/practice\?market=us"/);
+  assert.match(manifest, /url: "\/duel"/);
   assert.match(styles, /\.install-return-card/);
   assert.match(styles, /\.install-app-mark/);
 
@@ -299,6 +304,38 @@ test("ships an installable, branded web app manifest", async () => {
     assert.equal(icon.readUInt32BE(16), size);
     assert.equal(icon.readUInt32BE(20), size);
   }
+});
+
+test("exposes canonical discovery metadata without indexing private rooms", async () => {
+  const [layout, robots, sitemap] = await Promise.all([
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/robots.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/sitemap.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(layout, /type="application\/ld\+json"/);
+  assert.match(layout, /"@type": \["VideoGame", "WebApplication"\]/);
+  assert.match(layout, /applicationCategory: "GameApplication"/);
+  assert.match(layout, /operatingSystem: "Any"/);
+  assert.match(layout, /price: "0"/);
+  assert.match(layout, /priceCurrency: "USD"/);
+  assert.match(layout, /isAccessibleForFree: true/);
+  assert.match(layout, /siteName: "Blind Trading"/);
+  assert.match(layout, /appleWebApp/);
+  assert.match(robots, /disallow: \["\/api\/"\]/);
+  assert.match(robots, /sitemap: `\$\{siteUrl\}\/sitemap\.xml`/);
+  for (const route of [
+    "/daily",
+    "/practice",
+    "/training",
+    "/duel",
+    "/crew",
+    "/privacy",
+    "/terms",
+  ]) {
+    assert.match(sitemap, new RegExp(`"${route}"`));
+  }
+  assert.doesNotMatch(sitemap, /"\/d\/|"\/c\/|"\/api\//);
 });
 
 test("keeps the English launch surface free of uncovered static Chinese copy", async () => {

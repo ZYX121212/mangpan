@@ -5,6 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     id: "/",
     name: "Blind Trading — Daily Market Challenge",
     short_name: "Blind Trade",
+    lang: "en",
     description:
       "Read one hidden historical chart, make five decisions, and challenge friends on the exact same market.",
     start_url: "/",
@@ -14,6 +15,29 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#f7f5f0",
     theme_color: "#252721",
     categories: ["games", "education", "finance"],
+    shortcuts: [
+      {
+        name: "Daily Challenge",
+        short_name: "Daily",
+        description: "Play today's shared hidden market chart.",
+        url: "/daily?market=us",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+      },
+      {
+        name: "Endless Practice",
+        short_name: "Practice",
+        description: "Read a random real historical chart without rankings.",
+        url: "/practice?market=us",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+      },
+      {
+        name: "Friend Duel",
+        short_name: "Duel",
+        description: "Enter a friend's spoiler-free challenge code.",
+        url: "/duel",
+        icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
+      },
+    ],
     icons: [
       {
         src: "/icons/icon-192.png",
