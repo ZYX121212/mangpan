@@ -62,6 +62,11 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /7-DAY TARGET/);
   assert.match(page, /daily-return-loop/);
   assert.match(page, /mode-daily-status/);
+  assert.match(page, /YOU VS THE CROWD/);
+  assert.match(page, /crowd-result-card/);
+  assert.match(page, /crowdComparison\.beatCrowd/);
+  assert.match(page, /crowd-replay-note/);
+  assert.match(page, /Crowd edge/);
   assert.match(page, /createResultShareCard/);
   assert.match(page, /navigator\.canShare/);
   assert.match(page, /duel-comparison/);
@@ -257,7 +262,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   );
   assert.match(config, /ORDER_ALLOCATIONS = \[0\.25, 1 \/ 3, 0\.5, 0\.75, 1\]/);
   assert.match(config, /market === "cn" \? 100 : 1/);
-  assert.match(config, /daily-comeback-v13/);
+  assert.match(config, /crowd-story-v14/);
   assert.match(config, /DAILY_CHALLENGE_DECISIONS = 5/);
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
@@ -265,6 +270,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(sessions, /actions\.length >= DAILY_CHALLENGE_DECISIONS/);
   assert.match(sessions, /nextActions\.length >= DAILY_CHALLENGE_DECISIONS/);
   assert.match(sessions, /getCrowdForecast/);
+  assert.match(sessions, /crowdForecasts/);
   assert.match(sessions, /LIMIT 500/);
   assert.match(sessions, /forecastForAction/);
   assert.match(sessions, /actions\.length < DAILY_CHALLENGE_DECISIONS/);

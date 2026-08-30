@@ -55,6 +55,7 @@ export type PublicChallengeSession = {
   scenario: ScenarioKind;
   difficulty: ScenarioDifficulty;
   actions: ReplayAction[];
+  crowdForecasts?: CrowdForecast[];
   resumed?: boolean;
 };
 
@@ -66,10 +67,11 @@ export type CrowdForecast = {
   down: number;
 };
 
-async function getCrowdForecast(
+async function getCrowdForecasts(
   challengeId: string,
-  round: number,
-): Promise<CrowdForecast | null> {
+  rounds: number,
+): Promise<CrowdForecast[]> {
+  if (rounds <= 0) return [];
   const result = await getD1Database()
     .prepare(
       `SELECT actions FROM game_sessions
@@ -78,32 +80,41 @@ async function getCrowdForecast(
     )
     .bind(challengeId)
     .all<{ actions: string }>();
-  const totals = { up: 0, range: 0, down: 0 };
-  let sampleSize = 0;
+  const totals = Array.from({ length: rounds }, () => ({
+    up: 0,
+    range: 0,
+    down: 0,
+    sampleSize: 0,
+  }));
   for (const row of result.results) {
-    let action: ReplayAction | undefined;
+    let actions: ReplayAction[] = [];
     try {
-      action = (JSON.parse(row.actions) as ReplayAction[])[round - 1];
+      actions = JSON.parse(row.actions) as ReplayAction[];
     } catch {
-      action = undefined;
+      actions = [];
     }
-    const forecast = action ? forecastForAction(action) : null;
-    if (!forecast) continue;
-    totals.up += forecast.up;
-    totals.range += forecast.range;
-    totals.down += forecast.down;
-    sampleSize++;
+    for (let index = 0; index < rounds; index++) {
+      const action = actions[index];
+      const forecast = action ? forecastForAction(action) : null;
+      if (!forecast) continue;
+      totals[index].up += forecast.up;
+      totals[index].range += forecast.range;
+      totals[index].down += forecast.down;
+      totals[index].sampleSize++;
+    }
   }
-  if (!sampleSize) return null;
-  const average = (value: number) =>
-    Math.round((value / sampleSize) * 10) / 10;
-  return {
-    round,
-    sampleSize,
-    up: average(totals.up),
-    range: average(totals.range),
-    down: average(totals.down),
-  };
+  return totals.flatMap((total, index) => {
+    if (!total.sampleSize) return [];
+    const average = (value: number) =>
+      Math.round((value / total.sampleSize) * 10) / 10;
+    return [{
+      round: index + 1,
+      sampleSize: total.sampleSize,
+      up: average(total.up),
+      range: average(total.range),
+      down: average(total.down),
+    }];
+  });
 }
 
 const QUIZ_SCENARIOS = ["trend", "reversal", "crash", "volatile"] as const;
@@ -526,6 +537,10 @@ export async function resumeSession(id: string, playerId: string) {
   const { session, bundle, actions } = await loadSession(id);
   if (session.finished) throw new Error("这局训练已经结束");
   await claimSession(session, playerId);
+  const crowdForecasts =
+    session.mode === "daily"
+      ? await getCrowdForecasts(session.challengeId, actions.length)
+      : [];
   return {
     sessionId: session.id,
     date: session.challengeDate,
@@ -543,6 +558,7 @@ export async function resumeSession(id: string, playerId: string) {
     scenario: sessionScenario(session),
     difficulty: sessionDifficulty(session),
     actions,
+    crowdForecasts,
     resumed: true,
   } satisfies PublicChallengeSession;
 }
@@ -632,7 +648,7 @@ export async function advanceSession(
     : null;
   const crowdForecast =
     session.mode === "daily"
-      ? await getCrowdForecast(session.challengeId, nextActions.length)
+      ? (await getCrowdForecasts(session.challengeId, nextActions.length)).at(-1) ?? null
       : null;
   return {
     candles: bundle.stock.candles

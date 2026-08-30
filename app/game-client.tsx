@@ -248,6 +248,7 @@ type ChallengeSession = {
   scenario: ScenarioKind;
   difficulty: ScenarioDifficulty;
   actions: ReplayAction[];
+  crowdForecasts?: CrowdForecast[];
   resumed?: boolean;
 };
 type AdvanceResponse = {
@@ -268,6 +269,17 @@ type CrowdForecast = {
   range: number;
   down: number;
 };
+
+function crowdLeader(forecast: CrowdForecast): MarketOutlook | null {
+  const values = [
+    ["up", forecast.up],
+    ["range", forecast.range],
+    ["down", forecast.down],
+  ] as const;
+  const highest = Math.max(...values.map(([, value]) => value));
+  const leaders = values.filter(([, value]) => value === highest);
+  return leaders.length === 1 ? leaders[0][0] : null;
+}
 
 type DecisionFeedback = {
   round: number;
@@ -1341,8 +1353,9 @@ export default function GameClient({
   const [feedbackHistory, setFeedbackHistory] = useState<DecisionFeedback[]>(
     [],
   );
-  const [crowdForecast, setCrowdForecast] =
-    useState<CrowdForecast | null>(null);
+  const [crowdHistory, setCrowdHistory] = useState<CrowdForecast[]>(
+    initialChallenge.crowdForecasts ?? [],
+  );
   const [modeHubOpen, setModeHubOpen] = useState(true);
   const [trainingOpen, setTrainingOpen] = useState(false);
   const [quizOpen, setQuizOpen] = useState(false);
@@ -1454,6 +1467,7 @@ export default function GameClient({
     0,
     dailyDecisionTarget - session.decisionsUsed,
   );
+  const crowdForecast = crowdHistory.at(-1) ?? null;
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
   const normalized = useMemo(() => {
@@ -1588,6 +1602,41 @@ export default function GameClient({
     () => buildDecisionReplay(actions, stock, normalized, initialVisibleCount),
     [actions, initialVisibleCount, normalized, stock],
   );
+  const crowdByRound = useMemo(
+    () => new Map(crowdHistory.map((item) => [item.round, item])),
+    [crowdHistory],
+  );
+  const crowdComparison = useMemo(() => {
+    let rounds = 0;
+    let agreements = 0;
+    let contrarianCalls = 0;
+    let contrarianWins = 0;
+    let beatCrowd = 0;
+    let largestSample = 0;
+    for (const item of decisionReplay) {
+      if (!item.outlook || item.matched == null) continue;
+      const crowd = crowdByRound.get(item.round);
+      if (!crowd || crowd.sampleSize < 2) continue;
+      const leader = crowdLeader(crowd);
+      if (!leader) continue;
+      rounds++;
+      largestSample = Math.max(largestSample, crowd.sampleSize);
+      if (item.outlook === leader) agreements++;
+      else {
+        contrarianCalls++;
+        if (item.matched) contrarianWins++;
+      }
+      if (item.matched && leader !== item.actual) beatCrowd++;
+    }
+    return {
+      rounds,
+      agreements,
+      contrarianCalls,
+      contrarianWins,
+      beatCrowd,
+      largestSample,
+    };
+  }, [crowdByRound, decisionReplay]);
   const scenarioEvaluation = useMemo(() => {
     if (!activeScenario) return null;
     const durationCheck = {
@@ -1870,7 +1919,7 @@ export default function GameClient({
     setAnalysisOpen(false);
     setLastFeedback(restored.feedbackHistory.at(-1) ?? null);
     setFeedbackHistory(restored.feedbackHistory);
-    setCrowdForecast(null);
+    setCrowdHistory(nextSession.crowdForecasts ?? []);
     setRevealPulse(0);
     setShareStatus("");
     setReplayLimit(8);
@@ -2240,7 +2289,13 @@ export default function GameClient({
       setTrainingProfile((value) =>
         value ? { ...value, daily: advanced.dailyMission! } : value,
       );
-    setCrowdForecast(advanced.crowdForecast);
+    if (advanced.crowdForecast)
+      setCrowdHistory((history) => [
+        ...history.filter(
+          (item) => item.round !== advanced.crowdForecast!.round,
+        ),
+        advanced.crowdForecast!,
+      ]);
     const factor = 100 / stock.candles[initialVisibleCount - 1].close;
     const normalizedNew = advanced.candles.map((candle) => ({
       ...candle,
@@ -2374,10 +2429,15 @@ export default function GameClient({
       locale === "en"
         ? "Blind Trading Daily · Mystery Market Challenge"
         : "盲盘每日挑战｜神秘历史行情";
+    const crowdLine = crowdComparison.rounds
+      ? locale === "en"
+        ? `Crowd edge ${crowdComparison.beatCrowd} · Contrarian wins ${crowdComparison.contrarianWins}/${crowdComparison.contrarianCalls}`
+        : `领先人群 ${crowdComparison.beatCrowd} 次 · 逆向命中 ${crowdComparison.contrarianWins}/${crowdComparison.contrarianCalls}`
+      : "";
     const text =
       locale === "en"
-        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}\nSame mystery chart. Five decisions. Can you beat me?`
-        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}\n同一张神秘历史图，五次决策。你能超过我吗？`;
+        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
+        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}\n${sequence}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
     try {
       let shareUrl = location.href;
       if (gameMode === "daily" && playerId) {
@@ -4250,6 +4310,52 @@ export default function GameClient({
               </p>
             </div>
             </div>
+            {gameMode === "daily" && crowdComparison.rounds > 0 && (
+              <section className="crowd-result-card">
+                <header>
+                  <div>
+                    <small>YOU VS THE CROWD · 全球判断对照</small>
+                    <b>
+                      {locale === "en"
+                        ? `Compared across ${crowdComparison.rounds} decisions`
+                        : `已对照 ${crowdComparison.rounds} 次有效判断`}
+                    </b>
+                  </div>
+                  <span>
+                    {locale === "en" ? "UP TO" : "最多"}{" "}
+                    {crowdComparison.largestSample.toLocaleString(numberLocale)}{" "}
+                    {locale === "en" ? "READS" : "份判断"}
+                  </span>
+                </header>
+                <div className="crowd-result-metrics">
+                  <div>
+                    <small>{locale === "en" ? "WITH CROWD" : "顺着人群"}</small>
+                    <b>{crowdComparison.agreements}/{crowdComparison.rounds}</b>
+                  </div>
+                  <div>
+                    <small>{locale === "en" ? "CONTRARIAN" : "逆向判断"}</small>
+                    <b>{crowdComparison.contrarianCalls}</b>
+                  </div>
+                  <div className={crowdComparison.beatCrowd ? "edge" : ""}>
+                    <small>{locale === "en" ? "BEAT CROWD" : "领先人群"}</small>
+                    <b>{crowdComparison.beatCrowd}</b>
+                  </div>
+                </div>
+                <p>
+                  {locale === "en"
+                    ? crowdComparison.beatCrowd
+                      ? `You were right ${crowdComparison.beatCrowd} ${crowdComparison.beatCrowd === 1 ? "time" : "times"} when the crowd's top view was wrong. That is evidence—not permission to size up the next trade.`
+                      : crowdComparison.contrarianCalls
+                        ? `You went against the crowd ${crowdComparison.contrarianCalls} ${crowdComparison.contrarianCalls === 1 ? "time" : "times"}. ${crowdComparison.contrarianWins} of those calls was right; compare the evidence before repeating it.`
+                        : "Your views matched the crowd this round. Agreement can be useful, but it is not proof that the crowd is right."
+                    : crowdComparison.beatCrowd
+                      ? `当人群最高概率判断错误时，你有 ${crowdComparison.beatCrowd} 次判断正确。这是可复盘的证据，不代表下一次应该放大仓位。`
+                      : crowdComparison.contrarianCalls
+                        ? `你有 ${crowdComparison.contrarianCalls} 次逆向判断，其中 ${crowdComparison.contrarianWins} 次命中；下次应先比较依据，再决定是否重复。`
+                        : "本局判断与人群主流一致。一致可以提供参考，但不代表人群一定正确。"}
+                </p>
+              </section>
+            )}
             <section className="decision-replay">
               <div className="decision-replay-head">
                 <div>
@@ -4282,6 +4388,19 @@ export default function GameClient({
                             ? "未记录方向观点 · 本次不参与判断评分"
                             : `${item.thesis} · ${item.probabilities ? formatProbabilityForecast(item.probabilities, locale) : `判断${OUTLOOK_LABEL[item.outlook!]} · 信心 ${item.confidence}/3`}`}
                         </p>
+                        {crowdByRound.get(item.round)?.sampleSize &&
+                          crowdByRound.get(item.round)!.sampleSize >= 2 &&
+                          crowdLeader(crowdByRound.get(item.round)!) && (
+                            <p className="crowd-replay-note">
+                              {locale === "en" ? "Crowd" : "全球共识"}: {locale === "en"
+                                ? crowdLeader(crowdByRound.get(item.round)!)!.toUpperCase()
+                                : OUTLOOK_LABEL[crowdLeader(crowdByRound.get(item.round)!)!]}
+                              {" "}
+                              {crowdByRound.get(item.round)![
+                                crowdLeader(crowdByRound.get(item.round)!)!
+                              ]}% · n={crowdByRound.get(item.round)!.sampleSize}
+                            </p>
+                          )}
                       </div>
                       <strong>
                         {item.matched == null
