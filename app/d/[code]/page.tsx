@@ -10,6 +10,12 @@ import { opaquePlayerId } from "../../request-identity";
 export const dynamic = "force-dynamic";
 
 const SITE_ORIGIN = "https://mangpan-kline-game.hiayun.chatgpt.site";
+const FALLBACK_SHARE_IMAGE = {
+  url: "/og.png",
+  width: 1672,
+  height: 941,
+  alt: "Blind Trading — Trade the setup, not the ticker",
+};
 
 function unavailableMetadata(): Metadata {
   const title = "This Blind Trading challenge is unavailable";
@@ -19,8 +25,18 @@ function unavailableMetadata(): Metadata {
     title,
     description,
     robots: { index: false, follow: false },
-    openGraph: { title, description, type: "website", images: [] },
-    twitter: { card: "summary", title, description, images: [] },
+    openGraph: {
+      title,
+      description,
+      type: "website",
+      images: [FALLBACK_SHARE_IMAGE],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [FALLBACK_SHARE_IMAGE.url],
+    },
   };
 }
 
@@ -39,6 +55,7 @@ export async function generateMetadata({
     : "";
   const description = `${roomProof}The same hidden historical ${market} chart. Five decisions. No ticker, no future, no sign-up.`;
   const path = `/d/${invite.code}`;
+  const imagePath = `${path}/opengraph-image`;
   return {
     title,
     description,
@@ -49,9 +66,21 @@ export async function generateMetadata({
       description,
       type: "website",
       url: `${SITE_ORIGIN}${path}`,
-      images: [],
+      images: [
+        {
+          url: imagePath,
+          width: 1200,
+          height: 630,
+          alt: `${invite.challengerNickname}'s Blind Trading friend challenge`,
+        },
+      ],
     },
-    twitter: { card: "summary", title, description, images: [] },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: [imagePath],
+    },
   };
 }
 

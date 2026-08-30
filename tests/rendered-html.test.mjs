@@ -365,9 +365,13 @@ test("keeps the English launch surface free of uncovered static Chinese copy", a
 });
 
 test("gives every friend duel a personalized, spoiler-free route", async () => {
-  const [page, duelPage, duelInvites, styles] = await Promise.all([
+  const [page, duelPage, duelImage, duelInvites, styles] = await Promise.all([
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/d/[code]/page.tsx", import.meta.url), "utf8"),
+    readFile(
+      new URL("../app/d/[code]/opengraph-image.tsx", import.meta.url),
+      "utf8",
+    ),
     readFile(new URL("../app/duel-invites.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
@@ -380,7 +384,17 @@ test("gives every friend duel a personalized, spoiler-free route", async () => {
   assert.match(duelPage, /scored \$\{invite\.targetScore\}\. Can you beat it\?/);
   assert.match(duelPage, /No ticker, no future, no sign-up/);
   assert.match(duelPage, /invite\.responseCount/);
-  assert.match(duelPage, /images: \[\]/);
+  assert.doesNotMatch(duelPage, /images: \[\]/);
+  assert.match(duelPage, /summary_large_image/);
+  assert.match(duelPage, /imagePath = `\$\{path\}\/opengraph-image`/);
+  assert.match(duelPage, /FALLBACK_SHARE_IMAGE/);
+  assert.match(duelImage, /ImageResponse/);
+  assert.match(duelImage, /getPublicDuelInvite/);
+  assert.match(duelImage, /width: 1200, height: 630/);
+  assert.match(duelImage, /Same hidden chart · Five decisions · Zero spoilers/);
+  assert.match(duelImage, /invite\?\.targetScore/);
+  assert.match(duelImage, /safeNickname/);
+  assert.doesNotMatch(duelImage, /\.date|stock|ticker|returnRate|actions/);
   assert.match(duelPage, /robots: \{ index: false, follow: false \}/);
   assert.match(duelPage, /initialDuel=\{\{ code: invite\.code, date: invite\.date \}\}/);
   assert.match(duelPage, /CHALLENGE EXPIRED/);
