@@ -35,6 +35,7 @@ export default async function GameModePage({
           "random",
           "standard",
           playerId,
+          initialGuide,
         );
 
   return (

@@ -117,6 +117,7 @@ export async function createPracticeChallenge(
   market: MarketKind,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  guided = false,
 ) {
   await ensureDatabase();
   const bundle = await getPracticeBundle(
@@ -124,6 +125,7 @@ export async function createPracticeChallenge(
     market,
     scenario,
     difficulty,
+    guided,
   );
   const id = `practice@${GAME_VERSION}@${market}@${crypto.randomUUID()}`;
   await getDb()

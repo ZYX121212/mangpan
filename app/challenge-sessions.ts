@@ -390,12 +390,14 @@ export async function startPracticeSession(
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
   playerId?: string,
+  guided = false,
 ) {
   const challenge = await createPracticeChallenge(
     seed,
     market,
     scenario,
     difficulty,
+    guided,
   );
   return insertSession(
     challenge.id,

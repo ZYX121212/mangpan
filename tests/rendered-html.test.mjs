@@ -123,7 +123,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /mangpan-guided-first-chart-v1/);
   assert.match(page, /useState\(false\)/);
   assert.match(page, /mangpan-active-session-us/);
-  assert.match(page, /GUIDED FIRST CHART/);
+  assert.match(page, /BEGINNER CHART · REAL HISTORY/);
   assert.match(page, /onboardingStep === 1/);
   assert.match(page, /onboardingStep === 2/);
   assert.match(page, /setOnboardingStep\(3\)/);
@@ -519,6 +519,29 @@ test("streams an immediate, mode-specific loading state", async () => {
   assert.match(styles, /\.game-loading-shell/);
 });
 
+test("gives the first-run lesson a readable unranked history window", async () => {
+  const [modePage, sessions, service, marketData, lobby, game] =
+    await Promise.all([
+      readFile(new URL("../app/game-mode-page.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/challenge-sessions.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/challenge-service.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/market-data.ts", import.meta.url), "utf8"),
+      readFile(new URL("../app/mode-lobby.tsx", import.meta.url), "utf8"),
+      readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
+    ]);
+
+  assert.match(modePage, /playerId,\s*initialGuide,/);
+  assert.match(sessions, /playerId\?: string,\s*guided = false/);
+  assert.match(service, /difficulty: ScenarioDifficulty = "standard",\s*guided = false/);
+  assert.match(marketData, /selectGuidedDecisionIndex/);
+  assert.match(marketData, /if \(guided\)/);
+  assert.match(marketData, /candles: stock\.candles\.slice\(guidedIndex - INITIAL_BARS\)/);
+  assert.match(marketData, /initialVisibleCount: INITIAL_BARS/);
+  assert.match(lobby, /Make one market call/);
+  assert.match(lobby, /Guided · unranked · real history/);
+  assert.match(game, /BEGINNER CHART · REAL HISTORY/);
+});
+
 test("keeps ranking authoritative and identity hidden until settlement", async () => {
   const [
     page,
@@ -702,7 +725,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(modeLobby, /Crew Streak/);
   assert.match(modeLobby, /Can you read what happens next\?/);
   assert.match(modeLobby, /\/practice\?market=\$\{market\}&guide=1/);
-  assert.match(modeLobby, /Play one chart/);
+  assert.match(modeLobby, /Make one market call/);
   assert.match(modeLobby, /trackActivationEvent\(id, "lobby_view", "lobby"\)/);
   assert.match(modeLobby, /"guide_start", "lobby"/);
   assert.match(modeLobby, /mode-lobby-grid/);

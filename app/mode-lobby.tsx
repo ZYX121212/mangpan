@@ -276,8 +276,8 @@ export default function ModeLobby() {
               href={`/practice?market=${market}&guide=1`}
               onClick={startFirstChart}
             >
-              <span>{locale === "en" ? "Play one chart" : "先玩一张"}</span>
-              <small>{locale === "en" ? "Guided · about 60 sec" : "有引导 · 约 60 秒"}</small>
+              <span>{locale === "en" ? "Make one market call" : "先做一次判断"}</span>
+              <small>{locale === "en" ? "Guided · unranked · real history" : "有引导 · 不排名 · 真实历史"}</small>
               <b>→</b>
             </Link>
             <button

@@ -13,6 +13,7 @@ import {
   type Candle,
   type StockSample,
 } from "./stock-types";
+import { selectGuidedDecisionIndex } from "./guided-onboarding";
 
 export type ChallengeBundle = {
   date: string;
@@ -70,6 +71,7 @@ function prepareGameStock(
   seed: number,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  guided = false,
 ) {
   if (stock.candles.length < MIN_GAME_BARS) return null;
   if (scenario !== "random" && stock.candles.length < INITIAL_BARS + 240)
@@ -79,7 +81,23 @@ function prepareGameStock(
     stock.candles.length -
     (scenario === "random" ? MIN_FUTURE_BARS : scenarioFutureBars);
   let decisionIndex = INITIAL_BARS;
-  if (scenario !== "random") {
+  if (guided) {
+    const guidedIndex = selectGuidedDecisionIndex(
+      stock.candles,
+      seed,
+      INITIAL_BARS,
+      MIN_FUTURE_BARS,
+    );
+    if (guidedIndex != null)
+      return {
+        ...stock,
+        // The player needs only the selected 120-bar setup and its future.
+        // Trimming earlier history keeps the first route payload small even
+        // when the readable window occurs years into the source series.
+        candles: stock.candles.slice(guidedIndex - INITIAL_BARS),
+        initialVisibleCount: INITIAL_BARS,
+      } as StockSample;
+  } else if (scenario !== "random") {
     const candidates: { index: number; score: number }[] = [];
     for (let index = INITIAL_BARS; index <= latestDecisionIndex; index += 5)
       candidates.push({
@@ -107,13 +125,14 @@ async function bundledStock(
   market: MarketKind,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  guided = false,
 ) {
   const pool =
     market === "cn"
       ? (await import("./stock-data")).STOCK_SAMPLES
       : (await import("./us-stock-data")).US_STOCK_SAMPLES;
   const stock = pool[seed % pool.length];
-  return prepareGameStock(stock, seed, scenario, difficulty) ?? stock;
+  return prepareGameStock(stock, seed, scenario, difficulty, guided) ?? stock;
 }
 
 function parseTencentCandles(payload: unknown, symbol: string) {
@@ -149,6 +168,7 @@ async function loadCnStock(
   seed: number,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  guided = false,
 ) {
   const symbol = `${entry.exchange}${entry.code}`;
   const fetchCandles = async (requestedEnd: string) => {
@@ -192,7 +212,7 @@ async function loadCnStock(
     assetClass: "cn",
     candles,
   } satisfies StockSample;
-  return prepareGameStock(fullStock, seed, scenario, difficulty);
+  return prepareGameStock(fullStock, seed, scenario, difficulty, guided);
 }
 
 async function cnBundle(
@@ -200,6 +220,7 @@ async function cnBundle(
   date: string,
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  guided = false,
 ) {
   const seed = hashText(`mangpan-${GAME_VERSION}-cn-${key}`);
   for (let attempt = 0; attempt < 8; attempt++) {
@@ -213,6 +234,7 @@ async function cnBundle(
         seed + attempt,
         scenario,
         difficulty,
+        guided,
       );
       if (stock)
         return {
@@ -229,7 +251,7 @@ async function cnBundle(
   return {
     date,
     market: "cn",
-    stock: await bundledStock(seed, "cn", scenario, difficulty),
+    stock: await bundledStock(seed, "cn", scenario, difficulty, guided),
     universeSize: CN_STOCK_UNIVERSE.length,
     dataSource: "embedded-fallback",
   } satisfies ChallengeBundle;
@@ -255,6 +277,7 @@ export async function getPracticeBundle(
   market: MarketKind = "cn",
   scenario: ScenarioKind = "random",
   difficulty: ScenarioDifficulty = "standard",
+  guided = false,
 ) {
   const seed = hashText(`practice-${GAME_VERSION}-${market}-${seedText}`);
   if (market === "cn")
@@ -263,11 +286,12 @@ export async function getPracticeBundle(
       marketDate("cn"),
       scenario,
       difficulty,
+      guided,
     );
   return {
     date: "practice",
     market,
-    stock: await bundledStock(seed, market, scenario, difficulty),
+    stock: await bundledStock(seed, market, scenario, difficulty, guided),
     universeSize: MARKET_UNIVERSE_SIZE.us,
     dataSource: "embedded-fallback",
   } satisfies ChallengeBundle;

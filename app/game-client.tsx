@@ -3542,7 +3542,7 @@ export default function GameClient({
           <div>
             <small>
               {locale === "en"
-                ? `${initialDuel ? "GUIDED DUEL" : "GUIDED FIRST CHART"} · STEP ${onboardingStep}/3`
+                ? `${initialDuel ? "GUIDED DUEL" : "BEGINNER CHART · REAL HISTORY"} · STEP ${onboardingStep}/3`
                 : `${initialDuel ? "好友对决引导" : "首次引导局"} · 第 ${onboardingStep}/3 步`}
             </small>
             <b>
