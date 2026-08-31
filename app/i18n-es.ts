@@ -284,6 +284,17 @@ const SPANISH: Record<string, string> = {
   "NEW EVIDENCE": "NUEVA EVIDENCIA",
   "Play today's global challenge →": "Jugar el reto global de hoy →",
   "Keep practicing": "Seguir practicando",
+  "SESSION MOMENTUM": "IMPULSO DE LA SESIÓN",
+  "Three-chart streak complete": "Racha de tres gráficos completada",
+  "Read three charts to build your first real sample":
+    "Lee tres gráficos para crear tu primera muestra real",
+  "A fresh hidden chart is ready. Today’s locked score will not change.":
+    "Hay un nuevo gráfico oculto listo. La puntuación de hoy no cambiará.",
+  "CHARTS CLEARED": "GRÁFICOS COMPLETADOS",
+  "Three-chart session progress": "Progreso de la sesión de tres gráficos",
+  "Loading next chart…": "Cargando el siguiente gráfico…",
+  "Locking today’s score…": "Guardando la puntuación de hoy…",
+  "Next mystery chart →": "Siguiente gráfico misterioso →",
   "Skip guide": "Omitir guía",
   "Loading today's chart…": "Cargando el gráfico de hoy…",
   "2 · Forecast the next move": "2 · Predice el próximo movimiento",

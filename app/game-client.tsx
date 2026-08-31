@@ -1675,6 +1675,7 @@ export default function GameClient({
     useState<InstallPromptEvent | null>(null);
   const [installStatus, setInstallStatus] = useState("");
   const [storageIsEphemeral, setStorageIsEphemeral] = useState(false);
+  const [sessionChainCount, setSessionChainCount] = useState(0);
   const [actions, setActions] = useState<ReplayAction[]>([]),
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
@@ -1897,6 +1898,13 @@ export default function GameClient({
   const weakestRecognition = trainingProfile?.recognition.weakestScenario;
   const activeDuel = Boolean(
     duelCode && scoreboard?.duelCode?.toUpperCase() === duelCode,
+  );
+  const showSessionMomentum = Boolean(
+    !isMarketRun &&
+      !activeDuel &&
+      !initialCrewCode &&
+      !activeScenario &&
+      initialMode !== "training",
   );
   const currentStreak = scoreboard?.stats?.streak ?? 0;
   const streakProtection = scoreboard?.stats?.streakProtection ?? {
@@ -2782,6 +2790,14 @@ export default function GameClient({
     }
   };
 
+  const continueAfterResult = async () => {
+    if (challengeLoading) return;
+    if (playerId)
+      trackActivationEvent(playerId, "result_next_chart", "direct");
+    history.replaceState(null, "", `/practice?market=${market}`);
+    await resetGame("practice", market, "random", "standard");
+  };
+
   const startMarketRunStage = useCallback(
     async (stageIndex: number) => {
       const nextStage = MARKET_RUN_STAGES[Math.max(
@@ -3087,6 +3103,7 @@ export default function GameClient({
         );
       }
       safeLocalStorage.removeItem(activeSessionStorageKey(market));
+      setSessionChainCount((value) => value + 1);
       setFinished(true);
       setResultOpen(true);
     } finally {
@@ -6172,6 +6189,68 @@ export default function GameClient({
               </div>
             </div>
             </div>
+            {showSessionMomentum && (
+              <section
+                className={`result-session-goal ${sessionChainCount >= 3 ? "complete" : ""}`}
+              >
+                <div className="result-session-copy">
+                  <small>
+                    {locale === "zh" ? "本次连续挑战" : "SESSION MOMENTUM"}
+                  </small>
+                  <b>
+                    {sessionChainCount >= 3
+                      ? locale === "zh"
+                        ? "三图连续目标已完成"
+                        : "Three-chart streak complete"
+                      : locale === "zh"
+                        ? "连续读完三张图，建立第一份判断样本"
+                        : "Read three charts to build your first real sample"}
+                  </b>
+                  <span>
+                    {locale === "zh"
+                      ? "下一张是全新隐藏行情，不会改变今天已经锁定的成绩。"
+                      : "A fresh hidden chart is ready. Today’s locked score will not change."}
+                  </span>
+                </div>
+                <div
+                  className="result-session-progress"
+                  aria-label={
+                    locale === "zh" ? "三图连续进度" : "Three-chart session progress"
+                  }
+                >
+                  <strong>{Math.min(sessionChainCount, 3)}/3</strong>
+                  <span>{locale === "zh" ? "张图已完成" : "CHARTS CLEARED"}</span>
+                  <div aria-hidden="true">
+                    {Array.from({ length: 3 }, (_, index) => (
+                      <i
+                        className={index < sessionChainCount ? "complete" : ""}
+                        key={index}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    challengeLoading ||
+                    (gameMode === "daily" && scoreStatus !== "done")
+                  }
+                  onClick={() => void continueAfterResult()}
+                >
+                  {challengeLoading
+                    ? locale === "zh"
+                      ? "正在载入下一张图…"
+                      : "Loading next chart…"
+                    : gameMode === "daily" && scoreStatus !== "done"
+                      ? locale === "zh"
+                        ? "正在锁定今日成绩…"
+                        : "Locking today’s score…"
+                      : locale === "zh"
+                        ? "下一张神秘图 →"
+                        : "Next mystery chart →"}
+                </button>
+              </section>
+            )}
             {isMarketRun && (
               <section
                 className={`market-run-result ${marketRunFinished ? "complete" : ""}`}
