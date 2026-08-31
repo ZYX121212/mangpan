@@ -22,6 +22,7 @@ export type ActivationEventType =
   | "run_stage_complete"
   | "run_complete"
   | "daily_complete"
+  | "milestone_celebration"
   | "result_next_chart"
   | "daily_score_card_share"
   | "daily_style_card_share"

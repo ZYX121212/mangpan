@@ -314,6 +314,42 @@ const FRENCH: Record<string, string> = {
   "Navigate candle history": "Parcourir l’historique des bougies",
   "Interactive real historical daily candlestick chart; zoom, drag, or use the keyboard":
     "Graphique interactif en bougies quotidiennes réelles ; zoomez, faites glisser ou utilisez le clavier",
+  "Dismiss celebration": "Fermer la célébration",
+  "FIRST REAL CHART": "PREMIER GRAPHIQUE RÉEL",
+  "Your first market read is now evidence.":
+    "Votre première lecture du marché devient une donnée concrète.",
+  "You finished a real historical chart. Compare three before trusting one result.":
+    "Vous avez terminé un graphique historique réel. Comparez-en trois avant de vous fier à un seul résultat.",
+  "SESSION SAMPLE COMPLETE": "ÉCHANTILLON DE SESSION TERMINÉ",
+  "Three charts. One real decision sample.":
+    "Trois graphiques. Un véritable échantillon de décisions.",
+  "You now have enough contrast to spot a pattern without overlearning one market.":
+    "Vous avez maintenant assez de contraste pour repérer un schéma sans tirer trop de conclusions d’un seul marché.",
+  "TRAINING MASTERED": "ENTRAÎNEMENT MAÎTRISÉ",
+  "You cleared every training objective.":
+    "Vous avez atteint tous les objectifs d’entraînement.",
+  "The win came from repeatable process, not just the final return.":
+    "Cette réussite vient d’un processus reproductible, pas seulement du rendement final.",
+  "TOP-DECILE DAILY": "TOP 10 % DU JOUR",
+  "Your score landed in today’s top 10%.":
+    "Votre score se classe dans le top 10 % du jour.",
+  "That is a strong read. Share the same chart challenge without revealing the answer.":
+    "C’est une lecture solide. Partagez le défi sur le même graphique sans révéler la réponse.",
+  "FRIEND DUEL WON": "DUEL ENTRE AMIS REMPORTÉ",
+  "You won the same-chart challenge.":
+    "Vous avez remporté le défi sur le même graphique.",
+  "Same hidden market, same rules, stronger process. Keep the chain going with a rematch.":
+    "Même marché caché, mêmes règles, processus plus solide. Poursuivez la série avec une revanche.",
+  "STREAK SAFEGUARD EARNED": "PROTECTION DE SÉRIE GAGNÉE",
+  "Your consistency earned a safety net.":
+    "Votre régularité vous a offert un filet de sécurité.",
+  "One future missed day can now be protected automatically. The habit survives real life.":
+    "Un futur jour manqué peut désormais être protégé automatiquement. L’habitude résiste aux imprévus.",
+  "MARKET RUN COMPLETE": "PARCOURS DES MARCHÉS TERMINÉ",
+  "Five markets. One complete run.":
+    "Cinq marchés. Un parcours complet.",
+  "You held your process as the charts grew harder. That consistency is the real finish line.":
+    "Vous avez maintenu votre processus alors que les graphiques devenaient plus difficiles. Cette régularité est la vraie ligne d’arrivée.",
 };
 
 const replacements = Object.entries(FRENCH).sort(

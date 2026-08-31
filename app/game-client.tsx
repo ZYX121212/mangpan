@@ -52,6 +52,7 @@ import {
   createPlatformDuelShareUrl,
   currentWebGamePlatform,
   getWebGameLaunchContext,
+  reportPlatformHappyTime,
   reportPlatformGameplayStart,
   reportPlatformGameplayStop,
   reportPlatformLoaded,
@@ -73,6 +74,11 @@ import {
   type ShareSource,
 } from "./share-links";
 import { safeLocalStorage } from "./safe-storage";
+import {
+  celebrationMilestone,
+  isPlatformCelebration,
+  type CelebrationMilestone,
+} from "./milestone-celebration";
 
 const delay = (ms: number) =>
   new Promise((resolve) => window.setTimeout(resolve, ms));
@@ -119,6 +125,97 @@ type InstallPromptEvent = Event & {
 };
 type ScenarioKind = "random" | "trend" | "reversal" | "crash" | "volatile";
 type ScenarioDifficulty = "starter" | "standard" | "expert";
+
+const CELEBRATION_COPY = {
+  first_chart: {
+    en: {
+      eyebrow: "FIRST REAL CHART",
+      title: "Your first market read is now evidence.",
+      body: "You finished a real historical chart. Compare three before trusting one result.",
+    },
+    zh: {
+      eyebrow: "第一张真实行情",
+      title: "你的第一次判断，已经成为证据。",
+      body: "你完成了一张真实历史行情。先比较三张图，再相信一次结果。",
+    },
+  },
+  three_chart_sample: {
+    en: {
+      eyebrow: "SESSION SAMPLE COMPLETE",
+      title: "Three charts. One real decision sample.",
+      body: "You now have enough contrast to spot a pattern without overlearning one market.",
+    },
+    zh: {
+      eyebrow: "本次判断样本完成",
+      title: "三张图，构成第一份真实判断样本。",
+      body: "现在已有足够的对照，可以寻找规律，又不会被单一行情误导。",
+    },
+  },
+  training_mastered: {
+    en: {
+      eyebrow: "TRAINING MASTERED",
+      title: "You cleared every training objective.",
+      body: "The win came from repeatable process, not just the final return.",
+    },
+    zh: {
+      eyebrow: "训练目标全部达成",
+      title: "四项训练目标全部通过。",
+      body: "这次通关来自可重复的决策过程，而不只是最终收益。",
+    },
+  },
+  top_decile: {
+    en: {
+      eyebrow: "TOP-DECILE DAILY",
+      title: "Your score landed in today’s top 10%.",
+      body: "That is a strong read. Share the same chart challenge without revealing the answer.",
+    },
+    zh: {
+      eyebrow: "今日前 10%",
+      title: "你的成绩进入今日前 10%。",
+      body: "这是一份出色的判断。分享同图挑战，但不要泄露答案。",
+    },
+  },
+  duel_win: {
+    en: {
+      eyebrow: "FRIEND DUEL WON",
+      title: "You won the same-chart challenge.",
+      body: "Same hidden market, same rules, stronger process. Keep the chain going with a rematch.",
+    },
+    zh: {
+      eyebrow: "好友同图对决胜出",
+      title: "你赢下了这场同图挑战。",
+      body: "相同隐藏行情、相同规则，你的过程更胜一筹。再来一轮延续挑战链。",
+    },
+  },
+  streak_guard: {
+    en: {
+      eyebrow: "STREAK SAFEGUARD EARNED",
+      title: "Your consistency earned a safety net.",
+      body: "One future missed day can now be protected automatically. The habit survives real life.",
+    },
+    zh: {
+      eyebrow: "获得连续挑战保护",
+      title: "持续行动，为你赢得了一次安全网。",
+      body: "未来漏玩一天时会自动保护连续纪录，让习惯经得起现实打断。",
+    },
+  },
+  market_run_complete: {
+    en: {
+      eyebrow: "MARKET RUN COMPLETE",
+      title: "Five markets. One complete run.",
+      body: "You held your process as the charts grew harder. That consistency is the real finish line.",
+    },
+    zh: {
+      eyebrow: "五关市场闯关完成",
+      title: "五张行情，一次完整闯关。",
+      body: "难度逐关提升，你仍守住了决策过程。这份稳定性才是真正的终点。",
+    },
+  },
+} as const satisfies Record<
+  CelebrationMilestone,
+  Record<"en" | "zh", { eyebrow: string; title: string; body: string }>
+>;
+
 const SCENARIO_CONFIG = {
   trend: {
     title: "趋势识别",
@@ -1678,6 +1775,8 @@ export default function GameClient({
   const [installStatus, setInstallStatus] = useState("");
   const [storageIsEphemeral, setStorageIsEphemeral] = useState(false);
   const [sessionChainCount, setSessionChainCount] = useState(0);
+  const [celebration, setCelebration] =
+    useState<CelebrationMilestone | null>(null);
   const [actions, setActions] = useState<ReplayAction[]>([]),
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
@@ -1708,6 +1807,7 @@ export default function GameClient({
   const marketRunProgressLoadedRef = useRef(false);
   const marketRunStartTrackedRef = useRef(false);
   const guideCompleteTrackedRef = useRef(false);
+  const celebrationSeenRef = useRef(new Set<string>());
   const initialUrlHandledRef = useRef(false);
   const challengeRequestCacheRef = useRef(
     new Map<string, Promise<ChallengeSession>>(),
@@ -2254,6 +2354,68 @@ export default function GameClient({
     session.sessionId,
     skillScore,
   ]);
+  useEffect(() => {
+    if (!finished || !resultOpen) return;
+    const milestone = celebrationMilestone({
+      isMarketRun,
+      marketRunFinished,
+      isDaily: gameMode === "daily",
+      dailySettled: scoreStatus === "done",
+      dailyPercentile: scoreboard?.playerScore?.percentile,
+      duelWon: Boolean(
+        scoreboard?.playerScore &&
+          scoreboard.opponent &&
+          scoreboard.playerScore.score > scoreboard.opponent.score,
+      ),
+      streakGuardEarned: streakProtection.freezeEarnedToday,
+      trainingMastered: Boolean(activeScenario && scenarioEvaluation?.passed),
+      sessionChartCount: sessionChainCount,
+      guidedFirstChart: guidedRunActive,
+    });
+    if (!milestone) return;
+    const celebrationKey = `${session.sessionId}:${milestone}`;
+    if (celebrationSeenRef.current.has(celebrationKey)) return;
+    celebrationSeenRef.current.add(celebrationKey);
+    setCelebration(milestone);
+    if (isPlatformCelebration(milestone))
+      void reportPlatformHappyTime();
+    if (playerId) {
+      trackActivationEvent(
+        playerId,
+        "milestone_celebration",
+        isMarketRun
+          ? "run"
+          : initialCrewCode
+            ? "crew"
+            : initialDuel
+              ? "duel"
+              : "direct",
+      );
+    }
+  }, [
+    activeScenario,
+    finished,
+    gameMode,
+    guidedRunActive,
+    initialCrewCode,
+    initialDuel,
+    isMarketRun,
+    marketRunFinished,
+    playerId,
+    resultOpen,
+    scenarioEvaluation?.passed,
+    scoreboard?.opponent,
+    scoreboard?.playerScore,
+    scoreStatus,
+    session.sessionId,
+    sessionChainCount,
+    streakProtection.freezeEarnedToday,
+  ]);
+  useEffect(() => {
+    if (!celebration) return;
+    const timer = window.setTimeout(() => setCelebration(null), 4400);
+    return () => window.clearTimeout(timer);
+  }, [celebration]);
   const decisionStyle = useMemo(
     () =>
       decisionStyleFor(
@@ -2656,6 +2818,7 @@ export default function GameClient({
     setActions(nextSession.actions);
     setFinished(false);
     setResultOpen(false);
+    setCelebration(null);
     setAnalysisOpen(false);
     setLastFeedback(restored.feedbackHistory.at(-1) ?? null);
     setDecisionRevealOpen(false);
@@ -3744,6 +3907,9 @@ export default function GameClient({
     window.addEventListener("keydown", handleKeyboard);
     return () => window.removeEventListener("keydown", handleKeyboard);
   });
+  const celebrationCopy = celebration
+    ? CELEBRATION_COPY[celebration][locale === "zh" ? "zh" : "en"]
+    : null;
   return (
     <Localized locale={locale}>
     <main
@@ -6135,6 +6301,34 @@ export default function GameClient({
                 返回 K 线
               </button>
             </header>
+            {celebration && celebrationCopy && (
+              <section
+                className={`milestone-celebration ${celebration}`}
+                role="status"
+                aria-live="polite"
+              >
+                <div className="milestone-confetti" aria-hidden="true">
+                  {Array.from({ length: 12 }, (_, index) => (
+                    <i key={index} />
+                  ))}
+                </div>
+                <span className="milestone-seal" aria-hidden="true">✦</span>
+                <div>
+                  <small>{celebrationCopy.eyebrow}</small>
+                  <b>{celebrationCopy.title}</b>
+                  <p>{celebrationCopy.body}</p>
+                </div>
+                <button
+                  type="button"
+                  aria-label={
+                    locale === "zh" ? "关闭里程碑庆祝" : "Dismiss celebration"
+                  }
+                  onClick={() => setCelebration(null)}
+                >
+                  ×
+                </button>
+              </section>
+            )}
             <div className="result-overview">
             <div
               className={`result-hero ${returnRate >= 0 ? "positive" : "negative"}`}

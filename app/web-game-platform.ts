@@ -11,6 +11,7 @@ type CrazyGamesSdk = {
   game: {
     gameplayStart: () => unknown;
     gameplayStop: () => unknown;
+    happytime?: () => unknown;
     inviteLink?: (params: Record<string, string>) => string | Promise<string>;
     inviteParams?: Record<string, string> | null;
     getInviteParam?: (key: string) => string | null;
@@ -251,4 +252,14 @@ export function reportPlatformGameplayStart() {
 export function reportPlatformGameplayStop() {
   desiredPlaying = false;
   scheduleGameplaySync();
+}
+
+export async function reportPlatformHappyTime() {
+  const platform = await readyPlatform();
+  if (platform !== "crazygames") return;
+  try {
+    await window.CrazyGames?.SDK?.game.happytime?.();
+  } catch {
+    // Celebration feedback is optional and must never interrupt settlement.
+  }
 }

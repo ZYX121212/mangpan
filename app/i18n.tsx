@@ -561,6 +561,37 @@ const ENGLISH: Record<string, string> = {
   "可缩放、拖动和键盘操作的真实历史日K线图": "Interactive real historical daily candlestick chart; zoom, drag, or use the keyboard",
   "买入成交": "Buy execution",
   "卖出成交": "Sell execution",
+  "第一张真实行情": "FIRST REAL CHART",
+  "你的第一次判断，已经成为证据。":
+    "Your first market read is now evidence.",
+  "你完成了一张真实历史行情。先比较三张图，再相信一次结果。":
+    "You finished a real historical chart. Compare three before trusting one result.",
+  "本次判断样本完成": "SESSION SAMPLE COMPLETE",
+  "三张图，构成第一份真实判断样本。":
+    "Three charts. One real decision sample.",
+  "现在已有足够的对照，可以寻找规律，又不会被单一行情误导。":
+    "You now have enough contrast to spot a pattern without overlearning one market.",
+  "训练目标全部达成": "TRAINING MASTERED",
+  "四项训练目标全部通过。": "You cleared every training objective.",
+  "这次通关来自可重复的决策过程，而不只是最终收益。":
+    "The win came from repeatable process, not just the final return.",
+  "今日前 10%": "TOP-DECILE DAILY",
+  "你的成绩进入今日前 10%。": "Your score landed in today’s top 10%.",
+  "这是一份出色的判断。分享同图挑战，但不要泄露答案。":
+    "That is a strong read. Share the same chart challenge without revealing the answer.",
+  "好友同图对决胜出": "FRIEND DUEL WON",
+  "你赢下了这场同图挑战。": "You won the same-chart challenge.",
+  "相同隐藏行情、相同规则，你的过程更胜一筹。再来一轮延续挑战链。":
+    "Same hidden market, same rules, stronger process. Keep the chain going with a rematch.",
+  "获得连续挑战保护": "STREAK SAFEGUARD EARNED",
+  "持续行动，为你赢得了一次安全网。":
+    "Your consistency earned a safety net.",
+  "未来漏玩一天时会自动保护连续纪录，让习惯经得起现实打断。":
+    "One future missed day can now be protected automatically. The habit survives real life.",
+  "五关市场闯关完成": "MARKET RUN COMPLETE",
+  "五张行情，一次完整闯关。": "Five markets. One complete run.",
+  "难度逐关提升，你仍守住了决策过程。这份稳定性才是真正的终点。":
+    "You held your process as the charts grew harder. That consistency is the real finish line.",
   "手": " lots",
   "股": " shares",
   "亿": "00M ",

@@ -314,6 +314,42 @@ const SPANISH: Record<string, string> = {
   "Navigate candle history": "Recorrer el historial de velas",
   "Interactive real historical daily candlestick chart; zoom, drag, or use the keyboard":
     "Gráfico diario interactivo con velas históricas reales; amplía, arrastra o usa el teclado",
+  "Dismiss celebration": "Cerrar celebración",
+  "FIRST REAL CHART": "PRIMER GRÁFICO REAL",
+  "Your first market read is now evidence.":
+    "Tu primera lectura del mercado ya es evidencia.",
+  "You finished a real historical chart. Compare three before trusting one result.":
+    "Terminaste un gráfico histórico real. Compara tres antes de confiar en un solo resultado.",
+  "SESSION SAMPLE COMPLETE": "MUESTRA DE SESIÓN COMPLETA",
+  "Three charts. One real decision sample.":
+    "Tres gráficos. Una muestra real de decisiones.",
+  "You now have enough contrast to spot a pattern without overlearning one market.":
+    "Ya tienes suficiente contraste para detectar un patrón sin sacar demasiadas conclusiones de un solo mercado.",
+  "TRAINING MASTERED": "ENTRENAMIENTO DOMINADO",
+  "You cleared every training objective.":
+    "Superaste todos los objetivos de entrenamiento.",
+  "The win came from repeatable process, not just the final return.":
+    "El logro vino de un proceso repetible, no solo de la rentabilidad final.",
+  "TOP-DECILE DAILY": "10 % SUPERIOR DEL DÍA",
+  "Your score landed in today’s top 10%.":
+    "Tu puntuación entró en el 10 % superior de hoy.",
+  "That is a strong read. Share the same chart challenge without revealing the answer.":
+    "Es una lectura sólida. Comparte el reto del mismo gráfico sin revelar la respuesta.",
+  "FRIEND DUEL WON": "DUELO CON AMIGO GANADO",
+  "You won the same-chart challenge.":
+    "Ganaste el reto con el mismo gráfico.",
+  "Same hidden market, same rules, stronger process. Keep the chain going with a rematch.":
+    "Mismo mercado oculto, mismas reglas y un proceso más sólido. Continúa la cadena con una revancha.",
+  "STREAK SAFEGUARD EARNED": "PROTECCIÓN DE RACHA CONSEGUIDA",
+  "Your consistency earned a safety net.":
+    "Tu constancia te hizo ganar una red de seguridad.",
+  "One future missed day can now be protected automatically. The habit survives real life.":
+    "Ahora se puede proteger automáticamente un futuro día perdido. El hábito resiste la vida real.",
+  "MARKET RUN COMPLETE": "RUTA DE MERCADOS COMPLETA",
+  "Five markets. One complete run.":
+    "Cinco mercados. Una ruta completa.",
+  "You held your process as the charts grew harder. That consistency is the real finish line.":
+    "Mantuviste tu proceso mientras los gráficos se volvían más difíciles. Esa constancia es la verdadera meta.",
 };
 
 const replacements = Object.entries(SPANISH).sort(

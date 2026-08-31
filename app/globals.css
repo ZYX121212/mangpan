@@ -308,3 +308,26 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 .duel-create-error h1{margin:10px 0;font-size:34px;letter-spacing:-.045em}
 .duel-create-error p{color:#77756d;font-size:11px;line-height:1.55}
 .duel-create-error a{display:inline-flex;margin-top:12px;color:#30332c;font-size:10px;font-weight:850}
+
+/* Milestone feedback creates one earned emotional peak without interrupting settlement. */
+.milestone-celebration{position:relative;min-height:94px;margin:4px 0 14px;padding:16px 48px 16px 68px;display:flex;align-items:center;overflow:hidden;border:1px solid #b8ccb9;border-radius:14px;background:linear-gradient(135deg,#edf7ee,#f8f5df);color:#28352a;text-align:left;isolation:isolate;animation:milestone-pop .42s cubic-bezier(.2,.9,.2,1) both}
+.milestone-celebration.market_run_complete,.milestone-celebration.top_decile{border-color:#cbbb7c;background:linear-gradient(135deg,#fff5cb,#f5ead0);color:#3e3826}
+.milestone-celebration.duel_win{border-color:#b6bdcf;background:linear-gradient(135deg,#edf1fb,#f5eee1);color:#303848}
+.milestone-seal{position:absolute;left:17px;top:50%;width:37px;height:37px;display:grid;place-items:center;border-radius:50%;background:#3e7452;color:#fff;font-size:18px;box-shadow:0 0 0 7px rgba(62,116,82,.1);transform:translateY(-50%)}
+.market_run_complete .milestone-seal,.top_decile .milestone-seal{background:#8b7537;box-shadow:0 0 0 7px rgba(139,117,55,.11)}
+.duel_win .milestone-seal{background:#586a91;box-shadow:0 0 0 7px rgba(88,106,145,.11)}
+.milestone-celebration>div:not(.milestone-confetti){position:relative;z-index:2;min-width:0}
+.milestone-celebration small{display:block;color:#5e7b64;font:850 7px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.14em}
+.milestone-celebration b{display:block;margin-top:5px;font-size:14px;line-height:1.2;letter-spacing:-.02em}
+.milestone-celebration p{margin:4px 0 0;color:#687069;font-size:8px;line-height:1.5}
+.milestone-celebration>button{position:absolute;z-index:3;right:9px;top:9px;width:27px;height:27px;border:0;border-radius:50%;background:rgba(255,255,255,.58);color:#697069;cursor:pointer;font-size:16px;line-height:1}
+.milestone-celebration>button:focus-visible{outline:2px solid currentColor;outline-offset:2px}
+.milestone-confetti{position:absolute;z-index:1;inset:0;pointer-events:none}
+.milestone-confetti i{position:absolute;top:-12px;width:5px;height:11px;border-radius:2px;background:#4b8b60;opacity:0;animation:milestone-confetti-fall 1.25s ease-out forwards}
+.milestone-confetti i:nth-child(3n+2){height:6px;border-radius:50%;background:#d2a94f}
+.milestone-confetti i:nth-child(3n){background:#7084ad;transform:rotate(45deg)}
+.milestone-confetti i:nth-child(1){left:5%;animation-delay:.04s}.milestone-confetti i:nth-child(2){left:13%;animation-delay:.16s}.milestone-confetti i:nth-child(3){left:22%;animation-delay:.08s}.milestone-confetti i:nth-child(4){left:31%;animation-delay:.23s}.milestone-confetti i:nth-child(5){left:41%;animation-delay:.12s}.milestone-confetti i:nth-child(6){left:51%;animation-delay:.28s}.milestone-confetti i:nth-child(7){left:61%;animation-delay:.05s}.milestone-confetti i:nth-child(8){left:70%;animation-delay:.19s}.milestone-confetti i:nth-child(9){left:78%;animation-delay:.1s}.milestone-confetti i:nth-child(10){left:85%;animation-delay:.26s}.milestone-confetti i:nth-child(11){left:91%;animation-delay:.14s}.milestone-confetti i:nth-child(12){left:96%;animation-delay:.31s}
+@keyframes milestone-pop{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+@keyframes milestone-confetti-fall{0%{opacity:0;translate:0 -8px;rotate:0deg}18%{opacity:.9}100%{opacity:0;translate:8px 108px;rotate:220deg}}
+@media(max-width:560px){.milestone-celebration{min-height:105px;padding:15px 40px 15px 58px}.milestone-seal{left:14px;width:31px;height:31px;font-size:15px}.milestone-celebration b{font-size:12px}.milestone-celebration p{font-size:7px}}
+@media(prefers-reduced-motion:reduce){.milestone-celebration{animation:none}.milestone-confetti{display:none}}
