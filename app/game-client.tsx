@@ -81,6 +81,8 @@ function documentTitleFor(locale: Locale) {
   if (locale === "zh") return "盲盘｜真实历史 K 线交易挑战";
   if (locale === "es")
     return "Trading a ciegas | Reto con mercados históricos reales";
+  if (locale === "fr")
+    return "Trading à l’aveugle | Défi sur des marchés historiques réels";
   return "Blind Trading | Real Historical Market Challenge";
 }
 
@@ -3831,29 +3833,17 @@ export default function GameClient({
             : `已推进 ${advancedDays} 个交易日`}
         </div>
         <div className="top-actions">
-          <div className="language-toggle" role="group" aria-label="Language / 语言">
-            <button
-              className={locale === "zh" ? "active" : ""}
-              onClick={() => changeLocale("zh")}
-              aria-pressed={locale === "zh"}
-            >
-              ZH
-            </button>
-            <button
-              className={locale === "en" ? "active" : ""}
-              onClick={() => changeLocale("en")}
-              aria-pressed={locale === "en"}
-            >
-              EN
-            </button>
-            <button
-              className={locale === "es" ? "active" : ""}
-              onClick={() => changeLocale("es")}
-              aria-pressed={locale === "es"}
-            >
-              ES
-            </button>
-          </div>
+          <select
+            className="game-language-select"
+            value={locale}
+            aria-label="Language / 语言"
+            onChange={(event) => changeLocale(event.target.value as Locale)}
+          >
+            <option value="en">EN</option>
+            <option value="es">ES</option>
+            <option value="fr">FR</option>
+            <option value="zh">ZH</option>
+          </select>
           <button
             className="player-chip"
             onClick={() => setScoreboardOpen(true)}

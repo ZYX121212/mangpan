@@ -335,6 +335,7 @@ export default function ModeLobby() {
           >
             <option value="en">EN</option>
             <option value="es">ES</option>
+            <option value="fr">FR</option>
             <option value="zh">中文</option>
           </select>
         </div>

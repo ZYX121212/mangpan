@@ -8,23 +8,28 @@ import {
   type ReactNode,
 } from "react";
 import { translateEnglishToSpanish } from "./i18n-es";
+import { translateEnglishToFrench } from "./i18n-fr";
 
-export type Locale = "zh" | "en" | "es";
+export type Locale = "zh" | "en" | "es" | "fr";
 
 export function normalizeLocale(value: unknown): Locale {
   if (typeof value !== "string") return "en";
   const normalized = value.toLowerCase();
   if (normalized.startsWith("zh")) return "zh";
   if (normalized.startsWith("es")) return "es";
+  if (normalized.startsWith("fr")) return "fr";
   return "en";
 }
 
 export function localeLanguageTag(locale: Locale) {
-  return locale === "zh" ? "zh-CN" : locale === "es" ? "es" : "en";
+  return locale === "zh" ? "zh-CN" : locale;
 }
 
 export function localeNumberTag(locale: Locale) {
-  return locale === "zh" ? "zh-CN" : locale === "es" ? "es-ES" : "en-US";
+  if (locale === "zh") return "zh-CN";
+  if (locale === "es") return "es-ES";
+  if (locale === "fr") return "fr-FR";
+  return "en-US";
 }
 
 const ENGLISH: Record<string, string> = {
@@ -613,6 +618,7 @@ export function translateText(text: string, locale: Locale): string {
       .replace(/(\d+(?:\.\d+)?)\s*课/gu, "$1 lessons");
   }
   if (locale === "es") translated = translateEnglishToSpanish(translated);
+  if (locale === "fr") translated = translateEnglishToFrench(translated);
   cache.set(cacheKey, translated);
   return translated;
 }

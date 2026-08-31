@@ -48,14 +48,14 @@ test("connects Spanish browser detection, controls, and recursive localization",
     readFile(new URL("../app/duel/duel-lobby.tsx", import.meta.url), "utf8"),
   ]);
 
-  assert.match(i18n, /export type Locale = "zh" \| "en" \| "es"/);
+  assert.match(i18n, /export type Locale = "zh" \| "en" \| "es" \| "fr"/);
   assert.match(i18n, /normalized\.startsWith\("es"\)/);
-  assert.match(i18n, /locale === "es" \? "es-ES"/);
+  assert.match(i18n, /if \(locale === "es"\) return "es-ES"/);
   assert.match(i18n, /Children\.map\(element\.props\.children/);
   assert.doesNotMatch(i18n, /if \(typeof element\.type !== "string"\) return node/);
 
   assert.match(game, /navigator\.languages\?\.\[0\]/);
-  assert.match(game, /changeLocale\("es"\)/);
+  assert.match(game, /<option value="es">ES<\/option>/);
   assert.match(game, /localeNumberTag\(locale\)/);
   assert.match(game, /marketRunStage\.title\[copyLocale\]/);
   assert.match(lobby, /<option value="es">ES<\/option>/);
