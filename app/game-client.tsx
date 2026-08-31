@@ -1781,7 +1781,7 @@ export default function GameClient({
     [playerId, setPlayerId] = useState("");
   const [nickname, setNickname] = useState("MarketReader"),
     [duelCode, setDuelCode] = useState("");
-  const [duelInviteOpen, setDuelInviteOpen] = useState(false);
+  const [duelInviteOpen, setDuelInviteOpen] = useState(Boolean(initialDuel));
   const [duelGuidePending, setDuelGuidePending] = useState(false);
   const [scoreboard, setScoreboard] = useState<Scoreboard | null>(null),
     [scoreboardOpen, setScoreboardOpen] = useState(false);
@@ -1849,32 +1849,6 @@ export default function GameClient({
     }, 0);
     return () => window.clearTimeout(timer);
   }, [isMarketRun, market]);
-  useEffect(() => {
-    const hasStarted = session.decisionsUsed > 0 || actions.length > 0;
-    const paused =
-      finished ||
-      resultOpen ||
-      rulesOpen ||
-      analysisOpen ||
-      trainingOpen ||
-      quizOpen ||
-      scoreboardOpen ||
-      duelInviteOpen;
-    if (hasStarted && !paused) reportPlatformGameplayStart();
-    else reportPlatformGameplayStop();
-  }, [
-    actions.length,
-    analysisOpen,
-    duelInviteOpen,
-    finished,
-    quizOpen,
-    resultOpen,
-    rulesOpen,
-    scoreboardOpen,
-    session.decisionsUsed,
-    trainingOpen,
-  ]);
-  useEffect(() => () => reportPlatformGameplayStop(), []);
   useEffect(() => {
     const saved = safeLocalStorage.getItem("mangpan-locale");
     const detected = normalizeLocale(
@@ -1967,6 +1941,32 @@ export default function GameClient({
   );
   const dailyExpired =
     gameMode === "daily" && session.date !== currentMarketDate && !initialDuel;
+  const platformGameplayActive = !(
+    finished ||
+    resultOpen ||
+    rulesOpen ||
+    analysisOpen ||
+    trainingOpen ||
+    quizOpen ||
+    scoreboardOpen ||
+    duelInviteOpen ||
+    challengeLoading ||
+    dailyExpired
+  );
+  useEffect(() => {
+    // The rendered chart is already playable before the first click. Report that
+    // first frame immediately, then mirror real browser and in-game pauses.
+    const syncPlatformGameplay = () => {
+      if (platformGameplayActive && !document.hidden)
+        reportPlatformGameplayStart();
+      else reportPlatformGameplayStop();
+    };
+    syncPlatformGameplay();
+    document.addEventListener("visibilitychange", syncPlatformGameplay);
+    return () =>
+      document.removeEventListener("visibilitychange", syncPlatformGameplay);
+  }, [platformGameplayActive]);
+  useEffect(() => () => reportPlatformGameplayStop(), []);
   const marketLabel = market === "cn" ? "A股" : "美股";
   const marketResetLabel =
     locale === "en"
@@ -4375,11 +4375,7 @@ export default function GameClient({
           </small>
         </div>
       </section>
-      <section
-        className="workspace"
-        onPointerDownCapture={reportPlatformGameplayStart}
-        onKeyDownCapture={reportPlatformGameplayStart}
-      >
+      <section className="workspace">
         <div className="chart-panel">
           {revealPulse > 0 && (
             <span key={revealPulse} className="reveal-toast">

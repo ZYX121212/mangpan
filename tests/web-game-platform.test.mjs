@@ -172,6 +172,47 @@ test("creates Poki-native crew links and reads prefixed launch params", async ()
   }
 });
 
+test("deduplicates playable first-frame and pause lifecycle events", async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  let starts = 0;
+  let stops = 0;
+  globalThis.window = {
+    location: { hostname: "games.crazygames.com", search: "" },
+    CrazyGames: {
+      SDK: {
+        async init() {},
+        game: {
+          gameplayStart() {
+            starts += 1;
+          },
+          gameplayStop() {
+            stops += 1;
+          },
+        },
+      },
+    },
+  };
+  globalThis.document = { referrer: "https://www.crazygames.com/" };
+  try {
+    const adapter = await import(
+      `../app/web-game-platform.ts?first-frame=${Date.now()}`
+    );
+    adapter.reportPlatformGameplayStart();
+    adapter.reportPlatformGameplayStart();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(starts, 1);
+
+    adapter.reportPlatformGameplayStop();
+    adapter.reportPlatformGameplayStop();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(stops, 1);
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
+});
+
 test("adapts to the official portal lifecycle without blocking the game", async () => {
   const [platform, game, lobby, crew] = await Promise.all([
     readFile(new URL("../app/web-game-platform.ts", import.meta.url), "utf8"),
@@ -199,8 +240,15 @@ test("adapts to the official portal lifecycle without blocking the game", async 
   assert.match(game, /reportPlatformLoaded\(\)/);
   assert.match(game, /reportPlatformGameplayStart\(\)/);
   assert.match(game, /reportPlatformGameplayStop\(\)/);
-  assert.match(game, /onPointerDownCapture=\{reportPlatformGameplayStart\}/);
-  assert.match(game, /onKeyDownCapture=\{reportPlatformGameplayStart\}/);
+  assert.match(game, /const platformGameplayActive = !\(/);
+  assert.match(
+    game,
+    /platformGameplayActive = !\([\s\S]*trainingOpen[\s\S]*duelInviteOpen[\s\S]*challengeLoading[\s\S]*dailyExpired/,
+  );
+  assert.match(game, /useState\(Boolean\(initialDuel\)\)/);
+  assert.match(game, /document\.hidden/);
+  assert.match(game, /addEventListener\("visibilitychange", syncPlatformGameplay\)/);
+  assert.doesNotMatch(game, /const hasStarted =/);
   assert.match(game, /const advance = async[\s\S]*reportPlatformGameplayStart\(\)/);
   assert.match(lobby, /reportPlatformLoaded\(\)/);
   assert.match(lobby, /getWebGameLaunchContext\(\)/);
