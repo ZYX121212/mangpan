@@ -743,6 +743,7 @@ async function createResultShareCard({
   challengeUrl,
   decisionStyle,
   variant,
+  longCycle,
 }: {
   locale: Locale;
   date: string;
@@ -755,6 +756,7 @@ async function createResultShareCard({
   challengeUrl?: string;
   decisionStyle: DecisionStyle;
   variant: ResultCardVariant;
+  longCycle: boolean;
 }) {
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
@@ -768,7 +770,7 @@ async function createResultShareCard({
   context.fillRect(0, 0, canvas.width, 174);
   context.fillStyle = "#bfc3b7";
   context.font = "700 20px Arial, sans-serif";
-  context.fillText("DAILY MARKET PUZZLE", 72, 61);
+  context.fillText(longCycle ? "ENDLESS MARKET RUN" : "DAILY MARKET PUZZLE", 72, 61);
   context.fillStyle = "#f8f6ef";
   context.font = "800 50px Arial, sans-serif";
   context.fillText("BLIND TRADING", 72, 124);
@@ -907,7 +909,11 @@ async function createResultShareCard({
     context.fillStyle = "#777970";
     context.font = "600 22px Arial, sans-serif";
     context.fillText(
-      cardCopy.sameChart,
+      longCycle
+        ? locale === "zh"
+          ? "一段长周期隐藏行情。你能读到最后吗？"
+          : "One long hidden cycle. Can you read it to the end?"
+        : cardCopy.sameChart,
       72,
       1095,
     );
@@ -917,7 +923,11 @@ async function createResultShareCard({
   context.fillStyle = "#bfc3b7";
   context.font = "800 17px Arial, sans-serif";
   context.fillText(
-    cardCopy.playToday,
+    longCycle
+      ? locale === "zh"
+        ? "继续下一段长周期"
+        : "START ANOTHER LONG CYCLE"
+      : cardCopy.playToday,
     102,
     1191,
   );
@@ -2931,7 +2941,12 @@ export default function GameClient({
   }, []);
 
   const prepareDuelShareUrl = useCallback(async () => {
-    if (gameMode !== "daily") return location.href;
+    if (gameMode !== "daily") {
+      const url = location.href;
+      setDuelShareUrl(url);
+      setShareSetupStatus("ready");
+      return url;
+    }
     if (duelShareUrl) return duelShareUrl;
     const shareCode = scoreboard?.shareDuel?.code ?? duelCode;
     if (shareCode) {
@@ -2976,7 +2991,7 @@ export default function GameClient({
 
   useEffect(() => {
     if (
-      gameMode !== "daily" ||
+      (gameMode !== "daily" && !isEndlessMode) ||
       scoreStatus !== "done" ||
       duelShareUrl ||
       shareSetupStatus !== "idle"
@@ -2992,6 +3007,7 @@ export default function GameClient({
   }, [
     duelShareUrl,
     gameMode,
+    isEndlessMode,
     prepareDuelShareUrl,
     scoreStatus,
     shareSetupStatus,
@@ -3672,12 +3688,17 @@ export default function GameClient({
   const resultShareCopy = () => {
     const shareCopy = SHARE_TEXT_COPY[locale];
     const marks = resultShareMarks;
+    const longCycle = isEndlessMode;
     const sequence = marks
       .slice(0, DAILY_CHALLENGE_DECISIONS)
       .map((value) => (value >= 70 ? "🟩" : value >= 45 ? "🟨" : "🟥"))
       .join("");
     const shareMarket = market === "us" ? shareCopy.usStocks : shareCopy.chinaShares;
-    const title = `${shareCopy.title} · ${locale === "zh" ? "神秘历史行情" : "Mystery Market Challenge"}`;
+    const title = longCycle
+      ? locale === "zh"
+        ? "盲盘无尽长周期 · 神秘历史行情"
+        : "BLIND TRADING ENDLESS · Mystery Market Run"
+      : `${shareCopy.title} · ${locale === "zh" ? "神秘历史行情" : "Mystery Market Challenge"}`;
     const chainLabel =
       activeDuel && scoreboard?.shareDuel
         ? shareCopy.chain(scoreboard.shareDuel.chainDepth + 1)
@@ -3691,8 +3712,15 @@ export default function GameClient({
       : "";
     const styleLine = shareCopy.style(decisionStyle.title);
     const comparisonLine = resultComparisonProof;
-    const text = `${title} #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\n${shareCopy.score(skillScore, decisionStats.calibration.toFixed(0), processScores.risk.toFixed(0))}${crowdLine ? `\n${crowdLine}` : ""}\n${shareCopy.challenge}`;
-    const compactText = `${comparisonLine ? `${comparisonLine} · ` : ""}${shareCopy.compact(decisionStyle.title, skillScore, chainLabel, sequence)}`;
+    const challenge = longCycle
+      ? locale === "zh"
+        ? "同一段隐藏长周期，不限决策次数。你能坚持读到最后吗？"
+        : "One hidden long cycle, no round cap. Can you read it to the end?"
+      : shareCopy.challenge;
+    const text = `${title} #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\n${shareCopy.score(skillScore, decisionStats.calibration.toFixed(0), processScores.risk.toFixed(0))}${crowdLine ? `\n${crowdLine}` : ""}\n${challenge}`;
+    const compactText = longCycle
+      ? `${comparisonLine ? `${comparisonLine} · ` : ""}${locale === "zh" ? `我的无尽长周期得分 ${skillScore} · ${sequence} 你能读到最后吗？` : `My Endless run scored ${skillScore} · ${sequence} Can you read one hidden cycle to the end?`}`
+      : `${comparisonLine ? `${comparisonLine} · ` : ""}${shareCopy.compact(decisionStyle.title, skillScore, chainLabel, sequence)}`;
     return { compactText, text, title };
   };
 
@@ -3806,6 +3834,7 @@ export default function GameClient({
       challengeUrl: challengeUrl || undefined,
       decisionStyle,
       variant: resultCardVariant,
+      longCycle: isEndlessMode,
     });
 
   const downloadResultCard = (image: Blob) => {
@@ -7349,13 +7378,17 @@ export default function GameClient({
               次交易 · 成本 {currencySymbol}
               {nf.format(feesPaid + slippagePaid)}
             </div>
-            {gameMode === "daily" && scoreStatus === "done" && (
+            {(gameMode === "daily" || isEndlessMode) && scoreStatus === "done" && (
               <section className="result-share-kit">
                 <div>
                   <small>
-                    {locale === "en"
-                      ? "SHARE WITHOUT SPOILERS"
-                      : "无剧透分享"}
+                    {isEndlessMode
+                      ? locale === "en"
+                        ? "SHARE YOUR LONG CYCLE"
+                        : "分享你的长周期"
+                      : locale === "en"
+                        ? "SHARE WITHOUT SPOILERS"
+                        : "无剧透分享"}
                   </small>
                   {resultComparisonProof && (
                     <em className="result-comparison-proof">
@@ -7363,9 +7396,13 @@ export default function GameClient({
                     </em>
                   )}
                   <b>
-                    {locale === "en"
-                      ? `${decisionStyle.title} · your five-decision challenge`
-                      : `${decisionStyle.title} · 你的五次决策轨迹`}
+                    {isEndlessMode
+                      ? locale === "en"
+                        ? `${decisionStyle.title} · your Endless read`
+                        : `${decisionStyle.title} · 你的无尽长周期判断`
+                      : locale === "en"
+                        ? `${decisionStyle.title} · your five-decision challenge`
+                        : `${decisionStyle.title} · 你的五次决策轨迹`}
                   </b>
                   <span
                     className="share-mark-preview"
@@ -7396,8 +7433,12 @@ export default function GameClient({
                   </span>
                   <p>
                     {locale === "en"
-                      ? "Shows your style, score, and a scan-to-challenge QR—not the ticker or the answer."
-                      : "展示风格、得分和可扫码挑战的二维码，不泄露股票名或答案。"}
+                        ? isEndlessMode
+                          ? "Shows your style, score, and a scan-to-play QR—not the ticker or the answer."
+                          : "Shows your style, score, and a scan-to-challenge QR—not the ticker or the answer."
+                        : isEndlessMode
+                          ? "展示风格、得分和可扫码继续游玩的二维码，不泄露股票名或答案。"
+                          : "展示风格、得分和可扫码挑战的二维码，不泄露股票名或答案。"}
                   </p>
                   <div
                     className="result-card-picker"
