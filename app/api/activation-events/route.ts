@@ -25,6 +25,9 @@ export type ActivationEventType =
   | "daily_first_move"
   | "daily_second_move"
   | "practice_second_move"
+  | "endless_start"
+  | "endless_complete"
+  | "endless_share"
   | "run_start"
   | "run_stage_complete"
   | "run_complete"
@@ -64,8 +67,11 @@ const EVENT_TYPES = new Set<ActivationEventType>([
   "decision_continue",
   "daily_first_move",
   "daily_second_move",
-  "practice_second_move",
-  "run_start",
+ "practice_second_move",
+  "endless_start",
+  "endless_complete",
+  "endless_share",
+ "run_start",
   "run_stage_complete",
   "run_complete",
   "daily_complete",

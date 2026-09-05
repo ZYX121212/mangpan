@@ -46,6 +46,9 @@ test("exposes Endless as a separate long-cycle mode", async () => {
   assert.match(client, /mangpan-endless-session/);
   assert.match(client, /BLIND TRADING ENDLESS/);
   assert.match(client, /SHARE YOUR LONG CYCLE/);
-  assert.match(client, /longCycle: isEndlessMode/);
-  assert.match(sitemap, /"\/endless"/);
+ assert.match(client, /longCycle: isEndlessMode/);
+  assert.match(client, /"endless_start"/);
+  assert.match(client, /"endless_complete"/);
+  assert.match(client, /"endless_share"/);
+ assert.match(sitemap, /"\/endless"/);
 });

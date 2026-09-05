@@ -2002,6 +2002,8 @@ export default function GameClient({
   const resumeAttemptRef = useRef(new Set<MarketKind>());
   const marketRunProgressLoadedRef = useRef(false);
   const marketRunStartTrackedRef = useRef(false);
+  const endlessStartTrackedRef = useRef(false);
+  const endlessCompletedSessionsRef = useRef(new Set<string>());
   const guideCompleteTrackedRef = useRef(false);
   const celebrationSeenRef = useRef(new Set<string>());
   const initialUrlHandledRef = useRef(false);
@@ -2828,6 +2830,26 @@ export default function GameClient({
     marketRunStartTrackedRef.current = true;
     trackActivationEvent(playerId, "run_start", "run");
   }, [isMarketRun, playerId]);
+  useEffect(() => {
+    if (!isEndlessMode || !playerId || !actions.length || endlessStartTrackedRef.current)
+      return;
+    endlessStartTrackedRef.current = true;
+    trackActivationEvent(
+      playerId,
+      "endless_start",
+      initialCrewCode ? "crew" : initialDuel ? "duel" : "direct",
+    );
+  }, [actions.length, initialCrewCode, initialDuel, isEndlessMode, playerId]);
+  useEffect(() => {
+    if (!isEndlessMode || !playerId || !finished || !resultOpen) return;
+    if (endlessCompletedSessionsRef.current.has(session.sessionId)) return;
+    endlessCompletedSessionsRef.current.add(session.sessionId);
+    trackActivationEvent(
+      playerId,
+      "endless_complete",
+      initialCrewCode ? "crew" : initialDuel ? "duel" : "direct",
+    );
+  }, [finished, initialCrewCode, initialDuel, isEndlessMode, playerId, resultOpen, session.sessionId]);
 
   useEffect(() => {
     if (!playerId || !guidedRunActive || !forecastTouched) return;
@@ -3015,6 +3037,7 @@ export default function GameClient({
 
   const resetSession = useCallback((nextSession: ChallengeSession) => {
     submissionRef.current = false;
+    endlessStartTrackedRef.current = false;
     const restored = restoreGameState(nextSession);
     setMarket(nextSession.market);
     setGameMode(nextSession.mode);
@@ -3782,15 +3805,19 @@ export default function GameClient({
     const taggedUrl = taggedChallengeUrl(shareUrl, channel);
     try {
       if (channel === "native" && navigator.share) {
-        await navigator.share({ title, text, url: taggedUrl });
-        recordDuelShare("native");
-        setShareStatus(
+       await navigator.share({ title, text, url: taggedUrl });
+       recordDuelShare("native");
+        if (isEndlessMode)
+          trackActivationEvent(playerId, "endless_share", "direct");
+       setShareStatus(
           locale === "en" ? "Challenge sent" : "挑战已发出",
         );
       } else {
-        await navigator.clipboard.writeText(`${text}\n${taggedUrl}`);
-        recordDuelShare("copy");
-        setShareStatus(
+       await navigator.clipboard.writeText(`${text}\n${taggedUrl}`);
+       recordDuelShare("copy");
+        if (isEndlessMode)
+          trackActivationEvent(playerId, "endless_share", "direct");
+       setShareStatus(
           locale === "en" ? "Challenge link copied" : "挑战链接已复制",
         );
       }
@@ -3908,14 +3935,16 @@ export default function GameClient({
           title: copy.title,
           text: `${copy.compactText}\n${taggedUrl}`,
         });
-        recordDuelShare("native");
-        trackActivationEvent(
-          playerId,
-          resultCardVariant === "style"
-            ? "daily_style_card_share"
-            : "daily_score_card_share",
-          activeDuel ? "duel" : "direct",
-        );
+       recordDuelShare("native");
+       trackActivationEvent(
+         playerId,
+          isEndlessMode
+            ? "endless_share"
+            : resultCardVariant === "style"
+              ? "daily_style_card_share"
+              : "daily_score_card_share",
+         activeDuel ? "duel" : "direct",
+       );
         setCardStatus(
           locale === "en"
             ? `${resultCardVariant === "style" ? "Style" : "Score"} card shared`
@@ -3926,14 +3955,16 @@ export default function GameClient({
       downloadResultCard(image);
       try {
         await navigator.clipboard.writeText(`${copy.compactText}\n${taggedChallengeUrl(duelShareUrl, "copy")}`);
-        recordDuelShare("copy");
-        trackActivationEvent(
-          playerId,
-          resultCardVariant === "style"
-            ? "daily_style_card_share"
-            : "daily_score_card_share",
-          activeDuel ? "duel" : "direct",
-        );
+       recordDuelShare("copy");
+       trackActivationEvent(
+         playerId,
+          isEndlessMode
+            ? "endless_share"
+            : resultCardVariant === "style"
+              ? "daily_style_card_share"
+              : "daily_score_card_share",
+         activeDuel ? "duel" : "direct",
+       );
         setCardStatus(
           locale === "en"
             ? "Image saved · link copied"
