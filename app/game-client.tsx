@@ -3767,6 +3767,12 @@ export default function GameClient({
       trackDuelEvent(shareCode, playerId, "share", channel);
   };
 
+  const recordResultShare = (channel: ShareChannel) => {
+    recordDuelShare(channel);
+    if (isEndlessMode && playerId)
+      trackActivationEvent(playerId, "endless_share", "direct");
+  };
+
   const shareResult = async (channel: "native" | "copy") => {
     const { text, title } = resultShareCopy();
     if (
@@ -7554,7 +7560,7 @@ export default function GameClient({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
-                      onClick={() => duelShareUrl && recordDuelShare("x")}
+                      onClick={() => duelShareUrl && recordResultShare("x")}
                     >
                       X
                     </a>
@@ -7564,7 +7570,7 @@ export default function GameClient({
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
                       onClick={() =>
-                        duelShareUrl && recordDuelShare("whatsapp")
+                        duelShareUrl && recordResultShare("whatsapp")
                       }
                     >
                       WhatsApp
@@ -7575,7 +7581,7 @@ export default function GameClient({
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
                       onClick={() =>
-                        duelShareUrl && recordDuelShare("telegram")
+                        duelShareUrl && recordResultShare("telegram")
                       }
                     >
                       Telegram
@@ -7585,7 +7591,7 @@ export default function GameClient({
                       target="_blank"
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
-                      onClick={() => duelShareUrl && recordDuelShare("reddit")}
+                      onClick={() => duelShareUrl && recordResultShare("reddit")}
                     >
                       Reddit
                     </a>
@@ -7595,7 +7601,7 @@ export default function GameClient({
                       rel="noopener noreferrer"
                       aria-disabled={!duelShareUrl}
                       onClick={() =>
-                        duelShareUrl && recordDuelShare("bluesky")
+                        duelShareUrl && recordResultShare("bluesky")
                       }
                     >
                       Bluesky

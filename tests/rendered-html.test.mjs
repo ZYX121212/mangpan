@@ -200,8 +200,8 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /GIOCA IL GRAFICO NASCOSTO DI OGGI/);
   assert.match(page, /resultChannelHref\("reddit"\)/);
   assert.match(page, /resultChannelHref\("bluesky"\)/);
-  assert.match(page, /recordDuelShare\("reddit"\)/);
-  assert.match(page, /recordDuelShare\("bluesky"\)/);
+  assert.match(page, /recordResultShare\("reddit"\)/);
+  assert.match(page, /recordResultShare\("bluesky"\)/);
   assert.match(page, /taggedChallengeUrl/);
   assert.match(page, /Challenge ready · tap again to share/);
   assert.match(page, /YOUR DUEL ROOM/);
@@ -1211,9 +1211,9 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(page, /history\.replaceState\(null, "", `\/daily\?market=\$\{market\}`\)/);
   assert.match(page, /keepalive: true/);
   assert.match(page, /trackDuelEvent/);
-  assert.match(page, /recordDuelShare\("x"\)/);
-  assert.match(page, /recordDuelShare\("whatsapp"\)/);
-  assert.match(page, /recordDuelShare\("telegram"\)/);
+  assert.match(page, /recordResultShare\("x"\)/);
+  assert.match(page, /recordResultShare\("whatsapp"\)/);
+  assert.match(page, /recordResultShare\("telegram"\)/);
   assert.match(page, /CHALLENGE JOURNEY/);
   assert.match(privacy, /device fingerprints/);
   assert.match(privacy, /third-party advertising trackers/);
