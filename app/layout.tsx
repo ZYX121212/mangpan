@@ -28,7 +28,7 @@ const gameStructuredData = {
   gamePlatform: "Web browser",
   genre: ["Strategy", "Simulation", "Educational"],
   playMode: ["SinglePlayer", "MultiPlayer"],
-  inLanguage: ["en", "zh-CN", "es", "fr", "de", "it"],
+  inLanguage: ["en", "zh-CN", "es", "fr", "de", "it", "tr"],
   isAccessibleForFree: true,
   offers: {
     "@type": "Offer",

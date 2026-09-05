@@ -323,6 +323,7 @@ test("exposes canonical discovery metadata without indexing private rooms", asyn
   assert.match(layout, /type="application\/ld\+json"/);
   assert.match(layout, /"@type": \["VideoGame", "WebApplication"\]/);
   assert.match(layout, /applicationCategory: "GameApplication"/);
+  assert.match(layout, /inLanguage: \["en", "zh-CN", "es", "fr", "de", "it", "tr"\]/);
   assert.match(layout, /operatingSystem: "Any"/);
   assert.match(layout, /price: "0"/);
   assert.match(layout, /priceCurrency: "USD"/);
