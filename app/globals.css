@@ -338,3 +338,4 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 @media(prefers-reduced-motion:reduce){.milestone-celebration{animation:none}.milestone-confetti{display:none}}
 .mode-lobby-card.endless{border-color:#9fb19d;background:linear-gradient(145deg,#f2f7ef,#dfeade)}
 .mode-lobby-card:nth-child(6),.mode-lobby-card:nth-child(7){grid-column:span 3}
+.endless-milestone{grid-column:2;display:flex;align-items:center;gap:7px;margin-top:3px;color:#d2e1cf}.endless-milestone>i{flex:1;height:4px;overflow:hidden;border-radius:999px;background:rgba(229,240,226,.25)}.endless-milestone>i>b{display:block;height:100%;border-radius:inherit;background:#d9e9d5;transition:width .35s ease}.endless-milestone>span{font-size:7px;line-height:1;white-space:nowrap}

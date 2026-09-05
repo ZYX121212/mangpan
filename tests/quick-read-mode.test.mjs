@@ -50,5 +50,7 @@ test("exposes Endless as a separate long-cycle mode", async () => {
   assert.match(client, /"endless_start"/);
   assert.match(client, /"endless_complete"/);
   assert.match(client, /"endless_share"/);
- assert.match(sitemap, /"\/endless"/);
+  assert.match(client, /ENDLESS_MILESTONE_DAYS/);
+  assert.match(client, /endless-milestone/);
+  assert.match(sitemap, /"\/endless"/);
 });

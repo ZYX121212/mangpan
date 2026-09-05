@@ -287,6 +287,7 @@ const DAILY_ORDER_ALLOCATIONS = [
   0.5,
   1,
 ] as const satisfies readonly OrderAllocation[];
+const ENDLESS_MILESTONE_DAYS = [20, 60, 120, 250, 365] as const;
 type InstallPromptEvent = Event & {
   prompt: () => Promise<void>;
   userChoice: Promise<{
@@ -2303,6 +2304,21 @@ export default function GameClient({
   });
   const advancedDays = visibleCount - initialVisibleCount;
   const remainingDays = Math.max(0, session.remainingBars);
+  const endlessMilestoneTarget = ENDLESS_MILESTONE_DAYS.find(
+    (value) => advancedDays < value,
+  ) ?? null;
+  const endlessMilestoneStart =
+    [...ENDLESS_MILESTONE_DAYS].reverse().find((value) => advancedDays >= value) ?? 0;
+  const endlessMilestonePercent =
+    endlessMilestoneTarget === null
+      ? 100
+      : clamp(
+          ((advancedDays - endlessMilestoneStart) /
+            Math.max(1, endlessMilestoneTarget - endlessMilestoneStart)) *
+            100,
+          0,
+          100,
+        );
   const ma5 = average(data, data.length - 1, 5),
     ma10 = average(data, data.length - 1, 10),
     ma20 = average(data, data.length - 1, 20);
@@ -4472,6 +4488,31 @@ export default function GameClient({
               ? "No round cap and no leaderboard. Pause, return, and build a deeper decision record."
               : "没有回合上限，也不计入排行榜；可以中途离开，回来继续建立更完整的判断记录。"}
           </small>
+          <div
+            className="endless-milestone"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={Math.round(endlessMilestonePercent)}
+            aria-label={
+              locale === "en"
+                ? "Endless milestone progress"
+                : "无尽长周期里程碑进度"
+            }
+          >
+            <i aria-hidden="true">
+              <b style={{ width: `${endlessMilestonePercent}%` }} />
+            </i>
+            <span>
+              {endlessMilestoneTarget === null
+                ? locale === "en"
+                  ? "All milestones reached"
+                  : "已完成全部里程碑"
+                : locale === "en"
+                  ? `Next milestone · ${endlessMilestoneTarget}d`
+                  : `下个里程碑 · ${endlessMilestoneTarget} 日`}
+            </span>
+          </div>
           <strong>{advancedDays.toLocaleString(numberLocale)}d</strong>
         </div>
       ) : null}
