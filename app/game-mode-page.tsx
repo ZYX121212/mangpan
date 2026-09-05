@@ -23,10 +23,19 @@ export default async function GameModePage({
   searchParams,
 }: {
   mode: GameEntryMode;
-  searchParams?: Promise<{ market?: string; guide?: string; crew?: string }>;
+  searchParams?: Promise<{
+    market?: string;
+    guide?: string;
+    crew?: string;
+    seed?: string;
+  }>;
 }) {
   const params = await searchParams;
   const market: MarketKind = params?.market === "cn" ? "cn" : "us";
+  const endlessSeed =
+    mode === "endless"
+      ? params?.seed?.trim().slice(0, 100) || crypto.randomUUID()
+      : undefined;
   const initialGuide = mode === "practice" && params?.guide === "1";
   const requestedCrewCode = params?.crew?.trim().toUpperCase();
   const initialCrewCode =
@@ -41,7 +50,7 @@ export default async function GameModePage({
       : mode === "sprint"
         ? await startSprintSession(crypto.randomUUID(), market, playerId)
       : mode === "endless"
-        ? await startEndlessSession(crypto.randomUUID(), market, playerId)
+        ? await startEndlessSession(endlessSeed!, market, playerId)
       : await startPracticeSession(
           `${mode}-${crypto.randomUUID()}`,
           market,
@@ -58,6 +67,8 @@ export default async function GameModePage({
       initialMode={mode}
       initialGuide={initialGuide}
       initialCrewCode={initialCrewCode}
+      initialEndlessSeed={endlessSeed}
+      initialEndlessSeedFromLink={mode === "endless" && Boolean(params?.seed)}
     />
   );
 }

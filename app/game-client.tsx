@@ -1861,6 +1861,8 @@ export default function GameClient({
   initialMode = "daily",
   initialGuide = false,
   initialCrewCode,
+  initialEndlessSeed,
+  initialEndlessSeedFromLink = false,
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
@@ -1879,10 +1881,14 @@ export default function GameClient({
     | "run";
   initialGuide?: boolean;
   initialCrewCode?: string;
+  initialEndlessSeed?: string;
+  initialEndlessSeedFromLink?: boolean;
 }) {
   const router = useRouter();
   const isMarketRun = initialMode === "run";
   const [locale, setLocale] = useState<Locale>("en");
+  const [endlessSeed, setEndlessSeed] = useState(initialEndlessSeed ?? "");
+  const endlessSeedInitializedRef = useRef(false);
   const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
   const [gameMode, setGameMode] = useState<GameMode>(
     initialMode === "daily"
@@ -2020,6 +2026,42 @@ export default function GameClient({
           : `mangpan-active-session-${value}`,
     [isEndlessMode, isMarketRun],
   );
+  useEffect(() => {
+    if (
+      !isEndlessMode ||
+      !initialEndlessSeed ||
+      endlessSeedInitializedRef.current
+    )
+      return;
+    endlessSeedInitializedRef.current = true;
+    const seedKey = `mangpan-endless-seed-${market}`;
+    const activeSession = safeLocalStorage.getItem(
+      activeSessionStorageKey(market),
+    );
+    const savedSeed = safeLocalStorage.getItem(seedKey);
+    if (
+      initialEndlessSeedFromLink &&
+      activeSession &&
+      savedSeed &&
+      savedSeed !== initialEndlessSeed
+    )
+      safeLocalStorage.removeItem(activeSessionStorageKey(market));
+    const cycleSeed =
+      initialEndlessSeedFromLink || !activeSession || !savedSeed
+        ? initialEndlessSeed
+        : savedSeed;
+    setEndlessSeed(cycleSeed);
+    safeLocalStorage.setItem(seedKey, cycleSeed);
+    const params = new URLSearchParams(location.search);
+    params.set("seed", cycleSeed);
+    history.replaceState(null, "", `${location.pathname}?${params}`);
+  }, [
+    activeSessionStorageKey,
+    initialEndlessSeed,
+    initialEndlessSeedFromLink,
+    isEndlessMode,
+    market,
+  ]);
   useEffect(() => {
     reportPlatformLoaded();
     let cancelled = false;
@@ -2980,7 +3022,9 @@ export default function GameClient({
 
   const prepareDuelShareUrl = useCallback(async () => {
     if (gameMode !== "daily") {
-      const url = location.href;
+      const params = new URLSearchParams(location.search);
+      if (isEndlessMode && endlessSeed) params.set("seed", endlessSeed);
+      const url = `${location.origin}${location.pathname}?${params}`;
       setDuelShareUrl(url);
       setShareSetupStatus("ready");
       return url;
@@ -3019,7 +3063,9 @@ export default function GameClient({
   }, [
     duelCode,
     duelShareUrl,
+    endlessSeed,
     gameMode,
+    isEndlessMode,
     market,
     platformDuelUrl,
     playerId,
@@ -3113,13 +3159,15 @@ export default function GameClient({
       nextMarket: MarketKind,
       scenario: ScenarioKind,
       difficulty: ScenarioDifficulty,
+      requestedSeed?: string,
     ) => {
-      const key = `${nextMode}:${nextMarket}:${scenario}:${difficulty}`;
+      const key = `${nextMode}:${nextMarket}:${scenario}:${difficulty}:${requestedSeed ?? "prefetch"}`;
       const cached = challengeRequestCacheRef.current.get(key);
       if (cached) return { key, request: cached };
+      const seed = requestedSeed ?? crypto.randomUUID();
       const query = new URLSearchParams({
         mode: nextMode,
-        seed: crypto.randomUUID(),
+        seed,
         market: nextMarket,
         scenario,
         difficulty,
@@ -3145,12 +3193,14 @@ export default function GameClient({
       nextMarket: MarketKind,
       scenario: ScenarioKind,
       difficulty: ScenarioDifficulty,
+      requestedSeed?: string,
     ) => {
       const pending = challengeRequest(
         nextMode,
         nextMarket,
         scenario,
         difficulty,
+        requestedSeed,
       );
       try {
         return await pending.request;
@@ -3179,6 +3229,7 @@ export default function GameClient({
     resumeAttemptRef.current.add(market);
     const storageKey = activeSessionStorageKey(market);
     const savedSession = safeLocalStorage.getItem(storageKey);
+    if (isEndlessMode && initialEndlessSeedFromLink) return;
     if (savedSession === session.sessionId) return;
     if (!savedSession && (isMarketRun || !initialIdentity)) return;
     const query = savedSession
@@ -3202,7 +3253,20 @@ export default function GameClient({
         if (restored?.mode === expectedMode) resetSession(restored);
       })
       .catch(() => safeLocalStorage.removeItem(storageKey));
-  }, [activeSessionStorageKey, initialGuide, initialIdentity, initialMode, isMarketRun, market, playerId, resetSession, session.sessionId]);
+  }, [
+    activeSessionStorageKey,
+    initialEndlessSeed,
+    initialEndlessSeedFromLink,
+    initialGuide,
+    initialIdentity,
+    initialMode,
+    isEndlessMode,
+    isMarketRun,
+    market,
+    playerId,
+    resetSession,
+    session.sessionId,
+  ]);
 
   useEffect(() => {
     if (!playerId || !actions.length || finished) return;
@@ -3220,9 +3284,28 @@ export default function GameClient({
   ) => {
     setChallengeLoading(true);
     try {
+      const requestedSeed =
+        nextMode === "endless" ? crypto.randomUUID() : undefined;
       resetSession(
-        await takeChallenge(nextMode, nextMarket, scenario, difficulty),
+        await takeChallenge(
+          nextMode,
+          nextMarket,
+          scenario,
+          difficulty,
+          requestedSeed,
+        ),
       );
+      if (requestedSeed) {
+        setEndlessSeed(requestedSeed);
+        safeLocalStorage.setItem(
+          `mangpan-endless-seed-${nextMarket}`,
+          requestedSeed,
+        );
+        const params = new URLSearchParams(location.search);
+        params.set("market", nextMarket);
+        params.set("seed", requestedSeed);
+        history.replaceState(null, "", `${location.pathname}?${params}`);
+      }
       setTrainingOpen(false);
     } finally {
       setChallengeLoading(false);

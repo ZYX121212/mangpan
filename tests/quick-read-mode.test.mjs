@@ -30,23 +30,28 @@ test("exposes Quick Read as a bounded three-decision mode", async () => {
 });
 
 test("exposes Endless as a separate long-cycle mode", async () => {
-  const [lobby, page, client, sitemap] = await Promise.all([
+  const [lobby, page, client, sitemap, modePage] = await Promise.all([
     readFile(new URL("../app/mode-lobby.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/endless/page.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/game-client.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/sitemap.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/game-mode-page.tsx", import.meta.url), "utf8"),
   ]);
   assert.match(lobby, /href: "\/endless"/);
   assert.match(lobby, /title: \{ en: "Endless"/);
   assert.match(lobby, /event: "lobby_mode_endless"/);
   assert.match(page, /<GameModePage mode="endless"/);
+  assert.match(page, /seed\?: string/);
+  assert.match(modePage, /params\?\.seed\?\.trim\(\)\.slice\(0, 100\)/);
+  assert.match(modePage, /startEndlessSession\(endlessSeed!/);
+  assert.match(modePage, /initialEndlessSeedFromLink=/);
   assert.match(page, /title: "Endless \| Blind Trading"/);
   assert.match(page, /canonical: "\/endless"/);
   assert.match(client, /isEndlessMode = gameMode === "endless"/);
   assert.match(client, /mangpan-endless-session/);
   assert.match(client, /BLIND TRADING ENDLESS/);
   assert.match(client, /SHARE YOUR LONG CYCLE/);
- assert.match(client, /longCycle: isEndlessMode/);
+  assert.match(client, /longCycle: isEndlessMode/);
   assert.match(client, /"endless_start"/);
   assert.match(client, /"endless_complete"/);
   assert.match(client, /"endless_share"/);
