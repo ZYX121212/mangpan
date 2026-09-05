@@ -5439,6 +5439,10 @@ export default function GameClient({
                       ? "Three calls reveal the chart; no leaderboard, just process feedback."
                       : "三次判断后自动揭晓；不计入排行榜，只保留过程反馈"
                     : "全球玩家同一张神秘图；完成 5 次决策后自动揭晓和排名"
+                  : isEndlessMode
+                  ? locale === "en"
+                    ? "No round cap; keep recording views until the historical period ends, or finish anytime."
+                    : "没有回合上限；持续记录判断直到历史终点，也可以随时结束。"
                   : "不支持限价、做空或融资；可一直决策到该段真实历史结束"}
               </p>
             </>
@@ -6553,6 +6557,8 @@ export default function GameClient({
                   : `市场闯关 · 第 ${Math.max(1, marketRunCompletedStages)}/${MARKET_RUN_STAGES.length} 关`
                 : isQuickRead
                 ? `${marketLabel}Quick Read`
+                : isEndlessMode
+                ? `${marketLabel}Endless · 长周期`
                 : gameMode === "daily"
                 ? `${marketLabel}今日盲盘 #${today.slice(5).replace("-", "")}`
                 : `${marketLabel}${scenarioLabel}`}{" "}
@@ -7586,12 +7592,16 @@ export default function GameClient({
                 </button>
                 <Link
                   className="hold-action result-mode-link"
-                  href={`/${gameMode === "daily" ? "run" : "daily"}?market=${market}`}
+                  href={`/${gameMode === "daily" ? "run" : isEndlessMode ? "endless" : "daily"}?market=${market}`}
                 >
                   {gameMode === "daily"
                     ? locale === "en"
                       ? "Start a Market Run"
                       : "开始市场闯关"
+                    : isEndlessMode
+                    ? locale === "en"
+                      ? "Start another long cycle"
+                      : "再来一段长周期"
                     : locale === "en"
                       ? "Go to Daily Challenge"
                       : "前往每日挑战"}

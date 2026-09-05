@@ -394,8 +394,8 @@ export default function ModeLobby() {
               ? "Make one forecast on a hidden piece of real market history, then reveal the answer. Learn the complete loop by playing—not by reading a tutorial."
               : "在一段隐藏身份的真实历史行情上做一次判断，再揭晓答案。先玩懂核心循环，不用先读教程。"
             : locale === "en"
-              ? "Daily competition, five-market runs, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm."
-              : "每日竞技、五关闯关、专项训练、好友对决和小队连续挑战各自独立，不再把不同目标堆进同一局。"}
+              ? "Daily competition, quick reads, long-cycle runs, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm."
+              : "每日竞技、快速读盘、长周期、专项训练、好友对决和小队连续挑战各自独立，不再把不同目标堆进同一局。"}
         </p>
         {isNewPlayer && (
           <div className="first-play-actions">
