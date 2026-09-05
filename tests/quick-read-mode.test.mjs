@@ -19,6 +19,8 @@ test("exposes Quick Read as a bounded three-decision mode", async () => {
   assert.match(activation, /\| "lobby_mode_sprint"/);
   assert.match(activationRoute, /"lobby_mode_sprint"/);
   assert.match(page, /<GameModePage mode="sprint"/);
+  assert.match(page, /title: "Quick Read \| Blind Trading"/);
+  assert.match(page, /canonical: "\/quick-read"/);
   assert.ok(sessions.includes('if (mode === "sprint") return 3'));
   assert.ok(sessions.includes("export async function startSprintSession"));
   assert.ok(sessions.includes('session.mode === "sprint"'));
@@ -38,6 +40,8 @@ test("exposes Endless as a separate long-cycle mode", async () => {
   assert.match(lobby, /title: \{ en: "Endless"/);
   assert.match(lobby, /event: "lobby_mode_endless"/);
   assert.match(page, /<GameModePage mode="endless"/);
+  assert.match(page, /title: "Endless \| Blind Trading"/);
+  assert.match(page, /canonical: "\/endless"/);
   assert.match(client, /isEndlessMode = gameMode === "endless"/);
   assert.match(client, /mangpan-endless-session/);
   assert.match(sitemap, /"\/endless"/);
