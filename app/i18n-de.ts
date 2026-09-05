@@ -390,6 +390,35 @@ const GERMAN: Record<string, string> = {
   "Three focused calls · full reveal": "Drei fokussierte Entscheidungen · vollständige Auflösung",
   "No leaderboard pressure. Build a repeatable read in under a minute.": "Kein Ranglisten-Druck. Entwickle in weniger als einer Minute einen wiederholbaren Read.",
   "QUICK READ": "SCHNELL-READ",
+  "LONG CYCLE · NO CAP": "LANGER ZYKLUS · OHNE LIMIT",
+  "Endless": "Endlos",
+  "Compete in today’s short puzzle or stay with one long historical cycle.":
+    "Spiele das kurze Rätsel von heute oder bleibe in einem langen historischen Zyklus.",
+  "Daily competition, quick reads, long-cycle runs, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm.":
+    "Tageswettbewerb, schnelle Reads, lange Zyklen, Training, Freundesduelle und Team-Serien haben eigene Modi, Regeln und Rhythmen.",
+  "Stay with one real historical cycle for as long as you want. Pause, return, and build a deeper decision record without a leaderboard.":
+    "Bleib so lange du möchtest in einem echten historischen Zyklus. Pausiere, kehre zurück und baue ohne Rangliste eine tiefere Entscheidungsbilanz auf.",
+  "Long history · save and resume": "Lange Historie · speichern und fortsetzen",
+  "Enter the long cycle": "Langen Zyklus starten",
+  "One long historical cycle · keep reading until the end":
+    "Ein langer historischer Zyklus · bis zum Ende weiterlesen",
+  "No round cap and no leaderboard. Pause, return, and build a deeper decision record.":
+    "Keine Rundenbegrenzung und keine Rangliste. Pausiere, kehre zurück und baue eine tiefere Entscheidungsbilanz auf.",
+  "Endless milestone progress": "Endlos-Meilensteinfortschritt",
+  "All milestones reached": "Alle Meilensteine erreicht",
+  "Next milestone ·": "Nächster Meilenstein ·",
+  "Endless · Long cycle": "Endlos · Langer Zyklus",
+  "One long hidden cycle. Can you read it to the end?":
+    "Ein langer verborgener Zyklus. Kannst du ihn bis zum Ende lesen?",
+  "START ANOTHER LONG CYCLE": "EINEN WEITEREN LANGEN ZYKLUS STARTEN",
+  "BLIND TRADING ENDLESS · Mystery Market Run": "BLIND TRADING ENDLOS · Mystery-Markt",
+  "One hidden long cycle, no round cap. Can you read it to the end?":
+    "Ein verborgener langer Zyklus ohne Rundenlimit. Kannst du ihn bis zum Ende lesen?",
+  "SHARE YOUR LONG CYCLE": "TEILE DEINEN LANGEN ZYKLUS",
+  "your Endless read": "deine Endlos-Einschätzung",
+  "Start another long cycle": "Einen weiteren langen Zyklus starten",
+  "No round cap; keep recording views until the historical period ends, or finish anytime.":
+    "Keine Rundenbegrenzung: Halte deine Einschätzungen bis zum Ende der historischen Periode fest oder beende jederzeit.",
 };
 const replacements = Object.entries(GERMAN).sort(
   ([left], [right]) => right.length - left.length,

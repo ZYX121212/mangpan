@@ -431,6 +431,35 @@ const FRENCH: Record<string, string> = {
   "Three focused calls · full reveal": "Trois décisions ciblées · révélation complète",
   "No leaderboard pressure. Build a repeatable read in under a minute.": "Sans pression du classement. Construis une lecture reproductible en moins d’une minute.",
   "QUICK READ": "LECTURE EXPRESS",
+  "LONG CYCLE · NO CAP": "CYCLE LONG · SANS LIMITE",
+  "Endless": "Sans fin",
+  "Compete in today’s short puzzle or stay with one long historical cycle.":
+    "Relevez le défi court du jour ou restez sur un long cycle historique.",
+  "Daily competition, quick reads, long-cycle runs, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm.":
+    "Le défi quotidien, les lectures express, les cycles longs, l’entraînement, les duels et les séries d’équipe ont chacun leur mode, leurs règles et leur rythme.",
+  "Stay with one real historical cycle for as long as you want. Pause, return, and build a deeper decision record without a leaderboard.":
+    "Restez sur un cycle historique réel aussi longtemps que vous le souhaitez. Faites une pause, revenez et construisez un historique de décisions plus riche, sans classement.",
+  "Long history · save and resume": "Longue histoire · sauvegarder et reprendre",
+  "Enter the long cycle": "Entrer dans le cycle long",
+  "One long historical cycle · keep reading until the end":
+    "Un long cycle historique · continuez jusqu’à la fin",
+  "No round cap and no leaderboard. Pause, return, and build a deeper decision record.":
+    "Aucune limite de manches ni classement. Faites une pause, revenez et construisez un historique plus riche.",
+  "Endless milestone progress": "Progression des étapes du mode sans fin",
+  "All milestones reached": "Toutes les étapes atteintes",
+  "Next milestone ·": "Prochaine étape ·",
+  "Endless · Long cycle": "Sans fin · Cycle long",
+  "One long hidden cycle. Can you read it to the end?":
+    "Un long cycle caché. Saurez-vous le lire jusqu’à la fin ?",
+  "START ANOTHER LONG CYCLE": "LANCER UN AUTRE CYCLE LONG",
+  "BLIND TRADING ENDLESS · Mystery Market Run": "TRADING À L’AVEUGLE SANS FIN · Marché mystère",
+  "One hidden long cycle, no round cap. Can you read it to the end?":
+    "Un cycle long caché, sans limite de manches. Saurez-vous le lire jusqu’à la fin ?",
+  "SHARE YOUR LONG CYCLE": "PARTAGEZ VOTRE CYCLE LONG",
+  "your Endless read": "votre lecture sans fin",
+  "Start another long cycle": "Lancer un autre cycle long",
+  "No round cap; keep recording views until the historical period ends, or finish anytime.":
+    "Aucune limite de manches : continuez à enregistrer vos lectures jusqu’à la fin de la période historique, ou terminez quand vous voulez.",
 };
 const replacements = Object.entries(FRENCH).sort(
   ([left], [right]) => right.length - left.length,

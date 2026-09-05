@@ -121,6 +121,36 @@ const ENGLISH: Record<string, string> = {
   "相对量": "Rel. Vol",
   "股票交易": "Stock Trading",
   "完整历史周期 · 随时结束": "Full historical period · End anytime",
+  "长周期 · 无上限": "LONG CYCLE · NO CAP",
+  "无尽长周期": "Endless",
+  "完成今日短局，或沿着一段长历史周期持续判断。":
+    "Compete in today’s short puzzle or stay with one long historical cycle.",
+  "每日竞技、快速读盘、长周期、专项训练、好友对决和小队连续挑战各自独立，不再把不同目标堆进同一局。":
+    "Daily competition, quick reads, long-cycle runs, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm.",
+  "沿着一段真实历史周期持续判断；可以暂停、回来继续，不设回合上限，也不计入排行榜。":
+    "Stay with one real historical cycle for as long as you want. Pause, return, and build a deeper decision record without a leaderboard.",
+  "长历史 · 可保存继续": "Long history · save and resume",
+  "进入长周期": "Enter the long cycle",
+  "一段长历史周期 · 持续判断直到行情终点":
+    "One long historical cycle · keep reading until the end",
+  "没有回合上限，也不计入排行榜；可以中途离开，回来继续建立更完整的判断记录。":
+    "No round cap and no leaderboard. Pause, return, and build a deeper decision record.",
+  "无尽长周期里程碑进度": "Endless milestone progress",
+  "已完成全部里程碑": "All milestones reached",
+  "下个里程碑 ·": "Next milestone ·",
+  "Endless · 长周期": "Endless · Long cycle",
+  "一段长周期隐藏行情。你能读到最后吗？":
+    "One long hidden cycle. Can you read it to the end?",
+  "继续下一段长周期": "START ANOTHER LONG CYCLE",
+  "盲盘无尽长周期 · 神秘历史行情":
+    "BLIND TRADING ENDLESS · Mystery Market Run",
+  "同一段隐藏长周期，不限决策次数。你能坚持读到最后吗？":
+    "One hidden long cycle, no round cap. Can you read it to the end?",
+  "分享你的长周期": "SHARE YOUR LONG CYCLE",
+  "你的无尽长周期判断": "your Endless read",
+  "再来一段长周期": "Start another long cycle",
+  "没有回合上限；持续记录判断直到历史终点，也可以随时结束。":
+    "No round cap; keep recording views until the historical period ends, or finish anytime.",
   "无限练习 · 随时结束": "Unlimited practice · End anytime",
   "已恢复云端进度": "Cloud progress restored",
   "尚有": "Remaining",

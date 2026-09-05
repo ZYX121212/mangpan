@@ -431,6 +431,35 @@ const SPANISH: Record<string, string> = {
   "Three focused calls · full reveal": "Tres decisiones enfocadas · revelación completa",
   "No leaderboard pressure. Build a repeatable read in under a minute.": "Sin presión de clasificación. Crea una lectura repetible en menos de un minuto.",
   "QUICK READ": "LECTURA RÁPIDA",
+  "LONG CYCLE · NO CAP": "CICLO LARGO · SIN LÍMITE",
+  "Endless": "Sin fin",
+  "Compete in today’s short puzzle or stay with one long historical cycle.":
+    "Compite en el reto corto de hoy o quédate en un ciclo histórico largo.",
+  "Daily competition, quick reads, long-cycle runs, deliberate training, friend duels, and crew streaks live in separate modes—with their own rules and rhythm.":
+    "La competición diaria, las lecturas rápidas, los ciclos largos, el entrenamiento, los duelos y las rachas de equipo tienen modos, reglas y ritmos propios.",
+  "Stay with one real historical cycle for as long as you want. Pause, return, and build a deeper decision record without a leaderboard.":
+    "Sigue un ciclo histórico real todo el tiempo que quieras. Pausa, vuelve y construye un registro de decisiones más profundo sin clasificación.",
+  "Long history · save and resume": "Historia larga · guardar y continuar",
+  "Enter the long cycle": "Entrar en el ciclo largo",
+  "One long historical cycle · keep reading until the end":
+    "Un ciclo histórico largo · sigue leyendo hasta el final",
+  "No round cap and no leaderboard. Pause, return, and build a deeper decision record.":
+    "Sin límite de rondas ni clasificación. Pausa, vuelve y construye un registro de decisiones más profundo.",
+  "Endless milestone progress": "Progreso de hitos del modo sin fin",
+  "All milestones reached": "Todos los hitos alcanzados",
+  "Next milestone ·": "Siguiente hito ·",
+  "Endless · Long cycle": "Sin fin · Ciclo largo",
+  "One long hidden cycle. Can you read it to the end?":
+    "Un ciclo largo oculto. ¿Puedes leerlo hasta el final?",
+  "START ANOTHER LONG CYCLE": "EMPEZAR OTRO CICLO LARGO",
+  "BLIND TRADING ENDLESS · Mystery Market Run": "TRADING A CIEGAS SIN FIN · Mercado misterioso",
+  "One hidden long cycle, no round cap. Can you read it to the end?":
+    "Un ciclo largo oculto, sin límite de rondas. ¿Puedes leerlo hasta el final?",
+  "SHARE YOUR LONG CYCLE": "COMPARTE TU CICLO LARGO",
+  "your Endless read": "tu lectura sin fin",
+  "Start another long cycle": "Empezar otro ciclo largo",
+  "No round cap; keep recording views until the historical period ends, or finish anytime.":
+    "Sin límite de rondas; registra tus lecturas hasta el final del periodo histórico o termina cuando quieras.",
 };
 const replacements = Object.entries(SPANISH).sort(
   ([left], [right]) => right.length - left.length,
