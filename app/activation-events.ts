@@ -22,6 +22,8 @@ export type ActivationEventType =
   | "daily_second_move"
   | "practice_second_move"
   | "endless_start"
+  | "endless_challenge_view"
+  | "endless_challenge_start"
   | "endless_complete"
   | "endless_share"
   | "run_start"

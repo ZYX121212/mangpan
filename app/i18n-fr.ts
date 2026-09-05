@@ -432,6 +432,7 @@ const FRENCH: Record<string, string> = {
   "No leaderboard pressure. Build a repeatable read in under a minute.": "Sans pression du classement. Construis une lecture reproductible en moins d’une minute.",
   "QUICK READ": "LECTURE EXPRESS",
   "LONG CYCLE · NO CAP": "CYCLE LONG · SANS LIMITE",
+  "Reach": "Atteignez",
   "Endless": "Sans fin",
   "Compete in today’s short puzzle or stay with one long historical cycle.":
     "Relevez le défi court du jour ou restez sur un long cycle historique.",

@@ -432,6 +432,7 @@ const SPANISH: Record<string, string> = {
   "No leaderboard pressure. Build a repeatable read in under a minute.": "Sin presión de clasificación. Crea una lectura repetible en menos de un minuto.",
   "QUICK READ": "LECTURA RÁPIDA",
   "LONG CYCLE · NO CAP": "CICLO LARGO · SIN LÍMITE",
+  "Reach": "Alcanza",
   "Endless": "Sin fin",
   "Compete in today’s short puzzle or stay with one long historical cycle.":
     "Compite en el reto corto de hoy o quédate en un ciclo histórico largo.",

@@ -450,6 +450,7 @@ const ENGLISH: Record<string, string> = {
   "训练通关": "Training Passed",
   "训练未通关": "Training Not Passed",
   "完成至少": "Complete at least ",
+  "达到": "Reach",
   "最大回撤不低于": "Max drawdown no worse than ",
   "概率校准达到": "Probability calibration at least ",
   "每 20 日成交不超过 6 次": "No more than 6 trades per 20 days",

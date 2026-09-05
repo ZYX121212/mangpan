@@ -391,6 +391,7 @@ const GERMAN: Record<string, string> = {
   "No leaderboard pressure. Build a repeatable read in under a minute.": "Kein Ranglisten-Druck. Entwickle in weniger als einer Minute einen wiederholbaren Read.",
   "QUICK READ": "SCHNELL-READ",
   "LONG CYCLE · NO CAP": "LANGER ZYKLUS · OHNE LIMIT",
+  "Reach": "Erreiche",
   "Endless": "Endlos",
   "Compete in today’s short puzzle or stay with one long historical cycle.":
     "Spiele das kurze Rätsel von heute oder bleibe in einem langen historischen Zyklus.",

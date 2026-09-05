@@ -13,7 +13,12 @@ export const metadata: Metadata = {
 export default function EndlessPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ market?: string; seed?: string }>;
+  searchParams?: Promise<{
+    market?: string;
+    seed?: string;
+    targetDays?: string;
+    targetScore?: string;
+  }>;
 }) {
   return <GameModePage mode="endless" searchParams={searchParams} />;
 }

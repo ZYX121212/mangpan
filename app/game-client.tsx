@@ -1863,6 +1863,8 @@ export default function GameClient({
   initialCrewCode,
   initialEndlessSeed,
   initialEndlessSeedFromLink = false,
+  initialEndlessTargetDays,
+  initialEndlessTargetScore,
 }: {
   initialChallenge: ChallengeSession;
   initialIdentity: { playerId: string; cloud: true } | null;
@@ -1883,6 +1885,8 @@ export default function GameClient({
   initialCrewCode?: string;
   initialEndlessSeed?: string;
   initialEndlessSeedFromLink?: boolean;
+  initialEndlessTargetDays?: number;
+  initialEndlessTargetScore?: number;
 }) {
   const router = useRouter();
   const isMarketRun = initialMode === "run";
@@ -1901,6 +1905,10 @@ export default function GameClient({
   );
   const isQuickRead = gameMode === "sprint";
   const isEndlessMode = gameMode === "endless";
+  const endlessTargetDays = initialEndlessTargetDays ?? 0;
+  const endlessTargetScore = initialEndlessTargetScore;
+  const hasEndlessTarget =
+    isEndlessMode && initialEndlessSeedFromLink && endlessTargetDays > 0;
   const isBoundedChallenge = gameMode === "daily" || gameMode === "sprint";
   const [session, setSession] = useState(initialChallenge);
   const [stock, setStock] = useState(initialChallenge.stock);
@@ -2010,6 +2018,7 @@ export default function GameClient({
   const marketRunProgressLoadedRef = useRef(false);
   const marketRunStartTrackedRef = useRef(false);
   const endlessStartTrackedRef = useRef(false);
+  const endlessChallengeViewTrackedRef = useRef(false);
   const endlessCompletedSessionsRef = useRef(new Set<string>());
   const guideCompleteTrackedRef = useRef(false);
   const celebrationSeenRef = useRef(new Set<string>());
@@ -2889,15 +2898,30 @@ export default function GameClient({
     trackActivationEvent(playerId, "run_start", "run");
   }, [isMarketRun, playerId]);
   useEffect(() => {
+    if (!hasEndlessTarget || !playerId || endlessChallengeViewTrackedRef.current)
+      return;
+    endlessChallengeViewTrackedRef.current = true;
+    trackActivationEvent(playerId, "endless_challenge_view", "direct");
+  }, [hasEndlessTarget, playerId]);
+  useEffect(() => {
     if (!isEndlessMode || !playerId || !actions.length || endlessStartTrackedRef.current)
       return;
     endlessStartTrackedRef.current = true;
+    if (hasEndlessTarget)
+      trackActivationEvent(playerId, "endless_challenge_start", "direct");
     trackActivationEvent(
       playerId,
       "endless_start",
       initialCrewCode ? "crew" : initialDuel ? "duel" : "direct",
     );
-  }, [actions.length, initialCrewCode, initialDuel, isEndlessMode, playerId]);
+  }, [
+    actions.length,
+    hasEndlessTarget,
+    initialCrewCode,
+    initialDuel,
+    isEndlessMode,
+    playerId,
+  ]);
   useEffect(() => {
     if (!isEndlessMode || !playerId || !finished || !resultOpen) return;
     if (endlessCompletedSessionsRef.current.has(session.sessionId)) return;
@@ -3023,7 +3047,11 @@ export default function GameClient({
   const prepareDuelShareUrl = useCallback(async () => {
     if (gameMode !== "daily") {
       const params = new URLSearchParams(location.search);
-      if (isEndlessMode && endlessSeed) params.set("seed", endlessSeed);
+      if (isEndlessMode && endlessSeed) {
+        params.set("seed", endlessSeed);
+        params.set("targetDays", String(Math.max(1, advancedDays)));
+        params.set("targetScore", String(skillScore));
+      }
       const url = `${location.origin}${location.pathname}?${params}`;
       setDuelShareUrl(url);
       setShareSetupStatus("ready");
@@ -3063,6 +3091,7 @@ export default function GameClient({
   }, [
     duelCode,
     duelShareUrl,
+    advancedDays,
     endlessSeed,
     gameMode,
     isEndlessMode,
@@ -3070,6 +3099,7 @@ export default function GameClient({
     platformDuelUrl,
     playerId,
     scoreboard?.shareDuel?.code,
+    skillScore,
     today,
   ]);
 
@@ -3836,12 +3866,12 @@ export default function GameClient({
     const comparisonLine = resultComparisonProof;
     const challenge = longCycle
       ? locale === "zh"
-        ? "同一段隐藏长周期，不限决策次数。你能坚持读到最后吗？"
-        : "One hidden long cycle, no round cap. Can you read it to the end?"
+        ? `我在同一段隐藏长周期推进了 ${advancedDays} 个交易日，得分 ${skillScore}。你能超过吗？`
+        : `I read ${advancedDays} trading days in one hidden cycle and scored ${skillScore}. Can you beat my run?`
       : shareCopy.challenge;
     const text = `${title} #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\n${shareCopy.score(skillScore, decisionStats.calibration.toFixed(0), processScores.risk.toFixed(0))}${crowdLine ? `\n${crowdLine}` : ""}\n${challenge}`;
     const compactText = longCycle
-      ? `${comparisonLine ? `${comparisonLine} · ` : ""}${locale === "zh" ? `我的无尽长周期得分 ${skillScore} · ${sequence} 你能读到最后吗？` : `My Endless run scored ${skillScore} · ${sequence} Can you read one hidden cycle to the end?`}`
+      ? `${comparisonLine ? `${comparisonLine} · ` : ""}${locale === "zh" ? `我的无尽长周期：${advancedDays} 日 · ${skillScore} 分 · ${sequence} 你能超过吗？` : `My Endless run: ${advancedDays} days · ${skillScore} points · ${sequence} Can you beat it?`}`
       : `${comparisonLine ? `${comparisonLine} · ` : ""}${shareCopy.compact(decisionStyle.title, skillScore, chainLabel, sequence)}`;
     return { compactText, text, title };
   };
@@ -4571,6 +4601,25 @@ export default function GameClient({
               ? "No round cap and no leaderboard. Pause, return, and build a deeper decision record."
               : "没有回合上限，也不计入排行榜；可以中途离开，回来继续建立更完整的判断记录。"}
           </small>
+          {hasEndlessTarget && (
+            <div className="endless-challenge-target">
+              <span>{locale === "en" ? "FRIEND CHALLENGE" : "好友挑战"}</span>
+              <b>
+                {locale === "en"
+                  ? endlessTargetScore == null
+                    ? `Reach ${endlessTargetDays} days`
+                    : `Beat ${endlessTargetScore} · ${endlessTargetDays} days`
+                  : endlessTargetScore == null
+                    ? `达到 ${endlessTargetDays} 天`
+                    : `超过 ${endlessTargetScore} 分 · ${endlessTargetDays} 天`}
+              </b>
+              <small>
+                {locale === "en"
+                  ? "Same hidden cycle. Start from day one and make your own read."
+                  : "同一段隐藏周期，从第一天开始，完成你自己的判断。"}
+              </small>
+            </div>
+          )}
           <div
             className="endless-milestone"
             role="progressbar"

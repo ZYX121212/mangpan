@@ -10,6 +10,14 @@ import { marketDate, type MarketKind } from "./game-config";
 import { MARKET_RUN_STAGES } from "./market-run";
 import { opaquePlayerId } from "./request-identity";
 
+function boundedInteger(value: string | undefined, maximum: number) {
+  if (!value || !/^\d+$/u.test(value)) return undefined;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 && parsed <= maximum
+    ? parsed
+    : undefined;
+}
+
 export type GameEntryMode =
   | "daily"
   | "practice"
@@ -28,6 +36,8 @@ export default async function GameModePage({
     guide?: string;
     crew?: string;
     seed?: string;
+    targetDays?: string;
+    targetScore?: string;
   }>;
 }) {
   const params = await searchParams;
@@ -36,6 +46,10 @@ export default async function GameModePage({
     mode === "endless"
       ? params?.seed?.trim().slice(0, 100) || crypto.randomUUID()
       : undefined;
+  const endlessTargetDays =
+    mode === "endless" ? boundedInteger(params?.targetDays, 100_000) : undefined;
+  const endlessTargetScore =
+    mode === "endless" ? boundedInteger(params?.targetScore, 100) : undefined;
   const initialGuide = mode === "practice" && params?.guide === "1";
   const requestedCrewCode = params?.crew?.trim().toUpperCase();
   const initialCrewCode =
@@ -69,6 +83,8 @@ export default async function GameModePage({
       initialCrewCode={initialCrewCode}
       initialEndlessSeed={endlessSeed}
       initialEndlessSeedFromLink={mode === "endless" && Boolean(params?.seed)}
+      initialEndlessTargetDays={endlessTargetDays}
+      initialEndlessTargetScore={endlessTargetScore}
     />
   );
 }

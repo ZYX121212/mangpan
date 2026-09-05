@@ -24,10 +24,10 @@ export default function manifest(): MetadataRoute.Manifest {
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
       },
       {
-        name: "Endless Practice",
-        short_name: "Practice",
-        description: "Read a random real historical chart without rankings.",
-        url: "/practice?market=us",
+        name: "Endless Cycle",
+        short_name: "Endless",
+        description: "Stay with one real historical market cycle and resume anytime.",
+        url: "/endless?market=us",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192" }],
       },
       {

@@ -296,7 +296,7 @@ test("ships an installable, branded web app manifest", async () => {
   assert.match(manifest, /purpose: "any maskable"/);
   assert.match(manifest, /shortcuts: \[/);
   assert.match(manifest, /url: "\/daily\?market=us"/);
-  assert.match(manifest, /url: "\/practice\?market=us"/);
+  assert.match(manifest, /url: "\/endless\?market=us"/);
   assert.match(manifest, /url: "\/duel"/);
   assert.match(styles, /\.install-return-card/);
   assert.match(styles, /\.install-app-mark/);
