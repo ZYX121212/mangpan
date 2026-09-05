@@ -1940,6 +1940,7 @@ export default function GameClient({
   const [duelShareUrl, setDuelShareUrl] = useState("");
   const [shareSetupStatus, setShareSetupStatus] =
     useState<ShareSetupStatus>("idle");
+  const sessionThreeMinutesTrackedRef = useRef(false);
   const [installPrompt, setInstallPrompt] =
     useState<InstallPromptEvent | null>(null);
   const [installStatus, setInstallStatus] = useState("");
@@ -2762,6 +2763,29 @@ export default function GameClient({
       initialDuel.source,
     );
   }, [actions.length, initialDuel?.code, initialDuel?.source, playerId]);
+
+  useEffect(() => {
+    if (!playerId || sessionThreeMinutesTrackedRef.current) return;
+    const source = initialDuel
+      ? "duel"
+      : initialGuide
+        ? "lobby"
+        : isMarketRun
+          ? "run"
+          : "direct";
+    const trackIfVisible = () => {
+      if (document.visibilityState !== "visible" || sessionThreeMinutesTrackedRef.current)
+        return;
+      sessionThreeMinutesTrackedRef.current = true;
+      trackActivationEvent(playerId, "session_three_minutes", source);
+    };
+    const timer = window.setTimeout(trackIfVisible, 180_000);
+    document.addEventListener("visibilitychange", trackIfVisible);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", trackIfVisible);
+    };
+  }, [initialDuel, initialGuide, isMarketRun, playerId]);
 
   useEffect(() => {
     if (!playerId || !guidedRunActive) return;

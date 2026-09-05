@@ -13,6 +13,7 @@ export type ActivationEventType =
   | "guide_reveal"
   | "guide_complete"
   | "guide_daily_continue"
+  | "session_three_minutes"
   | "keyboard_first_action"
   | "decision_continue"
   | "daily_first_move"

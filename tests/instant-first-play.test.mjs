@@ -43,8 +43,11 @@ test("keeps mode choice reachable and measures the full first-play funnel", asyn
   assert.match(game, /NEW EVIDENCE/);
   assert.match(events, /\| "guide_complete"/);
   assert.match(events, /\| "guide_daily_continue"/);
+  assert.match(events, /\| "session_three_minutes"/);
   assert.match(eventRoute, /"guide_complete",/);
   assert.match(eventRoute, /"guide_daily_continue",/);
+  assert.match(eventRoute, /"session_three_minutes",/);
+  assert.match(game, /setTimeout\(trackIfVisible, 180_000\)/);
   assert.match(styles, /\.first-run-verdict\.matched/);
   assert.match(styles, /\.first-run-verdict\.surprised/);
   assert.match(styles, /\.shell\.guided-first-play \.(quantity-field|fee-preview)/);
