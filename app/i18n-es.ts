@@ -420,7 +420,16 @@ const SPANISH: Record<string, string> = {
   "Review today’s result while you wait →": "Revisar el resultado de hoy mientras esperas →",
   "Play today’s chart while you wait →": "Jugar el gráfico de hoy mientras esperas →",
   "Review today’s result →": "Revisar el resultado de hoy →",
-  "Play today’s chart →": "Jugar el gráfico de hoy →",
+  "THREE CALLS · ONE REVEAL": "TRES DECISIONES · UNA REVELACIÓN",
+  "Quick Read": "Lectura rápida",
+  "Make three focused calls on a real hidden chart. No leaderboard pressure—just a fast way to build a repeatable read.": "Haz tres decisiones enfocadas sobre un gráfico real oculto. Sin presión de clasificación: una forma rápida de crear una lectura repetible.",
+  "3 decisions · about 45–60 sec": "3 decisiones · unos 45–60 s",
+  "Try a quick read": "Probar una lectura rápida",
+  "SIX WAYS TO PLAY": "SEIS FORMAS DE JUGAR",
+  "Quick Read · 3 calls": "Lectura rápida · 3 decisiones",
+  "Three focused calls · full reveal": "Tres decisiones enfocadas · revelación completa",
+  "No leaderboard pressure. Build a repeatable read in under a minute.": "Sin presión de clasificación. Crea una lectura repetible en menos de un minuto.",
+  "QUICK READ": "LECTURA RÁPIDA",
 };
 const replacements = Object.entries(SPANISH).sort(
   ([left], [right]) => right.length - left.length,

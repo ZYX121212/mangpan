@@ -3,12 +3,18 @@ import { getChatGPTUser } from "./chatgpt-auth";
 import {
   startDailySession,
   startPracticeSession,
+  startSprintSession,
 } from "./challenge-sessions";
 import { marketDate, type MarketKind } from "./game-config";
 import { MARKET_RUN_STAGES } from "./market-run";
 import { opaquePlayerId } from "./request-identity";
 
-export type GameEntryMode = "daily" | "practice" | "training" | "run";
+export type GameEntryMode =
+  | "daily"
+  | "practice"
+  | "sprint"
+  | "training"
+  | "run";
 
 export default async function GameModePage({
   mode,
@@ -30,6 +36,8 @@ export default async function GameModePage({
   const challenge =
     mode === "daily"
       ? await startDailySession(marketDate(market), market, playerId)
+      : mode === "sprint"
+        ? await startSprintSession(crypto.randomUUID(), market, playerId)
       : await startPracticeSession(
           `${mode}-${crypto.randomUUID()}`,
           market,

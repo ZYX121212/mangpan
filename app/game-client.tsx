@@ -280,7 +280,7 @@ function trackDuelEvent(
 
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
-type GameMode = "daily" | "practice";
+type GameMode = "daily" | "practice" | "sprint";
 type ShareSetupStatus = "idle" | "loading" | "ready" | "error";
 const DAILY_ORDER_ALLOCATIONS = [
   0.25,
@@ -1859,17 +1859,23 @@ export default function GameClient({
     source: ShareSource;
     chainDepth: number;
   };
-  initialMode?: "daily" | "practice" | "training" | "run";
+  initialMode?: "daily" | "practice" | "sprint" | "training" | "run";
   initialGuide?: boolean;
   initialCrewCode?: string;
 }) {
   const router = useRouter();
   const isMarketRun = initialMode === "run";
+  const isQuickRead = initialMode === "sprint";
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
   const [gameMode, setGameMode] = useState<GameMode>(
-    initialMode === "daily" ? "daily" : "practice",
+    initialMode === "daily"
+      ? "daily"
+      : initialMode === "sprint"
+        ? "sprint"
+        : "practice",
   );
+  const isBoundedChallenge = gameMode === "daily" || gameMode === "sprint";
   const [session, setSession] = useState(initialChallenge);
   const [stock, setStock] = useState(initialChallenge.stock);
   const [visibleCount, setVisibleCount] = useState(() =>
@@ -2210,7 +2216,7 @@ export default function GameClient({
     ? Math.round(marketRunScore / marketRunProgress.scores.length)
     : 0;
   const requiresForecast =
-    gameMode === "daily" || isMarketRun || guidedRunActive;
+    isBoundedChallenge || isMarketRun || guidedRunActive;
   const crowdForecast = crowdHistory.at(-1) ?? null;
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
@@ -3001,7 +3007,8 @@ export default function GameClient({
     setConfidence(2);
     setForecastTouched(false);
     setRecordView(
-      nextSession.mode === "daily" || nextSession.scenario !== "random",
+      (nextSession.mode === "daily" || nextSession.mode === "sprint") ||
+        nextSession.scenario !== "random",
     );
     setTrades(restored.trades);
     setFeesPaid(restored.feesPaid);
@@ -3118,7 +3125,12 @@ export default function GameClient({
         return (await response.json()) as ChallengeSession;
       })
       .then((restored) => {
-        const expectedMode = initialMode === "daily" ? "daily" : "practice";
+        const expectedMode =
+          initialMode === "daily"
+            ? "daily"
+            : initialMode === "sprint"
+              ? "sprint"
+              : "practice";
         if (restored?.mode === expectedMode) resetSession(restored);
       })
       .catch(() => safeLocalStorage.removeItem(storageKey));
@@ -4117,6 +4129,14 @@ export default function GameClient({
                 ? locale === "en"
                   ? "Market Run"
                   : "市场闯关"
+              : isQuickRead
+                ? locale === "en"
+                  ? "Quick Read"
+                  : "快速读盘"
+              : isQuickRead
+                ? locale === "en"
+                  ? "Quick Read"
+                  : "快速读盘"
               : initialMode === "training" || activeScenario
                 ? locale === "en"
                   ? "Training Lab"
@@ -4165,12 +4185,14 @@ export default function GameClient({
         </div>
         <div className="round-pill">
           <span>
-            {gameMode === "daily"
+            {isQuickRead
+              ? `${marketLabel}Quick Read · 3 calls`
+              : gameMode === "daily"
               ? `${marketLabel}每日 5 决策`
               : `${marketLabel}无限练习`}
           </span>
           <i />
-          {gameMode === "daily"
+          {isBoundedChallenge
             ? locale === "en"
               ? `Decision ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget}`
               : `第 ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget} 次`
@@ -4334,6 +4356,21 @@ export default function GameClient({
                   ? "Finish five decisions to keep the shared flame alive"
                   : "完成五次决策，守住共同火焰"
               : "全球玩家同题，股票与日期将在结算后揭晓"}
+          </small>
+          <strong>{session.decisionsUsed}/{dailyDecisionTarget}</strong>
+        </div>
+      ) : isQuickRead ? (
+        <div className="quick-read-banner">
+          <span>{locale === "en" ? "QUICK READ" : "快速读盘"}</span>
+          <b>
+            {locale === "en"
+              ? "Three focused calls · full reveal"
+              : "三次专注判断 · 完整揭晓"}
+          </b>
+          <small>
+            {locale === "en"
+              ? "No leaderboard pressure. Build a repeatable read in under a minute."
+              : "不计入排行榜，在一分钟内建立可复盘的读盘过程。"}
           </small>
           <strong>{session.decisionsUsed}/{dailyDecisionTarget}</strong>
         </div>
@@ -4528,7 +4565,9 @@ export default function GameClient({
         </div>
         <div className="challenge">
           <span>
-            {gameMode === "daily"
+            {isQuickRead
+              ? `${marketLabel}Quick Read · ${today}`
+              : gameMode === "daily"
               ? historicalDuel
                 ? scoreboard?.playerScore
                   ? locale === "en"
@@ -4725,7 +4764,11 @@ export default function GameClient({
             <span>股票交易</span>
             <div className="decision-head-meta">
               <small>
-                {gameMode === "daily"
+                {isQuickRead
+                  ? locale === "en"
+                    ? `Quick Read · ${dailyDecisionsRemaining} calls left`
+                    : `快速读盘 · 剩余 ${dailyDecisionsRemaining} 次判断`
+                  : gameMode === "daily"
                   ? locale === "en"
                     ? `Daily sprint · ${dailyDecisionsRemaining} decisions left`
                     : `每日快局 · 剩余 ${dailyDecisionsRemaining} 次决策`
@@ -4740,11 +4783,11 @@ export default function GameClient({
             </div>
           </div>
           <div
-            className={`horizon-track ${gameMode === "daily" || isMarketRun ? "daily-limited" : "open-ended"}`}
+            className={`horizon-track ${isBoundedChallenge || isMarketRun ? "daily-limited" : "open-ended"}`}
           >
             <i
               style={
-                gameMode === "daily"
+                isBoundedChallenge
                   ? {
                       width: `${Math.min(100, (session.decisionsUsed / dailyDecisionTarget) * 100)}%`,
                     }
@@ -4756,7 +4799,13 @@ export default function GameClient({
               }
             />
             <span>
-              {gameMode === "daily" ? (
+              {isQuickRead ? (
+                <>
+                  {locale === "en"
+                    ? <>Quick Read · Decision {Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/{dailyDecisionTarget}</>
+                    : <>快速读盘 · 第 {Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/{dailyDecisionTarget} 次判断</>}
+                </>
+              ) : gameMode === "daily" ? (
                 <>
                   {locale === "en" ? (
                     <>Daily challenge #{today.replaceAll("-", "")} · Decision{" "}
@@ -4918,14 +4967,14 @@ export default function GameClient({
                   卖出
                 </button>
               </div>
-              {gameMode !== "daily" && (
+              {!isBoundedChallenge && (
                 <div className="order-type-row">
                   <span>市价委托</span>
                   <small>下一交易日开盘成交</small>
                 </div>
               )}
               <label className="field-label">
-                {gameMode === "daily"
+                {isBoundedChallenge
                   ? locale === "en"
                     ? "1 · Choose action & size"
                     : "1 · 选择行动与仓位"
@@ -4938,7 +4987,7 @@ export default function GameClient({
                 role="group"
                 aria-label="选择委托仓位"
               >
-                {(gameMode === "daily"
+                {(isBoundedChallenge
                   ? DAILY_ORDER_ALLOCATIONS
                   : ORDER_ALLOCATIONS
                 ).map((value) => (
@@ -4967,7 +5016,7 @@ export default function GameClient({
                   </button>
                 ))}
               </div>
-              {gameMode !== "daily" && (
+              {!isBoundedChallenge && (
                 <>
                   <label
                     className="field-label quantity-label"
@@ -5034,7 +5083,7 @@ export default function GameClient({
               ) : (
                 <div className="order-estimate">
                   <span>
-                    {gameMode === "daily"
+                    {isBoundedChallenge
                       ? locale === "en"
                         ? "Position"
                         : "预计仓位"
@@ -5048,7 +5097,7 @@ export default function GameClient({
                       {nf.format(Math.abs(estimatedQuote.cashDelta))}
                     </strong>
                     <small>
-                      {gameMode === "daily" ? (
+                      {isBoundedChallenge ? (
                         locale === "en" ? (
                           "Market costs included automatically"
                         ) : (
@@ -5068,7 +5117,7 @@ export default function GameClient({
                   </div>
                 </div>
               )}
-              {gameMode !== "daily" && (
+              {!isBoundedChallenge && (
                 <details className="fee-preview">
                   <summary>真实成本模型 · 2026-04 监管口径</summary>
                   <div>
@@ -5124,7 +5173,7 @@ export default function GameClient({
                     </button>
                   )}
                 </div>
-                {(recordView || gameMode === "daily") && (
+                {(recordView || isBoundedChallenge) && (
                   <div className="optional-view-fields">
                     <div
                       className="outlook-grid"
@@ -5164,12 +5213,12 @@ export default function GameClient({
                     </div>
                     <div
                       className={
-                        gameMode === "daily"
+                        isBoundedChallenge
                           ? "daily-confidence-row"
                           : "journal-row"
                       }
                     >
-                      {gameMode !== "daily" && (
+                      {!isBoundedChallenge && (
                         <label>
                           依据
                           <select
@@ -5188,7 +5237,7 @@ export default function GameClient({
                       )}
                       <div>
                         <span>
-                          {gameMode === "daily"
+                          {isBoundedChallenge
                             ? locale === "en"
                               ? "Confidence"
                               : "判断信心"
@@ -5208,7 +5257,7 @@ export default function GameClient({
                       </div>
                     </div>
                     <p>
-                      {gameMode === "daily"
+                      {isBoundedChallenge
                         ? locale === "en"
                           ? "Your forecast locks before the real next three trading days are revealed."
                           : "判断锁定后，才会揭示真实的后续三个交易日。"
@@ -5217,7 +5266,7 @@ export default function GameClient({
                   </div>
                 )}
               </div>
-              {gameMode === "daily" ? (
+              {isBoundedChallenge ? (
                 <div className="daily-reveal-rule">
                   <span>
                     {locale === "en" ? "3 · ACT & REVEAL" : "3 · 行动并揭示"}
@@ -5291,7 +5340,7 @@ export default function GameClient({
                       : `还剩 ${MARKET_RUN_DECISIONS - Math.min(session.decisionsUsed, MARKET_RUN_DECISIONS)} 次判断`}
                   </b>
                 </div>
-              ) : gameMode === "daily" ? (
+              ) : isBoundedChallenge ? (
                 <Link
                   className="next-chart-action"
                   href={`/run?market=${market}`}
@@ -5331,7 +5380,7 @@ export default function GameClient({
                       : "换一只股票 →"}
                 </button>
               )}
-              {gameMode !== "daily" && !isMarketRun && (
+              {!isBoundedChallenge && !isMarketRun && (
                 <button
                   className="finish-action"
                   onClick={() => void finishGame()}
@@ -5344,8 +5393,12 @@ export default function GameClient({
                   ? locale === "en"
                     ? "Five decisions finish this market automatically; your score carries into the next stage."
                     : "完成五次判断后自动结算，本关得分会带入下一关。"
-                  : gameMode === "daily"
-                  ? "全球玩家同一张神秘图；完成 5 次决策后自动揭晓和排名"
+                  : isBoundedChallenge
+                  ? isQuickRead
+                    ? locale === "en"
+                      ? "Three calls reveal the chart; no leaderboard, just process feedback."
+                      : "三次判断后自动揭晓；不计入排行榜，只保留过程反馈"
+                    : "全球玩家同一张神秘图；完成 5 次决策后自动揭晓和排名"
                   : "不支持限价、做空或融资；可一直决策到该段真实历史结束"}
               </p>
             </>
@@ -6458,6 +6511,8 @@ export default function GameClient({
                 ? locale === "en"
                   ? `MARKET RUN · STAGE ${Math.max(1, marketRunCompletedStages)}/${MARKET_RUN_STAGES.length}`
                   : `市场闯关 · 第 ${Math.max(1, marketRunCompletedStages)}/${MARKET_RUN_STAGES.length} 关`
+                : isQuickRead
+                ? `${marketLabel}Quick Read`
                 : gameMode === "daily"
                 ? `${marketLabel}今日盲盘 #${today.slice(5).replace("-", "")}`
                 : `${marketLabel}${scenarioLabel}`}{" "}

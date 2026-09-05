@@ -35,7 +35,7 @@ test("keeps mode choice reachable and measures the full first-play funnel", asyn
   assert.match(game, /"guide_complete"/);
   assert.match(game, /"guide_daily_continue"/);
   assert.match(game, /completeOnboarding\(false\)/);
-  assert.match(game, /gameMode === "daily" \|\| isMarketRun \|\| guidedRunActive/);
+  assert.match(game, /isBoundedChallenge \|\| isMarketRun \|\| guidedRunActive/);
   assert.match(game, /useState<OnboardingStep>\(initialGuide \? 1 : 0\)/);
   assert.match(game, /guidedRunActive \? "guided-first-play" : ""/);
   assert.match(game, /data-onboarding-step=\{onboardingStep \|\| undefined\}/);

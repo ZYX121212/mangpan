@@ -64,7 +64,7 @@ test("contains the complete blind chart game shell", async () => {
     /<main[\s\S]*className=\{`shell \$\{guidedRunActive \? "guided-first-play" : ""\}`\}[\s\S]*data-market=\{market\}[\s\S]*data-game-mode=\{gameMode\}[\s\S]*data-entry-mode=\{initialMode\}/,
   );
   assert.match(page, /DAILY_ORDER_ALLOCATIONS = \[\s*0\.25,\s*0\.5,\s*1,/);
-  assert.match(page, /gameMode !== "daily" && \(/);
+  assert.match(page, /!isBoundedChallenge && \(/);
   assert.match(page, /daily-quick-contract/);
   assert.match(page, /forecastTouched/);
   assert.match(page, /Required before every reveal/);
@@ -806,7 +806,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   );
   assert.match(scoreRoute, /scoreDate\(date, market\)/);
   assert.match(pageRoute, /<ModeLobby \/>/);
-  assert.match(modeLobby, /FIVE WAYS TO PLAY/);
+  assert.match(modeLobby, /SIX WAYS TO PLAY/);
   assert.match(modeLobby, /href: "\/daily"/);
   assert.match(modeLobby, /href: "\/run"/);
   assert.doesNotMatch(modeLobby, /title: \{ en: "Endless Practice"/);
@@ -993,7 +993,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(sessions, /交易指令无效，请检查委托内容/);
   assert.match(sessions, /每日挑战须先锁定方向与信心/);
   assert.match(sessions, /DAILY_ALLOCATIONS = \[0\.25, 0\.5, 1\]/);
-  assert.match(sessions, /session\.mode === "daily" \? 3 : action\.days \|\| 3/);
+  assert.match(sessions, /const requestedDays = maxDecisions !== null \? 3 : action\.days \|\| 3/);
   assert.match(sessions, /const contributesToDailyMission/);
   assert.match(sessions, /session\.challengeDate === marketDate/);
   assert.match(sessions, /session\.challengeId ===[\s\S]*snapshotId/);
@@ -1060,15 +1060,15 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(config, /transactionQuote/);
   assert.match(config, /gross \* 0\.0005/);
   assert.match(config, /gross \* 0\.0000206/);
-  assert.match(sessions, /actions\.length >= DAILY_CHALLENGE_DECISIONS/);
-  assert.match(sessions, /nextActions\.length >= DAILY_CHALLENGE_DECISIONS/);
+  assert.match(sessions, /maxDecisions !== null && actions\.length >= maxDecisions/);
+  assert.match(sessions, /maxDecisions !== null && nextActions\.length >= maxDecisions/);
   assert.match(sessions, /getCrowdForecast/);
   assert.match(sessions, /export async function startDuelSession/);
   assert.match(sessions, /getStoredChallengeBundle\(challengeId\)/);
   assert.match(sessions, /crowdForecasts/);
   assert.match(sessions, /LIMIT 500/);
   assert.match(sessions, /forecastForAction/);
-  assert.match(sessions, /actions\.length < DAILY_CHALLENGE_DECISIONS/);
+  assert.match(sessions, /maxDecisions !== null && actions\.length < maxDecisions/);
   assert.match(sessions, /actions\.length !== DAILY_CHALLENGE_DECISIONS/);
   assert.match(config, /initialBarsFor/);
   assert.match(core, /orderQuantity\(\{[\s\S]*kind: "buy"/);

@@ -379,7 +379,16 @@ const GERMAN: Record<string, string> = {
   "Review today’s result while you wait →": "Heutiges Ergebnis ansehen, während du wartest →",
   "Play today’s chart while you wait →": "Heutigen Chart spielen, während du wartest →",
   "Review today’s result →": "Heutiges Ergebnis ansehen →",
-  "Play today’s chart →": "Heutigen Chart spielen →",
+  "THREE CALLS · ONE REVEAL": "DREI ENTSCHEIDUNGEN · EINE AUFLÖSUNG",
+  "Quick Read": "Schnell-Read",
+  "Make three focused calls on a real hidden chart. No leaderboard pressure—just a fast way to build a repeatable read.": "Triff drei fokussierte Entscheidungen in einem echten verborgenen Chart. Kein Ranglisten-Druck – ein schneller Weg zu einem wiederholbaren Read.",
+  "3 decisions · about 45–60 sec": "3 Entscheidungen · etwa 45–60 Sek.",
+  "Try a quick read": "Schnell-Read starten",
+  "SIX WAYS TO PLAY": "SECHS SPIELWEGE",
+  "Quick Read · 3 calls": "Schnell-Read · 3 Entscheidungen",
+  "Three focused calls · full reveal": "Drei fokussierte Entscheidungen · vollständige Auflösung",
+  "No leaderboard pressure. Build a repeatable read in under a minute.": "Kein Ranglisten-Druck. Entwickle in weniger als einer Minute einen wiederholbaren Read.",
+  "QUICK READ": "SCHNELL-READ",
 };
 const replacements = Object.entries(GERMAN).sort(
   ([left], [right]) => right.length - left.length,

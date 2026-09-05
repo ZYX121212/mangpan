@@ -55,6 +55,21 @@ const MODES = [
   },
   {
     number: "02",
+    href: "/quick-read",
+    eyebrow: { en: "THREE CALLS · ONE REVEAL", zh: "三次判断 · 一次揭晓" },
+    title: { en: "Quick Read", zh: "快速读盘" },
+    description: {
+      en: "Make three focused calls on a real hidden chart. No leaderboard pressure—just a fast way to build a repeatable read.",
+      zh: "在真实隐藏行情上完成三次判断。不计入排行榜，用更轻的节奏建立可复盘的读盘过程。",
+    },
+    meta: { en: "3 decisions · about 45–60 sec", zh: "3 次决策 · 约 45–60 秒" },
+    action: { en: "Try a quick read", zh: "开始快速读盘" },
+    tone: "sprint",
+    family: "solo",
+    event: "lobby_mode_sprint",
+  },
+  {
+    number: "03",
     href: "/run",
     eyebrow: { en: "FIVE MARKETS · ONE SCORE", zh: "五关一总分" },
     title: { en: "Market Run", zh: "市场闯关" },
@@ -69,7 +84,7 @@ const MODES = [
     event: "lobby_mode_run",
   },
   {
-    number: "03",
+    number: "04",
     href: "/training",
     eyebrow: { en: "BUILD ONE SKILL", zh: "专项提升" },
     title: { en: "Training Lab", zh: "训练学院" },
@@ -84,7 +99,7 @@ const MODES = [
     event: "lobby_mode_training",
   },
   {
-    number: "04",
+    number: "05",
     href: "/duel",
     eyebrow: { en: "SAME CHART, TWO READS", zh: "同图对决" },
     title: { en: "Friend Duel", zh: "好友对决" },
@@ -99,7 +114,7 @@ const MODES = [
     event: "lobby_mode_duel",
   },
   {
-    number: "05",
+    number: "06",
     href: "/crew",
     eyebrow: { en: "KEEP THE FLAME ALIVE", zh: "共同连续" },
     title: { en: "Crew Streak", zh: "小队连续挑战" },
@@ -347,7 +362,7 @@ export default function ModeLobby() {
         <small>
           {isNewPlayer
             ? "ONE REAL CHART · NO SIGN-UP"
-            : "BLIND TRADING · FIVE WAYS TO PLAY"}
+              : "BLIND TRADING · SIX WAYS TO PLAY"}
         </small>
         <h1>
           {isNewPlayer

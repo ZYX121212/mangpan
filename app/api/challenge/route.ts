@@ -6,6 +6,7 @@ import {
   resumeSession,
   startDailySession,
   startPracticeSession,
+  startSprintSession,
 } from "../../challenge-sessions";
 import { marketDate, type MarketKind } from "../../game-config";
 import type { ScenarioDifficulty, ScenarioKind } from "../../market-data";
@@ -67,10 +68,21 @@ export async function GET(request: Request) {
       });
     }
     const market = marketFrom(params.get("market"));
-    const mode = params.get("mode") === "daily" ? "daily" : "practice";
+    const mode =
+      params.get("mode") === "daily"
+        ? "daily"
+        : params.get("mode") === "sprint"
+          ? "sprint"
+          : "practice";
     const session =
       mode === "daily"
         ? await startDailySession(marketDate(market), market, playerId)
+        : mode === "sprint"
+          ? await startSprintSession(
+              params.get("seed")?.slice(0, 100) || crypto.randomUUID(),
+              market,
+              playerId,
+            )
         : await startPracticeSession(
             params.get("seed")?.slice(0, 100) || crypto.randomUUID(),
             market,
