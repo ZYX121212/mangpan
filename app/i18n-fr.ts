@@ -405,8 +405,23 @@ const FRENCH: Record<string, string> = {
   "Reminder shared": "Rappel partagé",
   "Invite shared": "Invitation partagée",
   "Share cancelled": "Partage annulé",
+  "Crew creation failed.": "Échec de la création de l’équipe.",
+  "Chart Readers": "Lecteurs de graphiques",
+  "A small shared commitment turns a solo streak into gentle accountability—without chat spam or a public feed.": "Un petit engagement partagé transforme une série solo en responsabilité douce, sans avalanche de messages ni fil public.",
+  "Crew market": "Marché de l’équipe",
+  "Already received a full invite link? Open it directly—no code entry needed.": "Vous avez déjà reçu un lien d’invitation complet ? Ouvrez-le directement, sans saisir de code.",
+  "Could not join crew.": "Impossible de rejoindre l’équipe.",
+  "U.S. MARKET CREW": "ÉQUIPE DU MARCHÉ AMÉRICAIN",
+  "A-SHARE MARKET CREW": "ÉQUIPE DU MARCHÉ A",
+  "COMPLETE": "TERMINÉ",
+  " · YOU": " · TOI",
+  "Your score stays yours. Only today’s completion status is shared with the crew.": "Ton score reste le tien. Seul l’état de complétion du jour est partagé avec l’équipe.",
+  "A Crew Streak starts with two people. Your first invite is the only step left.": "Une série d’équipe commence à deux. Il ne reste qu’à envoyer ta première invitation.",
+  "Review today’s result while you wait →": "Revoir le résultat du jour en attendant →",
+  "Play today’s chart while you wait →": "Jouer le graphique du jour en attendant →",
+  "Review today’s result →": "Revoir le résultat du jour →",
+  "Play today’s chart →": "Jouer le graphique du jour →",
 };
-
 const replacements = Object.entries(FRENCH).sort(
   ([left], [right]) => right.length - left.length,
 );
@@ -432,5 +447,9 @@ export function translateEnglishToFrench(text: string) {
     .replace(/(\d+(?:[.,]\d+)?)\s+shares/gu, "$1 actions")
     .replace(/(\d+(?:[.,]\d+)?)\s+candles/gu, "$1 bougies")
     .replace(/(\d+(?:[.,]\d+)?)\s+lessons/gu, "$1 leçons")
-    .replace(/(\d+(?:[.,]\d+)?)\s+decisions left/gu, "$1 décisions restantes");
+    .replace(/(\d+(?:[.,]\d+)?)\s+decisions left/gu, "$1 décisions restantes")
+    .replace(/\bBest (\d+)\b/gu, "Meilleur $1")
+    .replace(/\b(\d+) of (\d+) finished\b/gu, "$1 sur $2 terminés")
+    .replace(/\bNudge (\d+) waiting →/gu, "Relancer $1 personne(s) en attente →")
+    .replace(/\bKeep our (\d+)-day Blind Trading streak alive\./gu, "Gardons notre série Blind Trading de $1 jours.");
 }
