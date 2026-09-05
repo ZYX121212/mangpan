@@ -57,7 +57,7 @@ export default function CrewLobby() {
   const create = async (event: FormEvent) => {
     event.preventDefault();
     if (!playerId || crewName.trim().length < 2) return;
-    setStatus(locale === "en" ? "Creating crew…" : "正在创建小队…");
+    setStatus(locale !== "zh" ? "Creating crew…" : "正在创建小队…");
     try {
       const response = await fetch("/api/crews", {
         method: "POST",
@@ -82,7 +82,7 @@ export default function CrewLobby() {
       setStatus(
         error instanceof Error
           ? error.message
-          : locale === "en"
+          : locale !== "zh"
             ? "Crew creation failed."
             : "小队创建失败。",
       );
@@ -103,34 +103,34 @@ export default function CrewLobby() {
           <span>B</span>
           <b>BLIND TRADING</b>
         </Link>
-        <Link href="/">{locale === "en" ? "All modes" : "全部模式"}</Link>
+        <Link href="/">{locale !== "zh" ? "All modes" : "全部模式"}</Link>
       </header>
 
       <section className="crew-lobby-hero">
         <small>NEW · SHARED DAILY COMMITMENT</small>
-        <h1>{locale === "en" ? "Read one chart. Keep the crew alive." : "每人读一张图，一起守住连续纪录。"}</h1>
+        <h1>{locale !== "zh" ? "Read one chart. Keep the crew alive." : "每人读一张图，一起守住连续纪录。"}</h1>
         <p>
-          {locale === "en"
+          {locale !== "zh"
             ? "Create a private crew for up to five friends. Everyone completes today’s chart; the shared flame grows only when nobody is left behind."
             : "创建一个最多五人的私密小队。每个人完成今日盲盘，只有全员完成，共同火焰才会延续。"}
         </p>
         <div className="crew-rule-strip">
-          <span>2–5 {locale === "en" ? "FRIENDS" : "位好友"}</span>
-          <span>{locale === "en" ? "ONE CHART EACH" : "每人一张图"}</span>
-          <span>{locale === "en" ? "NO SIGN-UP" : "无需注册"}</span>
+          <span>2–5 {locale !== "zh" ? "FRIENDS" : "位好友"}</span>
+          <span>{locale !== "zh" ? "ONE CHART EACH" : "每人一张图"}</span>
+          <span>{locale !== "zh" ? "NO SIGN-UP" : "无需注册"}</span>
         </div>
       </section>
 
       <section className="crew-lobby-workspace">
         <form className="crew-create-card" onSubmit={create}>
           <small>START A CREW</small>
-          <h2>{locale === "en" ? "Make a daily pact" : "发起每日约定"}</h2>
-          <label htmlFor="crew-name">{locale === "en" ? "CREW NAME" : "小队名称"}</label>
+          <h2>{locale !== "zh" ? "Make a daily pact" : "发起每日约定"}</h2>
+          <label htmlFor="crew-name">{locale !== "zh" ? "CREW NAME" : "小队名称"}</label>
           <input
             id="crew-name"
             value={crewName}
             maxLength={24}
-            placeholder={locale === "en" ? "Chart Readers" : "盲盘研究所"}
+            placeholder={locale !== "zh" ? "Chart Readers" : "盲盘研究所"}
             onChange={(event) => setCrewName(event.target.value)}
           />
           <div className="crew-market-choice" role="group" aria-label="Crew market">
@@ -138,18 +138,18 @@ export default function CrewLobby() {
             <button type="button" className={market === "cn" ? "active" : ""} onClick={() => setMarket("cn")}>A-SHARES</button>
           </div>
           <button className="crew-primary" disabled={crewName.trim().length < 2 || status.includes("…")}>
-            {locale === "en" ? "Create crew →" : "创建小队 →"}
+            {locale !== "zh" ? "Create crew →" : "创建小队 →"}
           </button>
           {status && <p className="crew-form-status" role="status">{status}</p>}
         </form>
 
         <form className="crew-join-card" onSubmit={join}>
           <small>HAVE A CODE?</small>
-          <h2>{locale === "en" ? "Join your friends" : "加入好友小队"}</h2>
-          <p>{locale === "en" ? "Open their invite link or enter the eight-character crew code." : "打开好友邀请链接，或输入八位小队码。"}</p>
+          <h2>{locale !== "zh" ? "Join your friends" : "加入好友小队"}</h2>
+          <p>{locale !== "zh" ? "Open their invite link or enter the eight-character crew code." : "打开好友邀请链接，或输入八位小队码。"}</p>
           <div>
             <input
-              aria-label={locale === "en" ? "Crew code" : "小队码"}
+              aria-label={locale !== "zh" ? "Crew code" : "小队码"}
               value={joinCode}
               maxLength={8}
               placeholder="AB12CD34"
@@ -158,11 +158,11 @@ export default function CrewLobby() {
               spellCheck={false}
               onChange={(event) => setJoinCode(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))}
             />
-            <button disabled={!/^[A-Z0-9]{8}$/.test(joinCode)}>{locale === "en" ? "Open →" : "打开 →"}</button>
+            <button disabled={!/^[A-Z0-9]{8}$/.test(joinCode)}>{locale !== "zh" ? "Open →" : "打开 →"}</button>
           </div>
           <aside>
-            <b>{locale === "en" ? "Why it works" : "为什么有效"}</b>
-            <p>{locale === "en" ? "A small shared commitment turns a solo streak into gentle accountability—without chat spam or a public feed." : "小范围共同承诺，让个人打卡变成温和的相互监督，不需要群聊轰炸或公开动态。"}</p>
+            <b>{locale !== "zh" ? "Why it works" : "为什么有效"}</b>
+            <p>{locale !== "zh" ? "A small shared commitment turns a solo streak into gentle accountability—without chat spam or a public feed." : "小范围共同承诺，让个人打卡变成温和的相互监督，不需要群聊轰炸或公开动态。"}</p>
           </aside>
         </form>
       </section>
@@ -177,7 +177,7 @@ export default function CrewLobby() {
             {crews.map((crew) => (
               <Link href={`/c/${crew.code}`} key={crew.code}>
                 <i>🔥</i>
-                <span><b>{crew.name}</b><small>{crew.completedToday}/{crew.memberCount} {locale === "en" ? "done today" : "今日完成"}</small></span>
+                <span><b>{crew.name}</b><small>{crew.completedToday}/{crew.memberCount} {locale !== "zh" ? "done today" : "今日完成"}</small></span>
                 <strong>{crew.currentStreak}</strong>
               </Link>
             ))}

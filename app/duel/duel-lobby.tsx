@@ -45,32 +45,32 @@ export default function DuelLobby() {
           <span>B</span>
           <b>BLIND TRADING</b>
         </Link>
-        <Link href="/">{locale === "en" ? "All modes" : "全部模式"}</Link>
+        <Link href="/">{locale !== "zh" ? "All modes" : "全部模式"}</Link>
       </header>
       <section className="duel-lobby-card">
         <small>SAME CHART · TWO READS</small>
-        <h1>{locale === "en" ? "Start or join a friend duel" : "发起或加入好友同图对决"}</h1>
+        <h1>{locale !== "zh" ? "Start or join a friend duel" : "发起或加入好友同图对决"}</h1>
         <p>
-          {locale === "en"
+          {locale !== "zh"
             ? "Open a private room immediately, invite a friend, then race through the exact same hidden historical chart. Scores stay hidden until each player finishes."
             : "立即创建私密房间并邀请好友；双方挑战完全相同的隐藏历史行情，各自完成前成绩保持隐藏。"}
         </p>
         <Link className="duel-create-action" href={`/duel/create?market=${market}`}>
-          <span>{locale === "en" ? "NEW PRIVATE ROOM" : "新建私密房间"}</span>
-          <b>{locale === "en" ? "Create instant duel" : "立即创建对决"}</b>
+          <span>{locale !== "zh" ? "NEW PRIVATE ROOM" : "新建私密房间"}</span>
+          <b>{locale !== "zh" ? "Create instant duel" : "立即创建对决"}</b>
           <small>
-            {locale === "en"
+            {locale !== "zh"
               ? "Invite now · play in parallel · no sign-up"
               : "立即邀请 · 同时作答 · 无需注册"}
           </small>
           <strong aria-hidden="true">→</strong>
         </Link>
         <div className="duel-lobby-divider">
-          <span>{locale === "en" ? "OR JOIN WITH A CODE" : "或使用挑战码加入"}</span>
+          <span>{locale !== "zh" ? "OR JOIN WITH A CODE" : "或使用挑战码加入"}</span>
         </div>
         <form onSubmit={join}>
           <label htmlFor="duel-code">
-            {locale === "en" ? "INVITE CODE" : "挑战码"}
+            {locale !== "zh" ? "INVITE CODE" : "挑战码"}
           </label>
           <div>
             <input
@@ -88,20 +88,20 @@ export default function DuelLobby() {
               }
             />
             <button disabled={!/^[A-Z0-9]{8,12}$/.test(code)}>
-              {locale === "en" ? "Join duel →" : "加入对决 →"}
+              {locale !== "zh" ? "Join duel →" : "加入对决 →"}
             </button>
           </div>
         </form>
         <p className="duel-lobby-note-copy">
-          {locale === "en"
+          {locale !== "zh"
             ? "Already received a full invite link? Open it directly—no code entry needed."
             : "如果已经收到完整邀请链接，直接打开即可，无需再次输入挑战码。"}
         </p>
       </section>
       <footer className="duel-lobby-proof">
-        <span>{locale === "en" ? "EXACT SAME CHART" : "完全相同的行情"}</span>
-        <span>{locale === "en" ? "VERIFIED SCORE" : "服务器复算得分"}</span>
-        <span>{locale === "en" ? "NO SIGN-UP" : "无需注册"}</span>
+        <span>{locale !== "zh" ? "EXACT SAME CHART" : "完全相同的行情"}</span>
+        <span>{locale !== "zh" ? "VERIFIED SCORE" : "服务器复算得分"}</span>
+        <span>{locale !== "zh" ? "NO SIGN-UP" : "无需注册"}</span>
       </footer>
       </main>
     </Localized>
