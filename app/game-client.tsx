@@ -4009,6 +4009,7 @@ export default function GameClient({
             <option value="es">ES</option>
             <option value="fr">FR</option>
             <option value="de">DE</option>
+            <option value="it">IT</option>
             <option value="zh">ZH</option>
           </select>
           <button
