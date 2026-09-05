@@ -42,6 +42,16 @@ test("surfaces comparison proof only when it is worth sharing", () => {
   assert.equal(shareComparisonHook(69.9), null);
   assert.equal(shareComparisonHook(Number.NaN), null);
   assert.equal(shareComparisonHook(108), "Beat 100% of players today");
+  assert.equal(shareComparisonHook(82.4, "de"), "Heute besser als 82% der Spieler");
+  assert.equal(shareComparisonHook(82.4, "it"), "Hai superato il 82% dei giocatori oggi");
+  assert.equal(shareComparisonHook(82.4, "fr"), "Tu devances 82% des joueurs aujourd’hui");
+});
+
+test("localizes share-source labels for every supported overseas locale", () => {
+  assert.equal(shareSourceLabel("qr", "de"), "QR-Code der Karte");
+  assert.equal(shareSourceLabel("whatsapp", "it"), "WhatsApp");
+  assert.equal(shareSourceLabel("copy", "es"), "Enlace copiado");
+  assert.equal(shareSourceLabel("direct", "fr"), "Direct");
 });
 
 test("builds an encoded X intent with a separately tagged URL", () => {

@@ -9,6 +9,7 @@ export type ShareChannel =
   | "copy";
 
 export type ShareSource = ShareChannel | "direct";
+export type ShareLocale = "en" | "zh" | "es" | "fr" | "de" | "it";
 
 const SHARE_SOURCES = new Set<ShareSource>([
   "native",
@@ -30,7 +31,7 @@ export function normalizeShareSource(value: unknown): ShareSource {
     : "direct";
 }
 
-export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en") {
+export function shareSourceLabel(source: ShareSource, locale: ShareLocale = "en") {
   const labels =
     locale === "zh"
       ? ({
@@ -44,7 +45,55 @@ export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en"
           copy: "复制链接",
           direct: "直接访问",
         } as const)
-      : ({
+      : locale === "es"
+        ? ({
+            native: "Compartir del sistema",
+            x: "X",
+            whatsapp: "WhatsApp",
+            telegram: "Telegram",
+            reddit: "Reddit",
+            bluesky: "Bluesky",
+            qr: "QR de la tarjeta",
+            copy: "Enlace copiado",
+            direct: "Directo",
+          } as const)
+        : locale === "fr"
+          ? ({
+              native: "Partage système",
+              x: "X",
+              whatsapp: "WhatsApp",
+              telegram: "Telegram",
+              reddit: "Reddit",
+              bluesky: "Bluesky",
+              qr: "QR de la carte",
+              copy: "Lien copié",
+              direct: "Direct",
+            } as const)
+          : locale === "de"
+            ? ({
+                native: "Systemfreigabe",
+                x: "X",
+                whatsapp: "WhatsApp",
+                telegram: "Telegram",
+                reddit: "Reddit",
+                bluesky: "Bluesky",
+                qr: "QR-Code der Karte",
+                copy: "Link kopiert",
+                direct: "Direkt",
+              } as const)
+            : locale === "it"
+              ? ({
+                  native: "Condivisione di sistema",
+                  x: "X",
+                  whatsapp: "WhatsApp",
+                  telegram: "Telegram",
+                  reddit: "Reddit",
+                  bluesky: "Bluesky",
+                  qr: "QR della scheda",
+                  copy: "Link copiato",
+                  direct: "Diretto",
+                } as const)
+              : ({
       native: "System share",
       x: "X",
       whatsapp: "WhatsApp",
@@ -54,13 +103,13 @@ export function shareSourceLabel(source: ShareSource, locale: "en" | "zh" = "en"
       qr: "Share-card QR",
       copy: "Copied link",
       direct: "Direct",
-        } as const);
+                } as const);
   return labels[source];
 }
 
 export function shareComparisonHook(
   percentile: number | null | undefined,
-  locale: "en" | "zh" = "en",
+  locale: ShareLocale = "en",
 ) {
   if (
     typeof percentile !== "number" ||
@@ -69,9 +118,12 @@ export function shareComparisonHook(
   )
     return null;
   const value = Math.max(0, Math.min(100, Math.round(percentile)));
-  return locale === "en"
-    ? `Beat ${value}% of players today`
-    : `今日领先 ${value}% 玩家`;
+  if (locale === "zh") return `今日领先 ${value}% 玩家`;
+  if (locale === "es") return `Superaste al ${value}% de jugadores hoy`;
+  if (locale === "fr") return `Tu devances ${value}% des joueurs aujourd’hui`;
+  if (locale === "de") return `Heute besser als ${value}% der Spieler`;
+  if (locale === "it") return `Hai superato il ${value}% dei giocatori oggi`;
+  return `Beat ${value}% of players today`;
 }
 
 export function taggedChallengeUrl(url: string, channel: ShareChannel) {
