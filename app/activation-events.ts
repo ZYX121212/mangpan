@@ -29,6 +29,7 @@ export type ActivationEventType =
   | "run_start"
   | "run_stage_complete"
   | "run_complete"
+  | "run_share"
   | "daily_complete"
   | "milestone_celebration"
   | "result_next_chart"

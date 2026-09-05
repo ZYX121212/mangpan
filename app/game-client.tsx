@@ -193,6 +193,9 @@ const SHARE_TEXT_COPY: Record<
     score: (score: number, calibration: number, risk: number) => string;
     challenge: string;
     compact: (name: string, score: number, chain: string, sequence: string) => string;
+    runTitle: string;
+    runChallenge: (grade: string, total: number) => string;
+    runCompact: (grade: string, total: number, sequence: string) => string;
   }
 > = {
   en: {
@@ -205,6 +208,9 @@ const SHARE_TEXT_COPY: Record<
     score: (score, calibration, risk) => `Decision ${score} · Calibration ${calibration} · Risk ${risk}`,
     challenge: "Same mystery chart. Five decisions. Can you beat me?",
     compact: (name, score, chain, sequence) => `My Blind Trading style is ${name} · ${score}${chain} ${sequence} Same hidden chart, five calls. Can you beat me?`,
+    runTitle: "BLIND TRADING MARKET RUN",
+    runChallenge: (grade, total) => `I cleared five hidden markets with a ${grade} grade (${total}/500). Can you beat my run?`,
+    runCompact: (grade, total, sequence) => `Market Run ${grade} · ${total}/500 ${sequence} Five hidden markets. Can you beat my run?`,
   },
   zh: {
     title: "盲盘每日挑战",
@@ -216,6 +222,9 @@ const SHARE_TEXT_COPY: Record<
     score: (score, calibration, risk) => `决策 ${score} · 校准 ${calibration} · 风控 ${risk}`,
     challenge: "同一张神秘历史图，五次决策。你能超过我吗？",
     compact: (name, score, chain, sequence) => `我是${name}，盲盘挑战 ${score} 分${chain} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`,
+    runTitle: "盲盘市场闯关",
+    runChallenge: (grade, total) => `我完成了五张隐藏行情，评级 ${grade}（${total}/500）。你能超过这轮吗？`,
+    runCompact: (grade, total, sequence) => `市场闯关 ${grade} · ${total}/500 ${sequence} 五张隐藏行情。你能超过我吗？`,
   },
   es: {
     title: "TRADING A CIEGAS DIARIO",
@@ -227,6 +236,9 @@ const SHARE_TEXT_COPY: Record<
     score: (score, calibration, risk) => `Decisión ${score} · Calibración ${calibration} · Riesgo ${risk}`,
     challenge: "El mismo gráfico misterioso. Cinco decisiones. ¿Puedes superarme?",
     compact: (name, score, chain, sequence) => `Mi estilo de Trading a ciegas es ${name} · ${score}${chain} ${sequence} Mismo gráfico oculto, cinco decisiones. ¿Puedes superarme?`,
+    runTitle: "RUTA DE MERCADOS · BLIND TRADING",
+    runChallenge: (grade, total) => `Superé cinco mercados ocultos con nota ${grade} (${total}/500). ¿Puedes superar mi ruta?`,
+    runCompact: (grade, total, sequence) => `Ruta ${grade} · ${total}/500 ${sequence} Cinco mercados ocultos. ¿Puedes superarme?`,
   },
   fr: {
     title: "TRADING À L'AVEUGLE DU JOUR",
@@ -238,6 +250,9 @@ const SHARE_TEXT_COPY: Record<
     score: (score, calibration, risk) => `Décision ${score} · Calibration ${calibration} · Risque ${risk}`,
     challenge: "Le même graphique mystère. Cinq décisions. Peux-tu me battre ?",
     compact: (name, score, chain, sequence) => `Mon style de trading à l'aveugle est ${name} · ${score}${chain} ${sequence} Même graphique caché, cinq décisions. Peux-tu me battre ?`,
+    runTitle: "PARCOURS MARCHÉS · BLIND TRADING",
+    runChallenge: (grade, total) => `J’ai terminé cinq marchés cachés avec la note ${grade} (${total}/500). Peux-tu faire mieux ?`,
+    runCompact: (grade, total, sequence) => `Parcours ${grade} · ${total}/500 ${sequence} Cinq marchés cachés. À toi de jouer.`,
   },
   de: {
     title: "BLIND TRADING TÄGLICH",
@@ -249,6 +264,9 @@ const SHARE_TEXT_COPY: Record<
     score: (score, calibration, risk) => `Entscheidung ${score} · Kalibrierung ${calibration} · Risiko ${risk}`,
     challenge: "Derselbe Mystery-Chart. Fünf Entscheidungen. Kannst du mich schlagen?",
     compact: (name, score, chain, sequence) => `Mein Blind-Trading-Stil ist ${name} · ${score}${chain} ${sequence} Derselbe verborgene Chart, fünf Entscheidungen. Kannst du mich schlagen?`,
+    runTitle: "BLIND TRADING · MARKTLAUF",
+    runChallenge: (grade, total) => `Ich habe fünf verborgene Märkte mit der Note ${grade} (${total}/500) geschafft. Schlägst du meinen Lauf?`,
+    runCompact: (grade, total, sequence) => `Marktlauf ${grade} · ${total}/500 ${sequence} Fünf verborgene Märkte. Schlägst du mich?`,
   },
   it: {
     title: "BLIND TRADING GIORNALIERO",
@@ -260,6 +278,9 @@ const SHARE_TEXT_COPY: Record<
     score: (score, calibration, risk) => `Decisione ${score} · Calibrazione ${calibration} · Rischio ${risk}`,
     challenge: "Lo stesso grafico misterioso. Cinque decisioni. Riesci a battermi?",
     compact: (name, score, chain, sequence) => `Il mio stile Blind Trading è ${name} · ${score}${chain} ${sequence} Stesso grafico nascosto, cinque decisioni. Riesci a battermi?`,
+    runTitle: "BLIND TRADING · CORSA SUI MERCATI",
+    runChallenge: (grade, total) => `Ho completato cinque mercati nascosti con voto ${grade} (${total}/500). Riesci a superare la mia corsa?`,
+    runCompact: (grade, total, sequence) => `Corsa ${grade} · ${total}/500 ${sequence} Cinque mercati nascosti. Riesci a battermi?`,
   },
 };
 
@@ -3105,8 +3126,9 @@ export default function GameClient({
 
   useEffect(() => {
     if (
-      (gameMode !== "daily" && !isEndlessMode) ||
-      scoreStatus !== "done" ||
+      (gameMode !== "daily" && !isEndlessMode && !isMarketRun) ||
+      ((gameMode === "daily" || isEndlessMode) && scoreStatus !== "done") ||
+      (isMarketRun && !marketRunFinished) ||
       duelShareUrl ||
       shareSetupStatus !== "idle"
     )
@@ -3122,6 +3144,8 @@ export default function GameClient({
     duelShareUrl,
     gameMode,
     isEndlessMode,
+    isMarketRun,
+    marketRunFinished,
     prepareDuelShareUrl,
     scoreStatus,
     shareSetupStatus,
@@ -3840,6 +3864,8 @@ export default function GameClient({
   const resultShareCopy = () => {
     const shareCopy = SHARE_TEXT_COPY[locale];
     const marks = resultShareMarks;
+    const runGrade = marketRunGrade(marketRunProgress.scores);
+    const runTotal = marketRunTotal(marketRunProgress.scores);
     const longCycle = isEndlessMode;
     const sequence = marks
       .slice(0, DAILY_CHALLENGE_DECISIONS)
@@ -3850,7 +3876,9 @@ export default function GameClient({
       ? locale === "zh"
         ? "盲盘无尽长周期 · 神秘历史行情"
         : "BLIND TRADING ENDLESS · Mystery Market Run"
-      : `${shareCopy.title} · ${locale === "zh" ? "神秘历史行情" : "Mystery Market Challenge"}`;
+      : isMarketRun
+        ? shareCopy.runTitle
+        : `${shareCopy.title} · ${locale === "zh" ? "神秘历史行情" : "Mystery Market Challenge"}`;
     const chainLabel =
       activeDuel && scoreboard?.shareDuel
         ? shareCopy.chain(scoreboard.shareDuel.chainDepth + 1)
@@ -3868,11 +3896,15 @@ export default function GameClient({
       ? locale === "zh"
         ? `我在同一段隐藏长周期推进了 ${advancedDays} 个交易日，得分 ${skillScore}。你能超过吗？`
         : `I read ${advancedDays} trading days in one hidden cycle and scored ${skillScore}. Can you beat my run?`
-      : shareCopy.challenge;
+      : isMarketRun
+        ? shareCopy.runChallenge(runGrade, runTotal)
+        : shareCopy.challenge;
     const text = `${title} #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\n${shareCopy.score(skillScore, decisionStats.calibration.toFixed(0), processScores.risk.toFixed(0))}${crowdLine ? `\n${crowdLine}` : ""}\n${challenge}`;
     const compactText = longCycle
       ? `${comparisonLine ? `${comparisonLine} · ` : ""}${locale === "zh" ? `我的无尽长周期：${advancedDays} 日 · ${skillScore} 分 · ${sequence} 你能超过吗？` : `My Endless run: ${advancedDays} days · ${skillScore} points · ${sequence} Can you beat it?`}`
-      : `${comparisonLine ? `${comparisonLine} · ` : ""}${shareCopy.compact(decisionStyle.title, skillScore, chainLabel, sequence)}`;
+      : isMarketRun
+        ? `${comparisonLine ? `${comparisonLine} · ` : ""}${shareCopy.runCompact(runGrade, runTotal, sequence)}`
+        : `${comparisonLine ? `${comparisonLine} · ` : ""}${shareCopy.compact(decisionStyle.title, skillScore, chainLabel, sequence)}`;
     return { compactText, text, title };
   };
 
@@ -3900,6 +3932,8 @@ export default function GameClient({
     recordDuelShare(channel);
     if (isEndlessMode && playerId)
       trackActivationEvent(playerId, "endless_share", "direct");
+    if (isMarketRun && playerId)
+      trackActivationEvent(playerId, "run_share", "run");
   };
 
   const shareResult = async (channel: "native" | "copy") => {
@@ -4073,11 +4107,13 @@ export default function GameClient({
        recordDuelShare("native");
        trackActivationEvent(
          playerId,
-          isEndlessMode
-            ? "endless_share"
-            : resultCardVariant === "style"
-              ? "daily_style_card_share"
-              : "daily_score_card_share",
+          isMarketRun
+            ? "run_share"
+            : isEndlessMode
+              ? "endless_share"
+              : resultCardVariant === "style"
+                ? "daily_style_card_share"
+                : "daily_score_card_share",
          activeDuel ? "duel" : "direct",
        );
         setCardStatus(
@@ -4093,11 +4129,13 @@ export default function GameClient({
        recordDuelShare("copy");
        trackActivationEvent(
          playerId,
-          isEndlessMode
-            ? "endless_share"
-            : resultCardVariant === "style"
-              ? "daily_style_card_share"
-              : "daily_score_card_share",
+          isMarketRun
+            ? "run_share"
+            : isEndlessMode
+              ? "endless_share"
+              : resultCardVariant === "style"
+                ? "daily_style_card_share"
+                : "daily_score_card_share",
          activeDuel ? "duel" : "direct",
        );
         setCardStatus(
@@ -7588,11 +7626,16 @@ export default function GameClient({
               次交易 · 成本 {currencySymbol}
               {nf.format(feesPaid + slippagePaid)}
             </div>
-            {(gameMode === "daily" || isEndlessMode) && scoreStatus === "done" && (
+            {(((gameMode === "daily" || isEndlessMode) && scoreStatus === "done") ||
+              (isMarketRun && marketRunFinished)) && (
               <section className="result-share-kit">
                 <div>
                   <small>
-                    {isEndlessMode
+                    {isMarketRun
+                      ? locale === "en"
+                        ? "SHARE YOUR MARKET RUN"
+                        : "分享你的市场闯关"
+                      : isEndlessMode
                       ? locale === "en"
                         ? "SHARE YOUR LONG CYCLE"
                         : "分享你的长周期"
@@ -7606,7 +7649,11 @@ export default function GameClient({
                     </em>
                   )}
                   <b>
-                    {isEndlessMode
+                    {isMarketRun
+                      ? locale === "en"
+                        ? "Your five-stage run · no spoilers"
+                        : "你的五关闯关 · 无剧透"
+                      : isEndlessMode
                       ? locale === "en"
                         ? `${decisionStyle.title} · your Endless read`
                         : `${decisionStyle.title} · 你的无尽长周期判断`
@@ -7643,9 +7690,13 @@ export default function GameClient({
                   </span>
                   <p>
                     {locale === "en"
-                        ? isEndlessMode
+                      ? isMarketRun
+                        ? "Shows your grade, five-stage score, and a scan-to-play QR—never the ticker or answers."
+                        : isEndlessMode
                           ? "Shows your style, score, and a scan-to-play QR—not the ticker or the answer."
                           : "Shows your style, score, and a scan-to-challenge QR—not the ticker or the answer."
+                      : isMarketRun
+                        ? "展示评级、五关分数和可扫码再玩二维码，不泄露股票名或答案。"
                         : isEndlessMode
                           ? "展示风格、得分和可扫码继续游玩的二维码，不泄露股票名或答案。"
                           : "展示风格、得分和可扫码挑战的二维码，不泄露股票名或答案。"}

@@ -123,6 +123,7 @@ const ENGLISH: Record<string, string> = {
   "完整历史周期 · 随时结束": "Full historical period · End anytime",
   "长周期 · 无上限": "LONG CYCLE · NO CAP",
   "无尽长周期": "Endless",
+  "盲盘市场闯关": "BLIND TRADING MARKET RUN",
   "完成今日短局，或沿着一段长历史周期持续判断。":
     "Compete in today’s short puzzle or stay with one long historical cycle.",
   "每日竞技、快速读盘、长周期、专项训练、好友对决和小队连续挑战各自独立，不再把不同目标堆进同一局。":
