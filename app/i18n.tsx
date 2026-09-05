@@ -46,6 +46,17 @@ const ENGLISH: Record<string, string> = {
   "盲盘每日挑战｜神秘历史行情": "Blind Trading Daily | Mystery Market Challenge",
   "每日挑战": "Daily Challenge",
   "今日盲盘": " Daily Challenge",
+  "领先玩家": "BEAT TODAY",
+  "你的今日决策风格": "YOUR DECISION STYLE",
+  "下一局目标": "NEXT RUN",
+  "你能读得更准吗？": "CAN YOU READ IT BETTER?",
+  "同一张神秘历史图，五次决策，结算前不看股票与日期。":
+    "Same mystery chart. Five decisions. No ticker until the reveal.",
+  "挑战今天的隐藏行情": "PLAY TODAY'S HIDDEN CHART",
+  "真实历史行情 · 结算前隐藏股票身份 · 不涉及真实资金":
+    "REAL HISTORICAL DATA · TICKER HIDDEN UNTIL REVEAL · NO REAL MONEY",
+  "同一张神秘历史图，五次决策。你能超过我吗？":
+    "Same mystery chart. Five decisions. Can you beat me?",
   "最新": "Latest",
   "全部": "All",
   "复位": "Reset",

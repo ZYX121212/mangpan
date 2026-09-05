@@ -92,6 +92,177 @@ function documentTitleFor(locale: Locale) {
   return "Blind Trading | Real Historical Market Challenge";
 }
 
+const SHARE_CARD_COPY: Record<
+  Locale,
+  {
+    calibration: string;
+    risk: string;
+    beatToday: string;
+    decisionStyle: string;
+    decisionScore: string;
+    nextRun: string;
+    canReadBetter: string;
+    sameChart: string;
+    playToday: string;
+    realData: string;
+  }
+> = {
+  en: {
+    calibration: "CALIBRATION",
+    risk: "RISK CONTROL",
+    beatToday: "BEAT TODAY",
+    decisionStyle: "YOUR DECISION STYLE",
+    decisionScore: "DECISION SCORE",
+    nextRun: "NEXT RUN",
+    canReadBetter: "CAN YOU READ IT BETTER?",
+    sameChart: "Same mystery chart. Five decisions. No ticker until the reveal.",
+    playToday: "PLAY TODAY'S HIDDEN CHART",
+    realData: "REAL HISTORICAL DATA · TICKER HIDDEN UNTIL REVEAL · NO REAL MONEY",
+  },
+  zh: {
+    calibration: "概率校准",
+    risk: "风险控制",
+    beatToday: "领先玩家",
+    decisionStyle: "你的今日决策风格",
+    decisionScore: "决策评分",
+    nextRun: "下一局目标",
+    canReadBetter: "你能读得更准吗？",
+    sameChart: "同一张神秘历史图，五次决策，结算前不看股票与日期。",
+    playToday: "挑战今天的隐藏行情",
+    realData: "真实历史行情 · 结算前隐藏股票身份 · 不涉及真实资金",
+  },
+  es: {
+    calibration: "CALIBRACIÓN",
+    risk: "CONTROL DEL RIESGO",
+    beatToday: "SUPERAR HOY",
+    decisionStyle: "TU ESTILO DE DECISIÓN",
+    decisionScore: "PUNTUACIÓN DE DECISIÓN",
+    nextRun: "PRÓXIMA PARTIDA",
+    canReadBetter: "¿PUEDES LEERLO MEJOR?",
+    sameChart: "El mismo gráfico misterioso. Cinco decisiones. Sin ticker hasta revelar.",
+    playToday: "JUEGA EL GRÁFICO OCULTO DE HOY",
+    realData: "DATOS HISTÓRICOS REALES · TICKER OCULTO · SIN DINERO REAL",
+  },
+  fr: {
+    calibration: "CALIBRATION",
+    risk: "CONTRÔLE DU RISQUE",
+    beatToday: "DEVANCER AUJOURD'HUI",
+    decisionStyle: "TON STYLE DE DÉCISION",
+    decisionScore: "SCORE DE DÉCISION",
+    nextRun: "PROCHAINE PARTIE",
+    canReadBetter: "PEUX-TU MIEUX LE LIRE ?",
+    sameChart: "Le même graphique mystère. Cinq décisions. Ticker révélé à la fin.",
+    playToday: "JOUE LE GRAPHIQUE CACHÉ DU JOUR",
+    realData: "DONNÉES HISTORIQUES RÉELLES · TICKER CACHÉ · SANS ARGENT RÉEL",
+  },
+  de: {
+    calibration: "KALIBRIERUNG",
+    risk: "RISIKOKONTROLLE",
+    beatToday: "HEUTE ÜBERTROFFEN",
+    decisionStyle: "DEIN ENTSCHEIDUNGSSTIL",
+    decisionScore: "ENTSCHEIDUNGSERGEBNIS",
+    nextRun: "NÄCHSTER LAUF",
+    canReadBetter: "KANNST DU ES BESSER LESEN?",
+    sameChart: "Derselbe Mystery-Chart. Fünf Entscheidungen. Der Ticker bleibt bis zur Enthüllung verborgen.",
+    playToday: "HEUTIGEN VERBORGENEN CHART SPIELEN",
+    realData: "ECHTE HISTORISCHE DATEN · TICKER VERBORGEN · KEIN ECHTES GELD",
+  },
+  it: {
+    calibration: "CALIBRAZIONE",
+    risk: "CONTROLLO DEL RISCHIO",
+    beatToday: "BATTERE OGGI",
+    decisionStyle: "IL TUO STILE DECISIONALE",
+    decisionScore: "PUNTEGGIO DECISIONALE",
+    nextRun: "PROSSIMA PARTITA",
+    canReadBetter: "RIESCI A LEGGERLO MEGLIO?",
+    sameChart: "Lo stesso grafico misterioso. Cinque decisioni. Ticker nascosto fino alla rivelazione.",
+    playToday: "GIOCA IL GRAFICO NASCOSTO DI OGGI",
+    realData: "DATI STORICI REALI · TICKER NASCOSTO · NESSUN DENARO REALE",
+  },
+};
+
+const SHARE_TEXT_COPY: Record<
+  Locale,
+  {
+    title: string;
+    usStocks: string;
+    chinaShares: string;
+    chain: (round: number) => string;
+    crowd: (beat: number, wins: number, calls: number) => string;
+    style: (name: string) => string;
+    score: (score: number, calibration: number, risk: number) => string;
+    challenge: string;
+    compact: (name: string, score: number, chain: string, sequence: string) => string;
+  }
+> = {
+  en: {
+    title: "BLIND TRADING DAILY",
+    usStocks: "US Stocks",
+    chinaShares: "China A-shares",
+    chain: (round) => ` · CHAIN R${round}`,
+    crowd: (beat, wins, calls) => `Crowd edge ${beat} · Contrarian wins ${wins}/${calls}`,
+    style: (name) => `Decision style · ${name}`,
+    score: (score, calibration, risk) => `Decision ${score} · Calibration ${calibration} · Risk ${risk}`,
+    challenge: "Same mystery chart. Five decisions. Can you beat me?",
+    compact: (name, score, chain, sequence) => `My Blind Trading style is ${name} · ${score}${chain} ${sequence} Same hidden chart, five calls. Can you beat me?`,
+  },
+  zh: {
+    title: "盲盘每日挑战",
+    usStocks: "美股",
+    chinaShares: "A股",
+    chain: (round) => ` · 接力第 ${round} 轮`,
+    crowd: (beat, wins, calls) => `领先人群 ${beat} 次 · 逆向命中 ${wins}/${calls}`,
+    style: (name) => `今日决策风格 · ${name}`,
+    score: (score, calibration, risk) => `决策 ${score} · 校准 ${calibration} · 风控 ${risk}`,
+    challenge: "同一张神秘历史图，五次决策。你能超过我吗？",
+    compact: (name, score, chain, sequence) => `我是${name}，盲盘挑战 ${score} 分${chain} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`,
+  },
+  es: {
+    title: "TRADING A CIEGAS DIARIO",
+    usStocks: "Acciones de EE. UU.",
+    chinaShares: "Acciones A de China",
+    chain: (round) => ` · CADENA R${round}`,
+    crowd: (beat, wins, calls) => `Ventaja sobre la multitud ${beat} · Aciertos contrarios ${wins}/${calls}`,
+    style: (name) => `Estilo de decisión · ${name}`,
+    score: (score, calibration, risk) => `Decisión ${score} · Calibración ${calibration} · Riesgo ${risk}`,
+    challenge: "El mismo gráfico misterioso. Cinco decisiones. ¿Puedes superarme?",
+    compact: (name, score, chain, sequence) => `Mi estilo de Trading a ciegas es ${name} · ${score}${chain} ${sequence} Mismo gráfico oculto, cinco decisiones. ¿Puedes superarme?`,
+  },
+  fr: {
+    title: "TRADING À L'AVEUGLE DU JOUR",
+    usStocks: "Actions américaines",
+    chinaShares: "Actions A chinoises",
+    chain: (round) => ` · CHAÎNE R${round}`,
+    crowd: (beat, wins, calls) => `Avantage sur la foule ${beat} · Victoires contraires ${wins}/${calls}`,
+    style: (name) => `Style de décision · ${name}`,
+    score: (score, calibration, risk) => `Décision ${score} · Calibration ${calibration} · Risque ${risk}`,
+    challenge: "Le même graphique mystère. Cinq décisions. Peux-tu me battre ?",
+    compact: (name, score, chain, sequence) => `Mon style de trading à l'aveugle est ${name} · ${score}${chain} ${sequence} Même graphique caché, cinq décisions. Peux-tu me battre ?`,
+  },
+  de: {
+    title: "BLIND TRADING TÄGLICH",
+    usStocks: "US-Aktien",
+    chinaShares: "Chinesische A-Aktien",
+    chain: (round) => ` · KETTE R${round}`,
+    crowd: (beat, wins, calls) => `Vorsprung vor der Community ${beat} · Konträre Treffer ${wins}/${calls}`,
+    style: (name) => `Entscheidungsstil · ${name}`,
+    score: (score, calibration, risk) => `Entscheidung ${score} · Kalibrierung ${calibration} · Risiko ${risk}`,
+    challenge: "Derselbe Mystery-Chart. Fünf Entscheidungen. Kannst du mich schlagen?",
+    compact: (name, score, chain, sequence) => `Mein Blind-Trading-Stil ist ${name} · ${score}${chain} ${sequence} Derselbe verborgene Chart, fünf Entscheidungen. Kannst du mich schlagen?`,
+  },
+  it: {
+    title: "BLIND TRADING GIORNALIERO",
+    usStocks: "Azioni USA",
+    chinaShares: "Azioni A cinesi",
+    chain: (round) => ` · CATENA R${round}`,
+    crowd: (beat, wins, calls) => `Vantaggio sulla folla ${beat} · Vittorie contrarian ${wins}/${calls}`,
+    style: (name) => `Stile decisionale · ${name}`,
+    score: (score, calibration, risk) => `Decisione ${score} · Calibrazione ${calibration} · Rischio ${risk}`,
+    challenge: "Lo stesso grafico misterioso. Cinque decisioni. Riesci a battermi?",
+    compact: (name, score, chain, sequence) => `Il mio stile Blind Trading è ${name} · ${score}${chain} ${sequence} Stesso grafico nascosto, cinque decisioni. Riesci a battermi?`,
+  },
+};
+
 function trackDuelEvent(
   code: string,
   playerId: string,
@@ -590,6 +761,7 @@ async function createResultShareCard({
   canvas.height = 1350;
   const context = canvas.getContext("2d");
   if (!context) return null;
+  const cardCopy = SHARE_CARD_COPY[locale];
   context.fillStyle = "#f4f1e9";
   context.fillRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = "#252721";
@@ -615,10 +787,10 @@ async function createResultShareCard({
   );
   context.textAlign = "left";
   const metrics = [
-    [locale === "en" ? "CALIBRATION" : "概率校准", calibration],
-    [locale === "en" ? "RISK CONTROL" : "风险控制", risk],
+    [cardCopy.calibration, calibration],
+    [cardCopy.risk, risk],
     [
-      locale === "en" ? "BEAT TODAY" : "领先玩家",
+      cardCopy.beatToday,
       percentile == null ? "—" : `${percentile}%`,
     ],
   ] as const;
@@ -636,7 +808,7 @@ async function createResultShareCard({
     context.fillStyle = "#777970";
     context.font = "800 20px Arial, sans-serif";
     context.fillText(
-      locale === "en" ? "YOUR DECISION STYLE" : "你的今日决策风格",
+      cardCopy.decisionStyle,
       286,
       275,
     );
@@ -672,7 +844,7 @@ async function createResultShareCard({
     context.fillStyle = "#777970";
     context.font = "800 18px Arial, sans-serif";
     context.fillText(
-      `${locale === "en" ? "DECISION SCORE" : "决策评分"} ${score}`,
+      `${cardCopy.decisionScore} ${score}`,
       72,
       921,
     );
@@ -680,7 +852,7 @@ async function createResultShareCard({
     context.fillRect(72, 956, 936, 154);
     context.fillStyle = "#bfc3b7";
     context.font = "800 17px Arial, sans-serif";
-    context.fillText(locale === "en" ? "NEXT RUN" : "下一局目标", 102, 996);
+    context.fillText(cardCopy.nextRun, 102, 996);
     context.fillStyle = "#ffffff";
     context.font = "700 25px Arial, sans-serif";
     drawWrappedText(
@@ -699,14 +871,14 @@ async function createResultShareCard({
     context.fillStyle = "#74766d";
     context.font = "800 24px Arial, sans-serif";
     context.fillText(
-      locale === "en" ? "DECISION SCORE" : "决策评分",
+      cardCopy.decisionScore,
       76,
       558,
     );
     context.fillStyle = "#4f514a";
     context.font = "800 21px Arial, sans-serif";
     context.fillText(
-      `${locale === "en" ? "DECISION STYLE" : "今日决策风格"} · ${decisionStyle.title.toUpperCase()}`,
+      `${cardCopy.decisionStyle} · ${decisionStyle.title.toUpperCase()}`,
       72,
       602,
     );
@@ -728,16 +900,14 @@ async function createResultShareCard({
     context.fillStyle = "#252721";
     context.font = "800 48px Arial, sans-serif";
     context.fillText(
-      locale === "en" ? "CAN YOU READ IT BETTER?" : "你能读得更准吗？",
+      cardCopy.canReadBetter,
       72,
       1051,
     );
     context.fillStyle = "#777970";
     context.font = "600 22px Arial, sans-serif";
     context.fillText(
-      locale === "en"
-        ? "Same mystery chart. Five decisions. No ticker until the reveal."
-        : "同一张神秘历史图，五次决策，结算前不看股票与日期。",
+      cardCopy.sameChart,
       72,
       1095,
     );
@@ -747,7 +917,7 @@ async function createResultShareCard({
   context.fillStyle = "#bfc3b7";
   context.font = "800 17px Arial, sans-serif";
   context.fillText(
-    locale === "en" ? "PLAY TODAY'S HIDDEN CHART" : "挑战今天的隐藏行情",
+    cardCopy.playToday,
     102,
     1191,
   );
@@ -783,7 +953,7 @@ async function createResultShareCard({
   context.fillStyle = "#8b8c84";
   context.font = "700 16px Arial, sans-serif";
   context.fillText(
-    "REAL HISTORICAL DATA · TICKER HIDDEN UNTIL REVEAL · NO REAL MONEY",
+    cardCopy.realData,
     72,
     1307,
   );
@@ -3451,45 +3621,29 @@ export default function GameClient({
   };
 
   const resultShareCopy = () => {
+    const shareCopy = SHARE_TEXT_COPY[locale];
     const marks = resultShareMarks;
     const sequence = marks
       .slice(0, DAILY_CHALLENGE_DECISIONS)
       .map((value) => (value >= 70 ? "🟩" : value >= 45 ? "🟨" : "🟥"))
       .join("");
-    const shareMarket =
-      locale === "en"
-        ? market === "us"
-          ? "US Stocks"
-          : "China A-shares"
-        : marketLabel;
-    const title =
-      locale === "en"
-        ? "Blind Trading Daily · Mystery Market Challenge"
-        : "盲盘每日挑战｜神秘历史行情";
+    const shareMarket = market === "us" ? shareCopy.usStocks : shareCopy.chinaShares;
+    const title = `${shareCopy.title} · ${locale === "zh" ? "神秘历史行情" : "Mystery Market Challenge"}`;
     const chainLabel =
       activeDuel && scoreboard?.shareDuel
-        ? locale === "en"
-          ? ` · CHAIN R${scoreboard.shareDuel.chainDepth + 1}`
-          : ` · 接力第 ${scoreboard.shareDuel.chainDepth + 1} 轮`
+        ? shareCopy.chain(scoreboard.shareDuel.chainDepth + 1)
         : "";
     const crowdLine = crowdComparison.rounds
-      ? locale === "en"
-        ? `Crowd edge ${crowdComparison.beatCrowd} · Contrarian wins ${crowdComparison.contrarianWins}/${crowdComparison.contrarianCalls}`
-        : `领先人群 ${crowdComparison.beatCrowd} 次 · 逆向命中 ${crowdComparison.contrarianWins}/${crowdComparison.contrarianCalls}`
+      ? shareCopy.crowd(
+          crowdComparison.beatCrowd,
+          crowdComparison.contrarianWins,
+          crowdComparison.contrarianCalls,
+        )
       : "";
-    const styleLine =
-      locale === "en"
-        ? `Decision style · ${decisionStyle.title}`
-        : `今日决策风格 · ${decisionStyle.title}`;
+    const styleLine = shareCopy.style(decisionStyle.title);
     const comparisonLine = resultComparisonProof;
-    const text =
-      locale === "en"
-        ? `BLIND TRADING DAILY #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\nDecision ${skillScore} · Calibration ${decisionStats.calibration.toFixed(0)} · Risk ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\nSame mystery chart. Five decisions. Can you beat me?`
-        : `盲盘每日挑战 #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\n决策 ${skillScore} · 校准 ${decisionStats.calibration.toFixed(0)} · 风控 ${processScores.risk.toFixed(0)}${crowdLine ? `\n${crowdLine}` : ""}\n同一张神秘历史图，五次决策。你能超过我吗？`;
-    const compactText =
-      locale === "en"
-        ? `${comparisonLine ? `${comparisonLine} · ` : ""}My Blind Trading style is ${decisionStyle.title} · ${skillScore}${chainLabel} ${sequence} Same hidden chart, five calls. Can you beat me?`
-        : `${comparisonLine ? `${comparisonLine} · ` : ""}我是${decisionStyle.title}，盲盘挑战 ${skillScore} 分${chainLabel} ${sequence} 同一张隐藏行情，五次决策。你能超过我吗？`;
+    const text = `${title} #${today.replaceAll("-", "")} · ${shareMarket}${chainLabel}\n${sequence}\n${styleLine}${comparisonLine ? `\n${comparisonLine}` : ""}\n${shareCopy.score(skillScore, decisionStats.calibration.toFixed(0), processScores.risk.toFixed(0))}${crowdLine ? `\n${crowdLine}` : ""}\n${shareCopy.challenge}`;
+    const compactText = `${comparisonLine ? `${comparisonLine} · ` : ""}${shareCopy.compact(decisionStyle.title, skillScore, chainLabel, sequence)}`;
     return { compactText, text, title };
   };
 

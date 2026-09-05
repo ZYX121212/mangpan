@@ -195,6 +195,9 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /prepareDuelShareUrl/);
   assert.match(page, /shareSetupStatus/);
   assert.match(page, /result-share-channels/);
+  assert.match(page, /SHARE_TEXT_COPY/);
+  assert.match(page, /BLIND TRADING GIORNALIERO/);
+  assert.match(page, /GIOCA IL GRAFICO NASCOSTO DI OGGI/);
   assert.match(page, /resultChannelHref\("reddit"\)/);
   assert.match(page, /resultChannelHref\("bluesky"\)/);
   assert.match(page, /recordDuelShare\("reddit"\)/);
