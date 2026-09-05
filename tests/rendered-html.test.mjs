@@ -257,6 +257,7 @@ test("contains the complete blind chart game shell", async () => {
   assert.match(page, /<option value="en">EN<\/option>/);
   assert.match(page, /<option value="es">ES<\/option>/);
   assert.match(page, /<option value="fr">FR<\/option>/);
+  assert.match(page, /<option value="de">DE<\/option>/);
   assert.match(page, /useState<Locale>\("en"\)/);
   assert.match(page, /useState<MarketKind>\(initialChallenge\.market\)/);
   assert.match(page, /document\.documentElement\.lang/);

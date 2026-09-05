@@ -9,8 +9,9 @@ import {
 } from "react";
 import { translateEnglishToSpanish } from "./i18n-es";
 import { translateEnglishToFrench } from "./i18n-fr";
+import { translateEnglishToGerman } from "./i18n-de";
 
-export type Locale = "zh" | "en" | "es" | "fr";
+export type Locale = "zh" | "en" | "es" | "fr" | "de";
 
 export function normalizeLocale(value: unknown): Locale {
   if (typeof value !== "string") return "en";
@@ -18,6 +19,7 @@ export function normalizeLocale(value: unknown): Locale {
   if (normalized.startsWith("zh")) return "zh";
   if (normalized.startsWith("es")) return "es";
   if (normalized.startsWith("fr")) return "fr";
+  if (normalized.startsWith("de")) return "de";
   return "en";
 }
 
@@ -29,6 +31,7 @@ export function localeNumberTag(locale: Locale) {
   if (locale === "zh") return "zh-CN";
   if (locale === "es") return "es-ES";
   if (locale === "fr") return "fr-FR";
+  if (locale === "de") return "de-DE";
   return "en-US";
 }
 
@@ -650,6 +653,7 @@ export function translateText(text: string, locale: Locale): string {
   }
   if (locale === "es") translated = translateEnglishToSpanish(translated);
   if (locale === "fr") translated = translateEnglishToFrench(translated);
+  if (locale === "de") translated = translateEnglishToGerman(translated);
   cache.set(cacheKey, translated);
   return translated;
 }

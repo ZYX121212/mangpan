@@ -34,7 +34,7 @@ export type WebGameLaunchContext = {
   platform: WebGamePlatform;
   duelCode: string | null;
   crewCode: string | null;
-  locale: "en" | "es" | "fr" | "zh" | null;
+  locale: "en" | "es" | "fr" | "de" | "zh" | null;
 };
 
 declare global {
@@ -139,6 +139,7 @@ function platformLocale(value: unknown) {
   if (normalized.startsWith("zh")) return "zh";
   if (normalized.startsWith("es")) return "es";
   if (normalized.startsWith("fr")) return "fr";
+  if (normalized.startsWith("de")) return "de";
   return "en";
 }
 
