@@ -806,7 +806,7 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   );
   assert.match(scoreRoute, /scoreDate\(date, market\)/);
   assert.match(pageRoute, /<ModeLobby \/>/);
-  assert.match(modeLobby, /SIX WAYS TO PLAY/);
+  assert.match(modeLobby, /SEVEN WAYS TO PLAY/);
   assert.match(modeLobby, /href: "\/daily"/);
   assert.match(modeLobby, /href: "\/run"/);
   assert.doesNotMatch(modeLobby, /title: \{ en: "Endless Practice"/);
@@ -874,7 +874,10 @@ test("keeps ranking authoritative and identity hidden until settlement", async (
   assert.match(activationClient, /crew_first_invite_share/);
   for (const event of [
     "lobby_mode_daily",
+    "lobby_mode_sprint",
     "lobby_mode_practice",
+    "lobby_mode_run",
+    "lobby_mode_endless",
     "lobby_mode_training",
     "lobby_mode_duel",
     "lobby_mode_crew",

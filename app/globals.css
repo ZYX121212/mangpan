@@ -267,6 +267,7 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 .mode-lobby-card.sprint{border-color:#9eb4c8;background:linear-gradient(145deg,#f2f7fb,#dfeaf2)}
 .quick-read-banner{min-height:50px;margin:8px 0 0;padding:9px 12px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:3px 12px;border:1px solid #9eb4c8;border-radius:9px;background:linear-gradient(135deg,#263844,#3d5a6b);color:#fff}
 .quick-read-banner>span{grid-row:1/3;color:#c4d8e5;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em}
+.endless-banner{min-height:50px;margin:8px 0 0;padding:9px 12px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:3px 12px;border:1px solid #a8b99f;border-radius:9px;background:linear-gradient(135deg,#26382c,#426044);color:#fff}.endless-banner>span{grid-row:1/3;color:#c8dac5;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em}.endless-banner>b{font-size:11px}.endless-banner>small{grid-column:2;color:#d2e1cf;font-size:8px;line-height:1.35}.endless-banner>strong{grid-column:3;grid-row:1/3;color:#e5f0e2;font:800 14px ui-monospace,SFMono-Regular,Menlo,monospace}
 .quick-read-banner>b{font-size:11px}.quick-read-banner>small{grid-column:2;color:#cbdbe4;font-size:8px;line-height:1.35}.quick-read-banner>strong{grid-column:3;grid-row:1/3;color:#e1edf3;font:800 14px ui-monospace,SFMono-Regular,Menlo,monospace}
 .market-run-banner{min-height:46px;margin:8px 0 0;padding:7px 12px;display:grid;grid-template-columns:auto minmax(110px,1fr) auto auto;align-items:center;gap:9px;border:1px solid #b7a66d;border-radius:10px;background:linear-gradient(135deg,#2f3028,#55513a);color:#fff}
 .market-run-banner>span{color:#d7c995;font:800 8px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.13em}
@@ -335,3 +336,5 @@ dialog.modal-backdrop{width:100%;height:100%;max-width:none;max-height:none;marg
 @keyframes milestone-confetti-fall{0%{opacity:0;translate:0 -8px;rotate:0deg}18%{opacity:.9}100%{opacity:0;translate:8px 108px;rotate:220deg}}
 @media(max-width:560px){.milestone-celebration{min-height:105px;padding:15px 40px 15px 58px}.milestone-seal{left:14px;width:31px;height:31px;font-size:15px}.milestone-celebration b{font-size:12px}.milestone-celebration p{font-size:7px}}
 @media(prefers-reduced-motion:reduce){.milestone-celebration{animation:none}.milestone-confetti{display:none}}
+.mode-lobby-card.endless{border-color:#9fb19d;background:linear-gradient(145deg,#f2f7ef,#dfeade)}
+.mode-lobby-card:nth-child(6),.mode-lobby-card:nth-child(7){grid-column:span 3}

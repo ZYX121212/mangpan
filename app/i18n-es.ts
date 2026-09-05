@@ -426,6 +426,7 @@ const SPANISH: Record<string, string> = {
   "3 decisions · about 45–60 sec": "3 decisiones · unos 45–60 s",
   "Try a quick read": "Probar una lectura rápida",
   "SIX WAYS TO PLAY": "SEIS FORMAS DE JUGAR",
+  "SEVEN WAYS TO PLAY": "SIETE FORMAS DE JUGAR",
   "Quick Read · 3 calls": "Lectura rápida · 3 decisiones",
   "Three focused calls · full reveal": "Tres decisiones enfocadas · revelación completa",
   "No leaderboard pressure. Build a repeatable read in under a minute.": "Sin presión de clasificación. Crea una lectura repetible en menos de un minuto.",

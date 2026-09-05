@@ -5,6 +5,7 @@ import {
   resumeLatestSession,
   resumeSession,
   startDailySession,
+  startEndlessSession,
   startPracticeSession,
   startSprintSession,
 } from "../../challenge-sessions";
@@ -73,6 +74,8 @@ export async function GET(request: Request) {
         ? "daily"
         : params.get("mode") === "sprint"
           ? "sprint"
+          : params.get("mode") === "endless"
+            ? "endless"
           : "practice";
     const session =
       mode === "daily"
@@ -83,6 +86,12 @@ export async function GET(request: Request) {
               market,
               playerId,
             )
+          : mode === "endless"
+            ? await startEndlessSession(
+                params.get("seed")?.slice(0, 100) || crypto.randomUUID(),
+                market,
+                playerId,
+              )
         : await startPracticeSession(
             params.get("seed")?.slice(0, 100) || crypto.randomUUID(),
             market,

@@ -85,6 +85,21 @@ const MODES = [
   },
   {
     number: "04",
+    href: "/endless",
+    eyebrow: { en: "LONG CYCLE · NO CAP", zh: "长周期 · 无上限" },
+    title: { en: "Endless", zh: "无尽长周期" },
+    description: {
+      en: "Stay with one real historical cycle for as long as you want. Pause, return, and build a deeper decision record without a leaderboard.",
+      zh: "沿着一段真实历史周期持续判断；可以暂停、回来继续，不设回合上限，也不计入排行榜。",
+    },
+    meta: { en: "Long history · save and resume", zh: "长历史 · 可保存继续" },
+    action: { en: "Enter the long cycle", zh: "进入长周期" },
+    tone: "endless",
+    family: "solo",
+    event: "lobby_mode_endless",
+  },
+  {
+    number: "05",
     href: "/training",
     eyebrow: { en: "BUILD ONE SKILL", zh: "专项提升" },
     title: { en: "Training Lab", zh: "训练学院" },
@@ -99,7 +114,7 @@ const MODES = [
     event: "lobby_mode_training",
   },
   {
-    number: "05",
+    number: "06",
     href: "/duel",
     eyebrow: { en: "SAME CHART, TWO READS", zh: "同图对决" },
     title: { en: "Friend Duel", zh: "好友对决" },
@@ -114,7 +129,7 @@ const MODES = [
     event: "lobby_mode_duel",
   },
   {
-    number: "06",
+    number: "07",
     href: "/crew",
     eyebrow: { en: "KEEP THE FLAME ALIVE", zh: "共同连续" },
     title: { en: "Crew Streak", zh: "小队连续挑战" },
@@ -136,8 +151,8 @@ const MODE_FAMILIES = [
     number: "A",
     title: { en: "Play solo", zh: "单人游玩" },
     description: {
-      en: "Compete once today or build a five-chart run.",
-      zh: "完成今日竞技，或挑战五关连续行情。",
+      en: "Compete in a short daily puzzle, or stay with one long historical cycle.",
+      zh: "完成今日短局，或沿着一段长历史周期持续判断。",
     },
   },
   {
@@ -362,7 +377,7 @@ export default function ModeLobby() {
         <small>
           {isNewPlayer
             ? "ONE REAL CHART · NO SIGN-UP"
-              : "BLIND TRADING · SIX WAYS TO PLAY"}
+              : "BLIND TRADING · SEVEN WAYS TO PLAY"}
         </small>
         <h1>
           {isNewPlayer

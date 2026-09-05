@@ -2,6 +2,7 @@ import GameClient from "./game-client";
 import { getChatGPTUser } from "./chatgpt-auth";
 import {
   startDailySession,
+  startEndlessSession,
   startPracticeSession,
   startSprintSession,
 } from "./challenge-sessions";
@@ -13,6 +14,7 @@ export type GameEntryMode =
   | "daily"
   | "practice"
   | "sprint"
+  | "endless"
   | "training"
   | "run";
 
@@ -38,6 +40,8 @@ export default async function GameModePage({
       ? await startDailySession(marketDate(market), market, playerId)
       : mode === "sprint"
         ? await startSprintSession(crypto.randomUUID(), market, playerId)
+      : mode === "endless"
+        ? await startEndlessSession(crypto.randomUUID(), market, playerId)
       : await startPracticeSession(
           `${mode}-${crypto.randomUUID()}`,
           market,

@@ -280,7 +280,7 @@ function trackDuelEvent(
 
 type TradeMode = "buy" | "sell";
 type OrderInputMode = "allocation" | "quantity";
-type GameMode = "daily" | "practice" | "sprint";
+type GameMode = "daily" | "practice" | "sprint" | "endless";
 type ShareSetupStatus = "idle" | "loading" | "ready" | "error";
 const DAILY_ORDER_ALLOCATIONS = [
   0.25,
@@ -1859,13 +1859,18 @@ export default function GameClient({
     source: ShareSource;
     chainDepth: number;
   };
-  initialMode?: "daily" | "practice" | "sprint" | "training" | "run";
+  initialMode?:
+    | "daily"
+    | "practice"
+    | "sprint"
+    | "endless"
+    | "training"
+    | "run";
   initialGuide?: boolean;
   initialCrewCode?: string;
 }) {
   const router = useRouter();
   const isMarketRun = initialMode === "run";
-  const isQuickRead = initialMode === "sprint";
   const [locale, setLocale] = useState<Locale>("en");
   const [market, setMarket] = useState<MarketKind>(initialChallenge.market);
   const [gameMode, setGameMode] = useState<GameMode>(
@@ -1873,8 +1878,12 @@ export default function GameClient({
       ? "daily"
       : initialMode === "sprint"
         ? "sprint"
+        : initialMode === "endless"
+          ? "endless"
         : "practice",
   );
+  const isQuickRead = gameMode === "sprint";
+  const isEndlessMode = gameMode === "endless";
   const isBoundedChallenge = gameMode === "daily" || gameMode === "sprint";
   const [session, setSession] = useState(initialChallenge);
   const [stock, setStock] = useState(initialChallenge.stock);
@@ -1993,8 +2002,10 @@ export default function GameClient({
     (value: MarketKind) =>
       isMarketRun
         ? marketRunSessionStorageKey(value)
-        : `mangpan-active-session-${value}`,
-    [isMarketRun],
+        : isEndlessMode
+          ? `mangpan-endless-session-${value}`
+          : `mangpan-active-session-${value}`,
+    [isEndlessMode, isMarketRun],
   );
   useEffect(() => {
     reportPlatformLoaded();
@@ -2216,7 +2227,7 @@ export default function GameClient({
     ? Math.round(marketRunScore / marketRunProgress.scores.length)
     : 0;
   const requiresForecast =
-    isBoundedChallenge || isMarketRun || guidedRunActive;
+    isBoundedChallenge || isEndlessMode || isMarketRun || guidedRunActive;
   const crowdForecast = crowdHistory.at(-1) ?? null;
   const currencySymbol = market === "cn" ? "¥" : "$";
   const initialVisibleCount = initialBarsFor(stock);
@@ -3130,6 +3141,8 @@ export default function GameClient({
             ? "daily"
             : initialMode === "sprint"
               ? "sprint"
+              : initialMode === "endless"
+                ? "endless"
               : "practice";
         if (restored?.mode === expectedMode) resetSession(restored);
       })
@@ -4133,10 +4146,10 @@ export default function GameClient({
                 ? locale === "en"
                   ? "Quick Read"
                   : "快速读盘"
-              : isQuickRead
+              : isEndlessMode
                 ? locale === "en"
-                  ? "Quick Read"
-                  : "快速读盘"
+                  ? "Endless"
+                  : "无尽长周期"
               : initialMode === "training" || activeScenario
                 ? locale === "en"
                   ? "Training Lab"
@@ -4189,14 +4202,20 @@ export default function GameClient({
               ? `${marketLabel}Quick Read · 3 calls`
               : gameMode === "daily"
               ? `${marketLabel}每日 5 决策`
+              : isEndlessMode
+              ? `${marketLabel}Endless · 长周期`
               : `${marketLabel}无限练习`}
           </span>
           <i />
-          {isBoundedChallenge
-            ? locale === "en"
-              ? `Decision ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget}`
-              : `第 ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget} 次`
-            : `已推进 ${advancedDays} 个交易日`}
+            {isBoundedChallenge
+              ? locale === "en"
+                ? `Decision ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget}`
+                : `第 ${Math.min(session.decisionsUsed + 1, dailyDecisionTarget)}/${dailyDecisionTarget} 次`
+            : isEndlessMode
+              ? locale === "en"
+                ? `${advancedDays.toLocaleString(numberLocale)} trading days advanced`
+                : `已推进 ${advancedDays.toLocaleString(numberLocale)} 个交易日`
+              : `已推进 ${advancedDays} 个交易日`}
         </div>
         <div className="top-actions">
           <select
@@ -4373,6 +4392,21 @@ export default function GameClient({
               : "不计入排行榜，在一分钟内建立可复盘的读盘过程。"}
           </small>
           <strong>{session.decisionsUsed}/{dailyDecisionTarget}</strong>
+        </div>
+      ) : isEndlessMode ? (
+        <div className="endless-banner">
+          <span>{locale === "en" ? "ENDLESS" : "无尽长周期"}</span>
+          <b>
+            {locale === "en"
+              ? "One long historical cycle · keep reading until the end"
+              : "一段长历史周期 · 持续判断直到行情终点"}
+          </b>
+          <small>
+            {locale === "en"
+              ? "No round cap and no leaderboard. Pause, return, and build a deeper decision record."
+              : "没有回合上限，也不计入排行榜；可以中途离开，回来继续建立更完整的判断记录。"}
+          </small>
+          <strong>{advancedDays.toLocaleString(numberLocale)}d</strong>
         </div>
       ) : null}
       {isMarketRun && (
@@ -4768,10 +4802,16 @@ export default function GameClient({
                   ? locale === "en"
                     ? `Quick Read · ${dailyDecisionsRemaining} calls left`
                     : `快速读盘 · 剩余 ${dailyDecisionsRemaining} 次判断`
+                  : isEndlessMode
+                  ? locale === "en"
+                    ? `Endless · ${advancedDays.toLocaleString(numberLocale)} trading days`
+                    : `无尽长周期 · 已推进 ${advancedDays.toLocaleString(numberLocale)} 个交易日`
                   : gameMode === "daily"
                   ? locale === "en"
                     ? `Daily sprint · ${dailyDecisionsRemaining} decisions left`
                     : `每日快局 · 剩余 ${dailyDecisionsRemaining} 次决策`
+                  : locale === "en"
+                  ? "Practice · stop anytime"
                   : "无限练习 · 随时结束"}
               </small>
               <span className="keyboard-shortcuts" aria-label="Keyboard shortcuts">

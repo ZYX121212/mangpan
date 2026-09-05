@@ -35,7 +35,7 @@ import type {
 } from "./market-data";
 import type { Candle, StockSample } from "./stock-types";
 
-export type GameMode = "daily" | "practice" | "sprint";
+export type GameMode = "daily" | "practice" | "sprint" | "endless";
 
 function maxDecisionsFor(mode: GameMode | string) {
   if (mode === "daily") return DAILY_CHALLENGE_DECISIONS;
@@ -44,7 +44,9 @@ function maxDecisionsFor(mode: GameMode | string) {
 }
 
 function storedGameMode(mode: string): GameMode {
-  return mode === "daily" || mode === "sprint" ? mode : "practice";
+  return mode === "daily" || mode === "sprint" || mode === "endless"
+    ? mode
+    : "practice";
 }
 export type PublicChallengeSession = {
   sessionId: string;
@@ -462,6 +464,27 @@ export async function startSprintSession(
   );
 }
 
+export async function startEndlessSession(
+  seed: string,
+  market: MarketKind,
+  playerId?: string,
+) {
+  const challenge = await createPracticeChallenge(
+    `endless-${seed}`,
+    market,
+    "random",
+    "standard",
+  );
+  return insertSession(
+    challenge.id,
+    challenge.bundle,
+    "endless",
+    "random",
+    "standard",
+    playerId,
+  );
+}
+
 export async function startPatternQuiz(
   seed: string,
   market: MarketKind,
@@ -655,7 +678,9 @@ export async function abandonSession(id: string, playerId?: string) {
       ? "abandoned_daily"
       : session.mode === "sprint"
         ? "abandoned_sprint"
-        : "abandoned_practice";
+        : session.mode === "endless"
+          ? "abandoned_endless"
+          : "abandoned_practice";
   const abandoned = await getD1Database()
     .prepare(
       "UPDATE game_sessions SET mode = ?, finished = 1, updated_at = ? WHERE id = ? AND finished = 0",
