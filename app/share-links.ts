@@ -9,7 +9,7 @@ export type ShareChannel =
   | "copy";
 
 export type ShareSource = ShareChannel | "direct";
-export type ShareLocale = "en" | "zh" | "es" | "fr" | "de" | "it";
+export type ShareLocale = "en" | "zh" | "es" | "fr" | "de" | "it" | "tr";
 
 const SHARE_SOURCES = new Set<ShareSource>([
   "native",
@@ -93,7 +93,19 @@ export function shareSourceLabel(source: ShareSource, locale: ShareLocale = "en"
                   copy: "Link copiato",
                   direct: "Diretto",
                 } as const)
-              : ({
+              : locale === "tr"
+                ? ({
+                    native: "Sistem paylaşımı",
+                    x: "X",
+                    whatsapp: "WhatsApp",
+                    telegram: "Telegram",
+                    reddit: "Reddit",
+                    bluesky: "Bluesky",
+                    qr: "Kart QR kodu",
+                    copy: "Bağlantı kopyalandı",
+                    direct: "Doğrudan",
+                  } as const)
+                : ({
       native: "System share",
       x: "X",
       whatsapp: "WhatsApp",
@@ -123,6 +135,7 @@ export function shareComparisonHook(
   if (locale === "fr") return `Tu devances ${value}% des joueurs aujourd’hui`;
   if (locale === "de") return `Heute besser als ${value}% der Spieler`;
   if (locale === "it") return `Hai superato il ${value}% dei giocatori oggi`;
+  if (locale === "tr") return `Bugün oyuncuların %${value}'inden daha iyi oynadın`;
   return `Beat ${value}% of players today`;
 }
 

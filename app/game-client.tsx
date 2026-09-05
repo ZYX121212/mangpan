@@ -89,6 +89,8 @@ function documentTitleFor(locale: Locale) {
     return "Trading a ciegas | Reto con mercados históricos reales";
   if (locale === "fr")
     return "Trading à l’aveugle | Défi sur des marchés historiques réels";
+  if (locale === "tr")
+    return "Blind Trading | Gerçek Tarihsel Piyasa Mücadelesi";
   return "Blind Trading | Real Historical Market Challenge";
 }
 
@@ -281,6 +283,20 @@ const SHARE_TEXT_COPY: Record<
     runTitle: "BLIND TRADING · CORSA SUI MERCATI",
     runChallenge: (grade, total) => `Ho completato cinque mercati nascosti con voto ${grade} (${total}/500). Riesci a superare la mia corsa?`,
     runCompact: (grade, total, sequence) => `Corsa ${grade} · ${total}/500 ${sequence} Cinque mercati nascosti. Riesci a battermi?`,
+  },
+  tr: {
+    title: "BLIND TRADING GÜNLÜK",
+    usStocks: "ABD Hisseleri",
+    chinaShares: "Çin A-Hisseleri",
+    chain: (round) => ` · ZİNCİR R${round}`,
+    crowd: (beat, wins, calls) => `Kalabalık avantajı ${beat} · Ters yön isabeti ${wins}/${calls}`,
+    style: (name) => `Karar stili · ${name}`,
+    score: (score, calibration, risk) => `Karar ${score} · Kalibrasyon ${calibration} · Risk ${risk}`,
+    challenge: "Aynı gizemli grafik. Beş karar. Beni geçebilir misin?",
+    compact: (name, score, chain, sequence) => `Blind Trading stilim ${name} · ${score}${chain} ${sequence} Aynı gizli grafik, beş karar. Beni geçebilir misin?`,
+    runTitle: "BLIND TRADING · PİYASA KOŞUSU",
+    runChallenge: (grade, total) => `Beş gizli piyasayı ${grade} notuyla tamamladım (${total}/500). Koşumu geçebilir misin?`,
+    runCompact: (grade, total, sequence) => `Piyasa Koşusu ${grade} · ${total}/500 ${sequence} Beş gizli piyasa. Beni geçebilir misin?`,
   },
 };
 
@@ -4462,6 +4478,7 @@ export default function GameClient({
             <option value="fr">FR</option>
             <option value="de">DE</option>
             <option value="it">IT</option>
+            <option value="tr">TR</option>
             <option value="zh">ZH</option>
           </select>
           <button

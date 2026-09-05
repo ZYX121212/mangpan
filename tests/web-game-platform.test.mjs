@@ -133,6 +133,31 @@ test("reads a Spanish portal locale for the international first-play path", asyn
   }
 });
 
+test("reads a Turkish portal locale for the international first-play path", async () => {
+  const previousWindow = globalThis.window;
+  const previousDocument = globalThis.document;
+  globalThis.window = {
+    location: { hostname: "games.crazygames.com", search: "" },
+    CrazyGames: {
+      SDK: {
+        async init() {},
+        game: { gameplayStart() {}, gameplayStop() {} },
+        user: { systemInfo: { locale: "tr-TR" } },
+      },
+    },
+  };
+  globalThis.document = { referrer: "https://www.crazygames.com/" };
+  try {
+    const adapter = await import(
+      `../app/web-game-platform.ts?crazy-turkish=${Date.now()}`
+    );
+    assert.equal((await adapter.getWebGameLaunchContext()).locale, "tr");
+  } finally {
+    globalThis.window = previousWindow;
+    globalThis.document = previousDocument;
+  }
+});
+
 test("creates Poki-native crew links and reads prefixed launch params", async () => {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;

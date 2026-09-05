@@ -11,8 +11,9 @@ import { translateEnglishToSpanish } from "./i18n-es";
 import { translateEnglishToFrench } from "./i18n-fr";
 import { translateEnglishToGerman } from "./i18n-de";
 import { translateEnglishToItalian } from "./i18n-it";
+import { translateEnglishToTurkish } from "./i18n-tr";
 
-export type Locale = "zh" | "en" | "es" | "fr" | "de" | "it";
+export type Locale = "zh" | "en" | "es" | "fr" | "de" | "it" | "tr";
 
 export function normalizeLocale(value: unknown): Locale {
   if (typeof value !== "string") return "en";
@@ -22,6 +23,7 @@ export function normalizeLocale(value: unknown): Locale {
   if (normalized.startsWith("fr")) return "fr";
   if (normalized.startsWith("de")) return "de";
   if (normalized.startsWith("it")) return "it";
+  if (normalized.startsWith("tr")) return "tr";
   return "en";
 }
 
@@ -35,6 +37,7 @@ export function localeNumberTag(locale: Locale) {
   if (locale === "fr") return "fr-FR";
   if (locale === "de") return "de-DE";
   if (locale === "it") return "it-IT";
+  if (locale === "tr") return "tr-TR";
   return "en-US";
 }
 
@@ -701,6 +704,7 @@ export function translateText(text: string, locale: Locale): string {
   if (locale === "fr") translated = translateEnglishToFrench(translated);
   if (locale === "de") translated = translateEnglishToGerman(translated);
   if (locale === "it") translated = translateEnglishToItalian(translated);
+  if (locale === "tr") translated = translateEnglishToTurkish(translated);
   cache.set(cacheKey, translated);
   return translated;
 }
